@@ -2,7 +2,7 @@ import os
 import json
 import datetime
 import base64
-from google import genai
+import google.generativeai as genai
 import streamlit as st
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
