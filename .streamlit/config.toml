@@ -1,6 +1,6 @@
 [theme]
-# The primary accent color for interactive elements (like the progress bar)
-primaryColor = "#4A78D6" 
+# Changed to a light orange to match the Vonotec logo
+primaryColor = "#FF9933" 
 
 # The main background color for the app (Vonotec Blue)
 backgroundColor = "#2F5597"
