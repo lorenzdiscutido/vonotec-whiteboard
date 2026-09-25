@@ -1,18 +1,13 @@
 [theme]
-# Forces the app to always use Dark Mode
-base = "dark"
+# The primary accent color for interactive elements (like the progress bar)
+primaryColor = "#4A78D6" 
 
-# The accent orange from the 'V' in the logo for buttons and loading bars
-primaryColor = "#D54527"
+# The main background color for the app (Vonotec Blue)
+backgroundColor = "#2F5597"
 
-# The standard white background
-backgroundColor = "#FFFFFF"
+# The background color for the sidebar and secondary containers
+secondaryBackgroundColor = "#1D3B6B"
 
-# A subtle light gray for upload boxes and sidebars
-secondaryBackgroundColor = "#F0F2F6"
-
-# The dark navy blue from the logo for all app text
-textColor = "#1D375B"
-
-# The matching font family
+# Ensure text is white so it can be read on the dark blue background
+textColor = "#FFFFFF"
 font = "sans serif"
