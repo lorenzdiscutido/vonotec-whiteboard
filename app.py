@@ -11,6 +11,20 @@ from config import INCOMING_FOLDER, REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
 from gemini_client import get_raw_response, parse_and_clean_json
 
+LOG_FILE = "processed_log.json"
+
+def load_processed_log():
+    """Loads the list of already processed filenames."""
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def save_processed_log(log_list):
+    """Saves the updated list of processed filenames."""
+    with open(LOG_FILE, "w") as f:
+        json.dump(log_list, f)
+
 # ==========================================
 # 1. CONFIGURATION & RULES
 # ==========================================
@@ -207,10 +221,20 @@ if uploaded_files:
     st.markdown(f"**{len(uploaded_files)} image(s) selected.**")
     
     if st.button("Extract Data & Update Excel", type="primary"):
+        processed_log = load_processed_log()
         progress_bar = st.progress(0)
         status_text = st.empty()
         
+        processed_count = 0
+        skipped_count = 0
+        
         for i, uploaded_file in enumerate(uploaded_files):
+            if uploaded_file.name in processed_log:
+                st.warning(f"Skipping '{uploaded_file.name}' - already processed.")
+                skipped_count += 1
+                progress_bar.progress((i + 1) / len(uploaded_files))
+                continue
+                
             status_text.text(f"Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}")
             try:
                 temp_path = f"temp_{uploaded_file.name}"
@@ -218,6 +242,11 @@ if uploaded_files:
                     f.write(uploaded_file.getbuffer())
                 
                 process_image_to_excel(temp_path, output_xlsx_path)
+                
+                # Add to log immediately upon success
+                processed_log.append(uploaded_file.name)
+                save_processed_log(processed_log)
+                processed_count += 1
                 
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -227,8 +256,8 @@ if uploaded_files:
             
             progress_bar.progress((i + 1) / len(uploaded_files))
                 
-        status_text.text("Processing Complete.")
-        st.success(f"Data from {len(uploaded_files)} file(s) successfully extracted and added to the master sheet.")
+        status_text.text("Batch Complete.")
+        st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
 
 if os.path.exists(output_xlsx_path):
     st.markdown("---")
@@ -248,5 +277,8 @@ if os.path.exists(output_xlsx_path):
             
     with col2:
         if st.button("Start Fresh (Clear Current Data)", type="primary"):
-            os.remove(output_xlsx_path)
+            if os.path.exists(output_xlsx_path):
+                os.remove(output_xlsx_path)
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
             st.rerun()
