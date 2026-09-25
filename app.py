@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import base64
+from google import genai
 import streamlit as st
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
@@ -9,6 +10,12 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from config import INCOMING_FOLDER, REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
 from gemini_client import get_raw_response, parse_and_clean_json
+
+# ==========================================
+# 1. CONFIGURATION & RULES
+# ==========================================
+# Securely pull the API key from Streamlit Secrets
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def _populate_reference_sheet(wb):
     ws_ref = wb.create_sheet(title="Reference Data")
