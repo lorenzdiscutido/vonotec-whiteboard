@@ -335,7 +335,10 @@ if uploaded_files:
                 progress_bar.progress((i + 1) / len(uploaded_files))
                 continue
                 
-            status_text.text(f"Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}")
+            status_text.markdown(
+                f'<p class="status-msg">Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}</p>',
+                unsafe_allow_html=True
+            )
             try:
                 temp_path = f"temp_{uploaded_file.name}"
                 with open(temp_path, "wb") as f:
@@ -356,7 +359,10 @@ if uploaded_files:
             
             progress_bar.progress((i + 1) / len(uploaded_files))
                 
-        status_text.text("Batch Complete.")
+        status_text.markdown(
+            '<p class="status-msg">Batch Complete.</p>',
+            unsafe_allow_html=True
+        )
         st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
 
 if os.path.exists(output_xlsx_path):
