@@ -1,10 +1,28 @@
 # gemini_client.py
 import json
+import time
+import random
 import google.generativeai as genai
-from config import GEMINI_API_KEY, JSON_KEYS
+import streamlit as st
+from config import JSON_KEYS
 
-# Initialize the Gemini Client
-genai.configure(api_key=GEMINI_API_KEY)
+# Errors from Gemini that are temporary (busy / rate limited) and worth retrying
+try:
+    from google.api_core import exceptions as google_exceptions
+    RETRYABLE_ERRORS = (
+        google_exceptions.ResourceExhausted,
+        google_exceptions.TooManyRequests,
+        google_exceptions.ServiceUnavailable,
+        google_exceptions.DeadlineExceeded,
+        google_exceptions.InternalServerError,
+    )
+except ImportError:
+    RETRYABLE_ERRORS = ()
+
+MAX_ATTEMPTS = 4
+
+# Initialize the Gemini Client (key comes from Streamlit Secrets)
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-flash-lite-latest')
 
 def get_raw_response(img):
@@ -35,8 +53,23 @@ def get_raw_response(img):
         "DO NOT treat location modifiers like 'CC', 'C-C', or 'F-C' as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"])."
     )
 
-    response = model.generate_content([prompt_text, img])
-    raw_text = response.text.strip()
+    # Retry a few times if Gemini is busy or rate-limiting (likely with several users)
+    response = None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            response = model.generate_content([prompt_text, img])
+            break
+        except RETRYABLE_ERRORS:
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            time.sleep((2 ** attempt) + random.random())
+
+    try:
+        raw_text = response.text.strip()
+    except ValueError:
+        raise RuntimeError(
+            "Gemini returned no text for this image (it may have been blocked). Please try again."
+        )
     
     # Strip markdown block formatting if present
     if raw_text.startswith("```json"):
