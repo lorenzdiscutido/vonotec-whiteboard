@@ -14,7 +14,7 @@ from openpyxl.styles import Font, Alignment, PatternFill
 
 from config import REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
-from gemini_client import get_raw_response, parse_and_clean_json
+from gemini_client import get_raw_response, get_review_response, parse_and_clean_json, find_problems
 
 LOG_FILE = "processed_log.json"
 
@@ -22,9 +22,10 @@ LOG_FILE = "processed_log.json"
 MAX_PARALLEL_EXTRACTIONS = 3
 # Max Gemini calls running at the same time across ALL users (avoids rate limits)
 MAX_TOTAL_GEMINI_CALLS = 4
-# If Gemini finds no defects (or returns broken JSON), try again this many extra times
+# If Gemini returns broken JSON, try again this many extra times
 EXTRACTION_RETRIES = 2
-MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket"]
+# Second AI "review" pass on photos where the automatic checks find problems
+ENABLE_REVIEW_PASS = True
 
 
 def load_processed_log():
@@ -90,28 +91,35 @@ def _populate_reference_sheet(wb):
     ws_ref.row_dimensions[1].height = 28
 
 
-def has_any_defects(parsed_data):
-    """True if at least one material has a damage entry."""
-    return any(parsed_data.get(f"{mat} Damage") for mat in MATERIALS)
-
-
 def extract_data(filepath, gemini_gate):
-    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here).
-    An empty or broken answer is retried, because it is usually a missed reading."""
+    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here)."""
     img = load_image(filepath)
+
+    # Pass 1: read the board (retry if the answer is not valid JSON)
     parsed_data = None
     for attempt in range(EXTRACTION_RETRIES + 1):
-        is_last_attempt = attempt == EXTRACTION_RETRIES
         try:
             with gemini_gate:
                 raw_text = get_raw_response(img)
             parsed_data = parse_and_clean_json(raw_text)
-        except json.JSONDecodeError:
-            if is_last_attempt:
-                raise
-            continue
-        if has_any_defects(parsed_data):
             break
+        except json.JSONDecodeError:
+            if attempt == EXTRACTION_RETRIES:
+                raise
+
+    # Pass 2: a reviewer re-reads the board when the automatic checks find problems
+    problems = find_problems(parsed_data)
+    if ENABLE_REVIEW_PASS and problems:
+        try:
+            with gemini_gate:
+                raw_review = get_review_response(img, parsed_data, problems)
+            parsed_data = parse_and_clean_json(raw_review)
+        except Exception:
+            pass  # keep the first-pass result if the review fails
+        problems = find_problems(parsed_data)
+
+    # Whatever is still doubtful is shown to the user after the batch
+    parsed_data["Review Notes"] = problems
     return parsed_data
 
 
@@ -580,8 +588,11 @@ if uploaded_files:
                             current_log.append(item["hash"])
                             save_processed_log(current_log)
                             processed_count += 1
-                            if not has_any_defects(parsed_data):
-                                results.append(("warning", f"No defects were detected in '{item['name']}'. Please check this photo."))
+                            review_notes = parsed_data.get("Review Notes", [])
+                            if review_notes:
+                                shown = "; ".join(review_notes[:3])
+                                extra = f" (+{len(review_notes) - 3} more)" if len(review_notes) > 3 else ""
+                                results.append(("warning", f"Please double-check '{item['name']}': {shown}{extra}"))
 
                 except Exception as e:
                     results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
