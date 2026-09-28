@@ -191,7 +191,7 @@ def process_image_to_excel(filepath, output_xlsx_path):
 # --- UI CONFIGURATION ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
 
-# Inject Custom CSS for readability and styling
+# Inject Custom CSS for readability and closer vertical spacing in header
 st.markdown(
     """
     <style>
@@ -208,11 +208,13 @@ st.markdown(
     .main-title {
         color: #1E3A8A !important;
         font-weight: 800 !important;
-        margin: 0 !important;
+        margin-top: 0px !important;
+        margin-bottom: 0px !important; /* Removes bottom space from Title */
+        padding-bottom: 0px !important;
     }
     .sub-title {
         color: #475569 !important;
-        margin: 0 !important;
+        margin-top: -5px !important;    /* Pulls Subtitle up closer to Title */
         font-size: 1rem;
     }
     /* Solid Blue Button with Orange Text */
