@@ -53,7 +53,9 @@ def _retry_wait_seconds(error, attempt):
 
 # Initialize the Gemini Client (key comes from Streamlit Secrets)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-flash-lite-latest')
+# Change this one line to try another model (e.g. a Flash model instead of Flash-Lite)
+MODEL_NAME = 'gemini-flash-lite-latest'
+model = genai.GenerativeModel(MODEL_NAME)
 
 def get_raw_response(img):
     """Sends the image and prompt to Gemini and extracts the raw text block."""
@@ -70,6 +72,7 @@ def get_raw_response(img):
         "- Example exact JSON output for Sealant:\n"
         "\"Sealant Damage\": [\"DS C-C\", \"DS F-C\"],\n"
         "\"Sealant Dimension\": [\"340 CM\", \"120 CM\"]\n"
+        "Examine every material row carefully, including small, faint, or crowded handwriting, and do not skip any entry. Only return an empty array when that row is truly blank. "
         "CRITICAL FORMATTING FOR RULE 6: "
         "- FORCE UPPERCASE: Convert all text to uppercase (e.g., 'ds' to 'DS'). "
         "- TARGETED UNITS: For 'Sealant Dimension', output the unit simply as 'CM'. For 'Concrete Dimension', 'Paint Dimension', and 'Gasket Dimension', output the unit as 'CM²' (squared). "
