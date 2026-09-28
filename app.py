@@ -28,6 +28,7 @@ def save_processed_log(log_list):
 # ==========================================
 # 1. CONFIGURATION & RULES
 # ==========================================
+# Securely pull the API key from Streamlit Secrets
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def _populate_reference_sheet(wb):
@@ -91,10 +92,12 @@ def process_image_to_excel(filepath, output_xlsx_path):
 
         ws['M1'].fill = gray_fill
         ws['M2'].fill = gray_fill
+
         ws.column_dimensions['J'].width = 24
         ws.column_dimensions['K'].width = 30
         ws.column_dimensions['L'].width = 28
         ws.column_dimensions['M'].width = 22
+
         _populate_reference_sheet(wb)
 
     start_row = ws.max_row + 1
@@ -103,14 +106,17 @@ def process_image_to_excel(filepath, output_xlsx_path):
     rows_data = []
     for mat in ["Sealant", "Concrete", "Paint", "Gasket"]:
         rows_data.append((mat, "", True, False, mat)) 
+        
         dmg_list = parsed_data.get(f"{mat} Damage", [])
         dim_list = parsed_data.get(f"{mat} Dimension", [])
+        
         expanded_dmg = []
         expanded_dim = []
         
         for i in range(max(len(dmg_list), len(dim_list))):
             dmg_str = dmg_list[i] if i < len(dmg_list) else ""
             dim_str = dim_list[i] if i < len(dim_list) else ""
+            
             tokens = str(dmg_str).split()
             found_codes = [t for t in tokens if t in VALID_CODES]
             
@@ -129,6 +135,7 @@ def process_image_to_excel(filepath, output_xlsx_path):
             rows_data.append((dmg_val, dim_val, False, True, mat)) 
 
     total_rows = len(rows_data)
+
     static_keys = ["Submitter", "Date", "Elevation", "Drop", "Floor", "Tower"]
     for i, key in enumerate(static_keys):
         ws.cell(row=start_row, column=i+1).value = parsed_data.get(key, "")
@@ -139,6 +146,7 @@ def process_image_to_excel(filepath, output_xlsx_path):
         r = start_row + i
         cell_g = ws.cell(row=r, column=7)
         cell_h = ws.cell(row=r, column=8)
+        
         cell_g.value = g_val
         cell_h.value = h_val
 
@@ -183,6 +191,7 @@ def process_image_to_excel(filepath, output_xlsx_path):
 # --- UI CONFIGURATION ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
 
+# Inject Custom CSS for readability and closer vertical spacing in header
 st.markdown(
     """
     <style>
@@ -191,51 +200,43 @@ st.markdown(
     }
     .header-container {
         background-color: #ffffff;
-        padding: 15px 20px;
+        padding: 20px;
         border-radius: 0 0 10px 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        margin-bottom: 10px; /* Reduced space below header */
+        margin-bottom: 20px;
     }
     .main-title {
         color: #1E3A8A !important;
         font-weight: 800 !important;
         margin-top: 0px !important;
-        margin-bottom: 0px !important;
+        margin-bottom: 0px !important; /* Removes bottom space from Title */
         padding-bottom: 0px !important;
     }
     .sub-title {
         color: #475569 !important;
-        margin-top: -5px !important;
+        margin-top: -5px !important;    /* Pulls Subtitle up closer to Title */
         font-size: 1rem;
-        margin-bottom: 0px !important;
     }
-    /* Buttons: Bold Thick Font and Solid Blue */
+    /* Solid Blue Button with Orange Text */
     div.stButton > button:first-child, .stDownloadButton > button:first-child {
         background-color: #2F5597 !important;
         color: #FFA500 !important;
         border: none !important;
-        font-weight: 800 !important; /* Thickest font weight */
+        font-weight: bold !important;
         padding: 0.75rem 2rem !important;
         border-radius: 5px !important;
         width: 100%;
-        font-size: 1.1rem !important;
     }
     .instruction-text {
         color: #1e293b !important;
         background-color: #ffffff;
-        padding: 12px 15px;
+        padding: 15px;
         border-radius: 5px;
         border-left: 5px solid #2F5597;
-        margin-bottom: 10px; /* Reduced space below instruction */
+        margin-bottom: 20px;
     }
     h3 {
         color: #1E3A8A !important;
-        margin-top: 15px !important; /* Reduced space above headers */
-        margin-bottom: 10px !important;
-    }
-    /* Reduce vertical gap between standard streamlit elements */
-    [data-testid="stVerticalBlock"] > div {
-        gap: 0.5rem !important;
     }
     </style>
     """,
@@ -313,6 +314,7 @@ if uploaded_files:
                 
                 process_image_to_excel(temp_path, output_xlsx_path)
                 
+                # Add to log immediately upon success
                 processed_log.append(uploaded_file.name)
                 save_processed_log(processed_log)
                 processed_count += 1
@@ -329,6 +331,7 @@ if uploaded_files:
         st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
 
 if os.path.exists(output_xlsx_path):
+    st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Master File Management")
 
     col1, col2 = st.columns(2)
@@ -336,7 +339,7 @@ if os.path.exists(output_xlsx_path):
     with col1:
         with open(output_xlsx_path, "rb") as file:
             st.download_button(
-                label="Download Master Output",
+                label=f"Download {output_xlsx_path}",
                 data=file,
                 file_name=output_xlsx_path,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
