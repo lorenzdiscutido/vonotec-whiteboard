@@ -261,6 +261,30 @@ st.markdown(
         color: #1e293b !important;
     }
 
+    /* Orange "Clear All Photos" button (mild action) */
+    .st-key-clear_photos div.stButton > button:first-child {
+        background-color: #F97316 !important;
+        color: #FFFFFF !important;
+    }
+    .st-key-clear_photos div.stButton > button:first-child p {
+        color: #FFFFFF !important;
+    }
+    .st-key-clear_photos div.stButton > button:first-child:hover {
+        background-color: #EA580C !important;
+    }
+
+    /* Red "Start Fresh (Clear Data)" button (destructive action) */
+    .st-key-start_fresh div.stButton > button:first-child {
+        background-color: #DC2626 !important;
+        color: #FFFFFF !important;
+    }
+    .st-key-start_fresh div.stButton > button:first-child p {
+        color: #FFFFFF !important;
+    }
+    .st-key-start_fresh div.stButton > button:first-child:hover {
+        background-color: #B91C1C !important;
+    }
+
     h3 {
         color: #1E3A8A !important;
     }
@@ -347,7 +371,7 @@ if uploaded_files:
     with btn_col1:
         extract_clicked = st.button("Extract Data & Update Excel", type="primary")
     with btn_col2:
-        clear_clicked = st.button("Clear All Photos", type="primary")
+        clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
 
     if clear_clicked:
         st.session_state.uploader_key += 1
@@ -420,7 +444,7 @@ if os.path.exists(output_xlsx_path):
         )
             
     with col2:
-        if st.button("Start Fresh (Clear Data)", type="primary"):
+        if st.button("Start Fresh (Clear Data)", type="primary", key="start_fresh"):
             if os.path.exists(output_xlsx_path):
                 os.remove(output_xlsx_path)
             if os.path.exists(LOG_FILE):
