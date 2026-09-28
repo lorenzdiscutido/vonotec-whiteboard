@@ -373,13 +373,14 @@ if os.path.exists(output_xlsx_path):
 
     with col1:
         with open(output_xlsx_path, "rb") as file:
-            st.download_button(
-                label=f"Download {output_xlsx_path}",
-                data=file,
-                file_name=output_xlsx_path,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
+            xlsx_bytes = file.read()
+        st.download_button(
+            label=f"Download {output_xlsx_path}",
+            data=xlsx_bytes,
+            file_name=output_xlsx_path,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary"
+        )
             
     with col2:
         if st.button("Start Fresh (Clear Data)", type="primary"):
