@@ -444,7 +444,7 @@ if os.path.exists(output_xlsx_path):
         )
             
     with col2:
-        if st.button("Start Fresh (Clear Data)", type="primary", key="start_fresh"):
+        if st.button("Clear Data", type="primary", key="start_fresh"):
             if os.path.exists(output_xlsx_path):
                 os.remove(output_xlsx_path)
             if os.path.exists(LOG_FILE):
