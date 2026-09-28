@@ -11,24 +11,70 @@ from config import INCOMING_FOLDER, REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
 from gemini_client import get_raw_response, parse_and_clean_json
 
+# --- UI CONFIGURATION & STYLING ---
+st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
+
+# Custom CSS for Padding, Colors, and Button Styling
+st.markdown("""
+    <style>
+    /* Main container padding */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 5rem;
+        padding-left: 5rem;
+        padding-right: 5rem;
+    }
+
+    /* Custom Button Styling: Blue Background, Orange Text */
+    div.stButton > button:first-child {
+        background-color: #2F5597 !important; /* Professional Blue */
+        color: #FFA500 !important;           /* Vibrant Orange */
+        border: 2px solid #FFA500 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        padding: 0.6rem 2rem !important;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    div.stButton > button:first-child:hover {
+        background-color: #1E3A8A !important;
+        color: #FF8C00 !important;
+        border: 2px solid #FF8C00 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    /* Card-like container for uploads */
+    .upload-container {
+        background-color: #f8f9fa;
+        padding: 30px;
+        border-radius: 15px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 25px;
+    }
+
+    /* Header styling */
+    .main-title {
+        color: #1E3A8A;
+        font-weight: 800;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 LOG_FILE = "processed_log.json"
 
 def load_processed_log():
-    """Loads the list of already processed filenames."""
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "r") as f:
             return json.load(f)
     return []
 
 def save_processed_log(log_list):
-    """Saves the updated list of processed filenames."""
     with open(LOG_FILE, "w") as f:
         json.dump(log_list, f)
 
-# ==========================================
-# 1. CONFIGURATION & RULES
-# ==========================================
-# Securely pull the API key from Streamlit Secrets
+# Securely pull the API key
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def _populate_reference_sheet(wb):
@@ -92,12 +138,10 @@ def process_image_to_excel(filepath, output_xlsx_path):
 
         ws['M1'].fill = gray_fill
         ws['M2'].fill = gray_fill
-
         ws.column_dimensions['J'].width = 24
         ws.column_dimensions['K'].width = 30
         ws.column_dimensions['L'].width = 28
         ws.column_dimensions['M'].width = 22
-
         _populate_reference_sheet(wb)
 
     start_row = ws.max_row + 1
@@ -106,17 +150,14 @@ def process_image_to_excel(filepath, output_xlsx_path):
     rows_data = []
     for mat in ["Sealant", "Concrete", "Paint", "Gasket"]:
         rows_data.append((mat, "", True, False, mat)) 
-        
         dmg_list = parsed_data.get(f"{mat} Damage", [])
         dim_list = parsed_data.get(f"{mat} Dimension", [])
-        
         expanded_dmg = []
         expanded_dim = []
         
         for i in range(max(len(dmg_list), len(dim_list))):
             dmg_str = dmg_list[i] if i < len(dmg_list) else ""
             dim_str = dim_list[i] if i < len(dim_list) else ""
-            
             tokens = str(dmg_str).split()
             found_codes = [t for t in tokens if t in VALID_CODES]
             
@@ -135,7 +176,6 @@ def process_image_to_excel(filepath, output_xlsx_path):
             rows_data.append((dmg_val, dim_val, False, True, mat)) 
 
     total_rows = len(rows_data)
-
     static_keys = ["Submitter", "Date", "Elevation", "Drop", "Floor", "Tower"]
     for i, key in enumerate(static_keys):
         ws.cell(row=start_row, column=i+1).value = parsed_data.get(key, "")
@@ -146,7 +186,6 @@ def process_image_to_excel(filepath, output_xlsx_path):
         r = start_row + i
         cell_g = ws.cell(row=r, column=7)
         cell_h = ws.cell(row=r, column=8)
-        
         cell_g.value = g_val
         cell_h.value = h_val
 
@@ -188,95 +227,99 @@ def process_image_to_excel(filepath, output_xlsx_path):
     ws.column_dimensions[photo_col_letter].width = 25
     wb.save(output_xlsx_path)
 
-# --- UI CONFIGURATION ---
-st.set_page_config(page_title="Vonotec Whiteboard Extractor")
 
+# --- UI CONTENT ---
 try:
     with open("vonotec.png", "rb") as f:
         logo_base64 = base64.b64encode(f.read()).decode()
         
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 10px; margin-top: -20px;">
-            <div style="background-color: white; padding: 10px 15px; border-radius: 8px; display: flex; align-items: center;">
-                <img src="data:image/png;base64,{logo_base64}" width="200">
+        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 30px;">
+            <div style="background-color: white; padding: 10px 15px; border-radius: 8px; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <img src="data:image/png;base64,{logo_base64}" width="180">
             </div>
-            <h1 style="margin: 0; padding: 0;">Whiteboard AI</h1>
+            <div>
+                <h1 style="margin: 0; padding: 0; color: #1E3A8A; font-size: 2.5rem;">Whiteboard AI</h1>
+                <p style="margin: 0; color: #666;">Data Extraction & Master Log Automator</p>
+            </div>
         </div>
         """, 
         unsafe_allow_html=True
     )
 except FileNotFoundError:
     st.title("Vonotec Whiteboard AI")
-    st.warning("Ensure 'vonotec.png' is placed in the same folder as this script to display the logo.")
 
-st.markdown("Upload one or multiple whiteboard photos below to automatically extract data and append it to the Master Excel File. You can also drag and drop an entire folder of images here.")
-
-current_month_year = datetime.datetime.now().strftime("%B_%Y") 
-output_xlsx_path = f"master_output_{current_month_year}.xlsx"
-
-uploaded_files = st.file_uploader("Choose whiteboard images...", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-if uploaded_files:
-    st.markdown(f"**{len(uploaded_files)} image(s) selected.**")
+# Main Container for Upload
+with st.container():
+    st.markdown('<div class="upload-container">', unsafe_allow_html=True)
+    st.subheader("📤 Upload Whiteboard Photos")
+    st.info("Upload one or multiple whiteboard photos below. The AI will extract the data and append it to the Master Excel File.")
     
-    if st.button("Extract Data & Update Excel", type="primary"):
-        processed_log = load_processed_log()
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        processed_count = 0
-        skipped_count = 0
-        
-        for i, uploaded_file in enumerate(uploaded_files):
-            if uploaded_file.name in processed_log:
-                st.warning(f"Skipping '{uploaded_file.name}' - already processed.")
-                skipped_count += 1
-                progress_bar.progress((i + 1) / len(uploaded_files))
-                continue
-                
-            status_text.text(f"Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}")
-            try:
-                temp_path = f"temp_{uploaded_file.name}"
-                with open(temp_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                
-                process_image_to_excel(temp_path, output_xlsx_path)
-                
-                # Add to log immediately upon success
-                processed_log.append(uploaded_file.name)
-                save_processed_log(processed_log)
-                processed_count += 1
-                
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                    
-            except Exception as e:
-                st.error(f"An error occurred while processing {uploaded_file.name}: {e}")
-            
-            progress_bar.progress((i + 1) / len(uploaded_files))
-                
-        status_text.text("Batch Complete.")
-        st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
+    uploaded_files = st.file_uploader("", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    
+    current_month_year = datetime.datetime.now().strftime("%B_%Y") 
+    output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 
+    if uploaded_files:
+        st.markdown(f"**{len(uploaded_files)} file(s) ready for processing.**")
+        if st.button("Extract Data & Update Excel"):
+            processed_log = load_processed_log()
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            processed_count = 0
+            skipped_count = 0
+            
+            for i, uploaded_file in enumerate(uploaded_files):
+                if uploaded_file.name in processed_log:
+                    st.warning(f"Skipping '{uploaded_file.name}' - already processed.")
+                    skipped_count += 1
+                    progress_bar.progress((i + 1) / len(uploaded_files))
+                    continue
+                    
+                status_text.text(f"Processing: {uploaded_file.name}")
+                try:
+                    temp_path = f"temp_{uploaded_file.name}"
+                    with open(temp_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    
+                    process_image_to_excel(temp_path, output_xlsx_path)
+                    
+                    processed_log.append(uploaded_file.name)
+                    save_processed_log(processed_log)
+                    processed_count += 1
+                    
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                        
+                except Exception as e:
+                    st.error(f"Error processing {uploaded_file.name}: {e}")
+                
+                progress_bar.progress((i + 1) / len(uploaded_files))
+                    
+            status_text.text("✅ Processing Complete.")
+            st.success(f"Successfully added {processed_count} files. Skipped {skipped_count} duplicates.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer Management Section
 if os.path.exists(output_xlsx_path):
     st.markdown("---")
-    st.subheader("Manage Master File")
+    st.subheader("📋 Master File Management")
     
-    col1, col2 = st.columns(2)
+    m_col1, m_col2 = st.columns([1, 1])
     
-    with col1:
+    with m_col1:
         with open(output_xlsx_path, "rb") as file:
             st.download_button(
-                label=f"Download {output_xlsx_path}",
+                label=f"📥 Download {output_xlsx_path}",
                 data=file,
                 file_name=output_xlsx_path,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
-    with col2:
-        if st.button("Start Fresh (Clear Current Data)", type="primary"):
+    with m_col2:
+        if st.button("🗑️ Start Fresh (Clear Data)"):
             if os.path.exists(output_xlsx_path):
                 os.remove(output_xlsx_path)
             if os.path.exists(LOG_FILE):
