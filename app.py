@@ -312,7 +312,30 @@ st.subheader("Upload Whiteboard Photos")
 current_month_year = datetime.datetime.now().strftime("%B_%Y")
 output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 
-uploaded_files = st.file_uploader("Choose whiteboard images...", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
+# Changing the uploader's key resets it, which clears all selected photos at once
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
+if "batch_results" not in st.session_state:
+    st.session_state.batch_results = []
+
+uploaded_files = st.file_uploader(
+    "Choose whiteboard images...",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True,
+    label_visibility="collapsed",
+    key=f"uploader_{st.session_state.uploader_key}"
+)
+
+# Show the results of the last batch (kept even after the uploader is cleared)
+for kind, text in st.session_state.batch_results:
+    if kind == "warning":
+        st.warning(text)
+    elif kind == "error":
+        st.error(text)
+    elif kind == "success":
+        st.success(text)
+    else:
+        st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
 
 if uploaded_files:
     st.markdown(
@@ -320,17 +343,29 @@ if uploaded_files:
         unsafe_allow_html=True
     )
 
-    if st.button("Extract Data & Update Excel", type="primary"):
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        extract_clicked = st.button("Extract Data & Update Excel", type="primary")
+    with btn_col2:
+        clear_clicked = st.button("Clear All Photos", type="primary")
+
+    if clear_clicked:
+        st.session_state.uploader_key += 1
+        st.session_state.batch_results = []
+        st.rerun()
+
+    if extract_clicked:
         processed_log = load_processed_log()
         progress_bar = st.progress(0)
         status_text = st.empty()
+        results = []
         
         processed_count = 0
         skipped_count = 0
         
         for i, uploaded_file in enumerate(uploaded_files):
             if uploaded_file.name in processed_log:
-                st.warning(f"Skipping '{uploaded_file.name}' - already processed.")
+                results.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
                 skipped_count += 1
                 progress_bar.progress((i + 1) / len(uploaded_files))
                 continue
@@ -355,15 +390,17 @@ if uploaded_files:
                     os.remove(temp_path)
                     
             except Exception as e:
-                st.error(f"An error occurred while processing {uploaded_file.name}: {e}")
+                results.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
             
             progress_bar.progress((i + 1) / len(uploaded_files))
                 
-        status_text.markdown(
-            '<p class="status-msg">Batch Complete.</p>',
-            unsafe_allow_html=True
-        )
-        st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
+        results.append(("status", "Batch Complete."))
+        results.append(("success", f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s)."))
+
+        # Save the messages, then clear the uploader automatically
+        st.session_state.batch_results = results
+        st.session_state.uploader_key += 1
+        st.rerun()
 
 if os.path.exists(output_xlsx_path):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -388,4 +425,5 @@ if os.path.exists(output_xlsx_path):
                 os.remove(output_xlsx_path)
             if os.path.exists(LOG_FILE):
                 os.remove(LOG_FILE)
+            st.session_state.batch_results = []
             st.rerun()
