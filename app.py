@@ -200,40 +200,71 @@ st.markdown(
     }
     .header-container {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 0 0 10px 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        padding: 20px 24px;
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(15,23,42,0.08);
+        margin-bottom: 24px;
+    }
+    /* Logo and title block share the same vertical center */
+    .header-flex {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    .header-flex img {
+        display: block;
+        height: auto;
+        margin: 0;
+    }
+    .header-flex > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     .main-title {
         color: #1E3A8A !important;
         font-weight: 800 !important;
-        margin-top: 0px !important;
-        margin-bottom: 0px !important; /* Removes bottom space from Title */
-        padding-bottom: 0px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
     }
     .sub-title {
         color: #475569 !important;
-        margin-top: -5px !important;    /* Pulls Subtitle up closer to Title */
+        margin: 4px 0 0 0 !important;
+        padding: 0 !important;
+        line-height: 1.3 !important;
         font-size: 1rem;
     }
-    /* Solid Blue Button with Orange Text */
+    /* Solid Blue Button with White Text */
     div.stButton > button:first-child, .stDownloadButton > button:first-child {
         background-color: #2F5597 !important;
-        color: #FFA500 !important;
+        color: #ffffff !important;
         border: none !important;
-        font-weight: 2000 !important;
+        font-weight: 700 !important;
         padding: 0.75rem 2rem !important;
-        border-radius: 5px !important;
+        border-radius: 8px !important;
         width: 100%;
+        box-shadow: 0 2px 6px rgba(47,85,151,0.25);
+        transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    div.stButton > button:first-child p,
+    .stDownloadButton > button:first-child p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    div.stButton > button:first-child:hover,
+    .stDownloadButton > button:first-child:hover {
+        background-color: #1E3A8A !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(30,58,138,0.3);
     }
     .instruction-text {
         color: #1e293b !important;
         background-color: #ffffff;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
         border-left: 5px solid #2F5597;
-        margin-bottom: 20px;
+        margin-bottom: 24px;
     }
 
     /* Readable status text: "Processing...", "Batch Complete." */
@@ -247,7 +278,18 @@ st.markdown(
     .status-msg {
         color: #1e293b !important;
         font-weight: 600;
-        margin: 0 0 10px 0;
+        margin: 1.25rem 0 1.25rem 0;
+    }
+
+    /* Space below the file uploader dropzone */
+    div[data-testid="stFileUploader"] {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Space above the action buttons */
+    .st-key-action_buttons {
+        margin-top: 0.75rem;
+        margin-bottom: 1rem;
     }
 
     /* Readable Skipped / Success / Error messages */
@@ -316,7 +358,7 @@ try:
     st.markdown(
         f"""
         <div class="header-container">
-            <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="header-flex">
                 <img src="data:image/png;base64,{logo_base64}" width="180">
                 <div>
                     <h1 class="main-title">Whiteboard AI</h1>
