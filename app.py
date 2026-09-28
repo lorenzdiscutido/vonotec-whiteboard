@@ -235,6 +235,32 @@ st.markdown(
         border-left: 5px solid #2F5597;
         margin-bottom: 20px;
     }
+
+    /* Readable status text: "Processing...", "Batch Complete." */
+    div[data-testid="stText"],
+    div[data-testid="stText"] p {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+    }
+
+    /* Readable "N image(s) selected." line */
+    .status-msg {
+        color: #1e293b !important;
+        font-weight: 600;
+        margin: 0 0 10px 0;
+    }
+
+    /* Readable Skipped / Success / Error messages */
+    div[data-testid="stAlert"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-left: 5px solid #2F5597 !important;
+    }
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] {
+        color: #1e293b !important;
+    }
+
     h3 {
         color: #1E3A8A !important;
     }
@@ -289,7 +315,10 @@ output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 uploaded_files = st.file_uploader("Choose whiteboard images...", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
 
 if uploaded_files:
-    st.markdown(f"**{len(uploaded_files)} image(s) selected.**")
+    st.markdown(
+        f'<p class="status-msg">{len(uploaded_files)} image(s) selected.</p>',
+        unsafe_allow_html=True
+    )
 
     if st.button("Extract Data & Update Excel", type="primary"):
         processed_log = load_processed_log()
