@@ -273,7 +273,7 @@ st.markdown(
         background-color: #EA580C !important;
     }
 
-    /* Red "Start Fresh (Clear Data)" button (destructive action) */
+    /* Red "Clear Data" button (destructive action) */
     .st-key-start_fresh div.stButton > button:first-child {
         background-color: #DC2626 !important;
         color: #FFFFFF !important;
