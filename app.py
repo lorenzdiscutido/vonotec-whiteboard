@@ -22,6 +22,9 @@ LOG_FILE = "processed_log.json"
 MAX_PARALLEL_EXTRACTIONS = 3
 # Max Gemini calls running at the same time across ALL users (avoids rate limits)
 MAX_TOTAL_GEMINI_CALLS = 4
+# If Gemini finds no defects (or returns broken JSON), try again this many extra times
+EXTRACTION_RETRIES = 2
+MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket"]
 
 
 def load_processed_log():
@@ -87,12 +90,29 @@ def _populate_reference_sheet(wb):
     ws_ref.row_dimensions[1].height = 28
 
 
+def has_any_defects(parsed_data):
+    """True if at least one material has a damage entry."""
+    return any(parsed_data.get(f"{mat} Damage") for mat in MATERIALS)
+
+
 def extract_data(filepath, gemini_gate):
-    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here)."""
+    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here).
+    An empty or broken answer is retried, because it is usually a missed reading."""
     img = load_image(filepath)
-    with gemini_gate:
-        raw_text = get_raw_response(img)
-    return parse_and_clean_json(raw_text)
+    parsed_data = None
+    for attempt in range(EXTRACTION_RETRIES + 1):
+        is_last_attempt = attempt == EXTRACTION_RETRIES
+        try:
+            with gemini_gate:
+                raw_text = get_raw_response(img)
+            parsed_data = parse_and_clean_json(raw_text)
+        except json.JSONDecodeError:
+            if is_last_attempt:
+                raise
+            continue
+        if has_any_defects(parsed_data):
+            break
+    return parsed_data
 
 
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
@@ -560,6 +580,8 @@ if uploaded_files:
                             current_log.append(item["hash"])
                             save_processed_log(current_log)
                             processed_count += 1
+                            if not has_any_defects(parsed_data):
+                                results.append(("warning", f"No defects were detected in '{item['name']}'. Please check this photo."))
 
                 except Exception as e:
                     results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
