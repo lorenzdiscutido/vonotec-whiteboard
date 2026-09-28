@@ -466,6 +466,11 @@ uploaded_files = st.file_uploader(
     key=f"uploader_{st.session_state.uploader_key}"
 )
 
+# As soon as new photos are selected, drop the previous batch's messages
+# so "Batch Complete." can't be mistaken for the new photos being processed
+if uploaded_files:
+    st.session_state.batch_results = []
+
 # Show the results of the last batch (kept even after the uploader is cleared)
 for kind, text in st.session_state.batch_results:
     if kind == "warning":
