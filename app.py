@@ -263,7 +263,18 @@ st.markdown(
 
     /* Bring Extract and Clear Photos buttons closer together */
     .st-key-action_buttons div[data-testid="stHorizontalBlock"] {
-        gap: 0.4rem !important;
+        gap: 0.5rem !important;
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+    }
+    .st-key-action_buttons div[data-testid="stColumn"],
+    .st-key-action_buttons div[data-testid="column"] {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+    .st-key-action_buttons div.stButton {
+        width: auto !important;
     }
 
     /* Orange "Clear All Photos" button (mild action) */
