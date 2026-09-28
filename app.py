@@ -222,7 +222,6 @@ st.markdown(
         background-color: #2F5597 !important;
         color: #FFA500 !important;
         border: none !important;
-        font-weight: bold !important;
         -webkit-text-stroke: 1px #FFA500 !important;
         padding: 0.75rem 2rem !important;
         border-radius: 5px !important;
