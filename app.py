@@ -206,23 +206,26 @@ st.markdown(
         margin-top: -5px !important;
         font-size: 1rem;
     }
-    /* Informational Text Visibility (Images selected, Batch complete) */
-    .stMarkdown p, .stText {
+    
+    /* FIX: Force Visibility of status text (selected images, complete) */
+    .stMarkdown, .stMarkdown p, .stText, div[data-testid="stText"] {
         color: #1E3A8A !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
     }
-    /* Success Notification: Vibrant and Noticeable */
+
+    /* VIBRANT SUCCESS MESSAGE */
     div[data-testid="stNotification"] {
-        background-color: #dcfce7 !important;
-        border: 2px solid #16a34a !important;
-        color: #14532d !important;
-        border-radius: 8px !important;
+        background-color: #22c55e !important; /* Brighter Vibrant Green */
+        border: 3px solid #166534 !important; /* Solid Darker Green Border */
+        border-radius: 10px !important;
+        padding: 20px !important;
     }
     div[data-testid="stNotification"] p {
-        color: #14532d !important;
-        font-weight: 700 !important;
-        font-size: 1.1rem !important;
+        color: #ffffff !important; /* White text on vibrant green for maximum contrast */
+        font-weight: 900 !important;
+        font-size: 1.2rem !important;
     }
+
     /* Buttons: Thick Bold Font and Solid Blue */
     div.stButton > button:first-child, .stDownloadButton > button:first-child {
         background-color: #2F5597 !important;
@@ -279,7 +282,7 @@ except FileNotFoundError:
         unsafe_allow_html=True
     )
 
-st.markdown('<div class="instruction-text">Upload one or multiple whiteboard photos below. The AI will automatically extract the data and append it to the Master Excel file.</div>', unsafe_allow_html=True)
+st.markdown('<div class="instruction-text">Upload whiteboard photos below. The AI will extract data and update the Master Excel file.</div>', unsafe_allow_html=True)
 
 st.subheader("Upload Whiteboard Photos")
 
@@ -289,7 +292,8 @@ output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 uploaded_files = st.file_uploader("Choose images...", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
 
 if uploaded_files:
-    st.markdown(f"**{len(uploaded_files)} image(s) selected.**")
+    # Explicitly using a dark blue color for this text via style
+    st.markdown(f'<p style="color: #1E3A8A; font-weight: bold;">{len(uploaded_files)} image(s) selected.</p>', unsafe_allow_html=True)
 
     if st.button("Extract Data & Update Excel", type="primary"):
         processed_log = load_processed_log()
@@ -305,7 +309,7 @@ if uploaded_files:
                 progress_bar.progress((i + 1) / len(uploaded_files))
                 continue
                 
-            status_text.text(f"Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}")
+            status_text.markdown(f'<p style="color: #1E3A8A; font-weight: bold;">Processing: {uploaded_file.name}</p>', unsafe_allow_html=True)
             try:
                 temp_path = f"temp_{uploaded_file.name}"
                 with open(temp_path, "wb") as f:
@@ -323,7 +327,8 @@ if uploaded_files:
             
             progress_bar.progress((i + 1) / len(uploaded_files))
                 
-        status_text.text("Batch Complete.")
+        # Forced color for Batch Complete text
+        status_text.markdown('<p style="color: #1E3A8A; font-weight: 900; font-size: 1.1rem;">Batch Complete.</p>', unsafe_allow_html=True)
         st.success(f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s).")
 
 if os.path.exists(output_xlsx_path):
