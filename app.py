@@ -11,93 +11,30 @@ from config import INCOMING_FOLDER, REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
 from gemini_client import get_raw_response, parse_and_clean_json
 
-# --- UI CONFIGURATION & STYLING ---
-st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
-
-# Custom CSS to fix readability and button layout
-st.markdown("""
-    <style>
-    /* 1. Set a clean, professional background for the whole app */
-    .stApp {
-        background-color: #f4f7f9;
-    }
-
-    /* 2. Fix the main header area */
-    .header-container {
-        background-color: #ffffff;
-        padding: 20px 40px;
-        border-radius: 0 0 15px 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-    }
-    .main-title {
-        color: #1E3A8A !important;
-        margin-bottom: 0px !important;
-        font-weight: 800;
-    }
-    .sub-title {
-        color: #475569 !important;
-        font-size: 1.1rem;
-        margin-top: 5px;
-    }
-
-    /* 3. Solid Blue Button with Orange Text */
-    div.stButton > button:first-child, .stDownloadButton > button:first-child {
-        background-color: #2F5597 !important;
-        color: #FFA500 !important;
-        border: none !important;
-        font-weight: bold !important;
-        padding: 0.75rem 2rem !important;
-        border-radius: 5px !important;
-        width: 100%;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    /* 4. Instructions Box (High Contrast) */
-    .instruction-box {
-        background-color: #ffffff;
-        border-left: 5px solid #2F5597;
-        padding: 20px;
-        border-radius: 5px;
-        margin-bottom: 25px;
-        color: #1e293b;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-
-    /* 5. Section Headers */
-    h3 {
-        color: #1E3A8A !important;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 10px;
-        margin-top: 30px !important;
-    }
-    
-    /* Remove padding at the top of the block container */
-    .block-container {
-        padding-top: 0rem !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
 LOG_FILE = "processed_log.json"
 
 def load_processed_log():
+    """Loads the list of already processed filenames."""
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "r") as f:
             return json.load(f)
     return []
 
 def save_processed_log(log_list):
+    """Saves the updated list of processed filenames."""
     with open(LOG_FILE, "w") as f:
         json.dump(log_list, f)
 
+# ==========================================
+# 1. CONFIGURATION & RULES
+# ==========================================
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def _populate_reference_sheet(wb):
     ws_ref = wb.create_sheet(title="Reference Data")
     header_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    
     for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
         ws_ref.append(row_values)
         for col_idx in range(1, 6):
@@ -108,11 +45,13 @@ def _populate_reference_sheet(wb):
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
     ws_ref.column_dimensions['A'].width = 15
     ws_ref.column_dimensions['B'].width = 26
     ws_ref.column_dimensions['C'].width = 24
     ws_ref.column_dimensions['D'].width = 45
     ws_ref.column_dimensions['E'].width = 40
+    ws_ref.row_dimensions[1].height = 28
 
 def process_image_to_excel(filepath, output_xlsx_path):
     img = load_image(filepath)
@@ -128,112 +67,252 @@ def process_image_to_excel(filepath, output_xlsx_path):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Whiteboard Data"
-        ws.append(["Submitter", "Date", "Elevation", "Drop", "Floor", "Tower", "Defects", "", "Whiteboard Photo", "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS"])
-        ws.append(["", "", "", "", "", "", "Damage", "Dimension", "", "", "", "", ""])
+        
+        ws.append([
+            "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
+            "Defects", "", "Whiteboard Photo",
+            "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS"
+        ])
+        ws.append([
+            "", "", "", "", "", "",
+            "Damage", "Dimension", "",
+            "", "", "", ""
+        ])
+
         ws.merge_cells('G1:H1') 
         for col in ['A', 'B', 'C', 'D', 'E', 'F', 'I', 'J', 'K', 'L', 'M']:
             ws.merge_cells(f'{col}1:{col}2')
+        
         gray_fill = PatternFill(start_color="BFBFBF", end_color="BFBFBF", fill_type="solid")
         for row in ws['A1':'M2']:
             for cell in row:
-                cell.font = Font(bold=True); cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        ws['M1'].fill = gray_fill; ws['M2'].fill = gray_fill
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        ws['M1'].fill = gray_fill
+        ws['M2'].fill = gray_fill
+        ws.column_dimensions['J'].width = 24
+        ws.column_dimensions['K'].width = 30
+        ws.column_dimensions['L'].width = 28
+        ws.column_dimensions['M'].width = 22
         _populate_reference_sheet(wb)
 
     start_row = ws.max_row + 1
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
+
     rows_data = []
     for mat in ["Sealant", "Concrete", "Paint", "Gasket"]:
         rows_data.append((mat, "", True, False, mat)) 
-        dmg_list, dim_list = parsed_data.get(f"{mat} Damage", []), parsed_data.get(f"{mat} Dimension", [])
-        expanded_dmg, expanded_dim = [], []
+        dmg_list = parsed_data.get(f"{mat} Damage", [])
+        dim_list = parsed_data.get(f"{mat} Dimension", [])
+        expanded_dmg = []
+        expanded_dim = []
+        
         for i in range(max(len(dmg_list), len(dim_list))):
-            dmg_str, dim_str = dmg_list[i] if i < len(dmg_list) else "", dim_list[i] if i < len(dim_list) else ""
-            found_codes = [t for t in str(dmg_str).split() if t in VALID_CODES]
+            dmg_str = dmg_list[i] if i < len(dmg_list) else ""
+            dim_str = dim_list[i] if i < len(dim_list) else ""
+            tokens = str(dmg_str).split()
+            found_codes = [t for t in tokens if t in VALID_CODES]
+            
             if len(found_codes) > 1:
-                for code in found_codes: expanded_dmg.append(code); expanded_dim.append(dim_str)
-            else: expanded_dmg.append(dmg_str); expanded_dim.append(dim_str)
-        for i in range(max(len(expanded_dmg), 1)):
-            rows_data.append((expanded_dmg[i] if i < len(expanded_dmg) else "", expanded_dim[i] if i < len(expanded_dim) else "", False, True, mat)) 
+                for code in found_codes:
+                    expanded_dmg.append(code)
+                    expanded_dim.append(dim_str) 
+            else:
+                expanded_dmg.append(dmg_str)
+                expanded_dim.append(dim_str)
+        
+        max_len = max(len(expanded_dmg), 1) 
+        for i in range(max_len):
+            dmg_val = expanded_dmg[i] if i < len(expanded_dmg) else ""
+            dim_val = expanded_dim[i] if i < len(expanded_dim) else ""
+            rows_data.append((dmg_val, dim_val, False, True, mat)) 
 
     total_rows = len(rows_data)
     static_keys = ["Submitter", "Date", "Elevation", "Drop", "Floor", "Tower"]
     for i, key in enumerate(static_keys):
         ws.cell(row=start_row, column=i+1).value = parsed_data.get(key, "")
-        if total_rows > 1: ws.merge_cells(start_row=start_row, start_column=i+1, end_row=start_row + total_rows - 1, end_column=i+1)
+        if total_rows > 1:
+            ws.merge_cells(start_row=start_row, start_column=i+1, end_row=start_row + total_rows - 1, end_column=i+1)
 
     for i, (g_val, h_val, is_title, is_data, current_mat) in enumerate(rows_data):
         r = start_row + i
-        ws.cell(row=r, column=7).value = g_val
-        ws.cell(row=r, column=8).value = h_val
+        cell_g = ws.cell(row=r, column=7)
+        cell_h = ws.cell(row=r, column=8)
+        cell_g.value = g_val
+        cell_h.value = h_val
+
+        is_invalid = False
+        if is_data and g_val:
+            base_code = str(g_val).split()[0]
+            allowed_codes = MATERIAL_RULES.get(current_mat, [])
+            if base_code not in allowed_codes:
+                is_invalid = True
+
         if is_title:
             ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=8)
-            ws.cell(row=r, column=7).font = Font(bold=True)
+            cell_g.font = Font(bold=True)
         elif is_data:
             lookup_val = f'LEFT($G{r}, FIND(" ", $G{r}&" ") - 1)'
-            for col, idx in [ (10, 3), (11, 4), (12, 5), (13, 2) ]:
-                ws.cell(row=r, column=col).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, {idx}, FALSE), "")'
+            ws.cell(row=r, column=10).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 3, FALSE), "")'
+            ws.cell(row=r, column=11).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 4, FALSE), "")'
+            ws.cell(row=r, column=12).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
+            ws.cell(row=r, column=13).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
 
+            if is_invalid:
+                for col_idx in range(7, 14):
+                    ws.cell(row=r, column=col_idx).font = Font(color="FF0000")
+
+    photo_col_letter = 'I' 
     excel_img = prepare_excel_image(filepath, total_rows)
-    ws.add_image(excel_img, f"I{start_row}")
-    if total_rows > 1: ws.merge_cells(f"I{start_row}:I{start_row + total_rows - 1}")
+    ws.add_image(excel_img, f"{photo_col_letter}{start_row}")
+    
+    if total_rows > 1:
+        ws.merge_cells(f"{photo_col_letter}{start_row}:{photo_col_letter}{start_row + total_rows - 1}")
+    
+    base_height = max(110 / total_rows, 20)
+    for i in range(total_rows):
+        r = start_row + i
+        ws.row_dimensions[r].height = base_height
+        for c in range(1, 14):
+            ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+    ws.column_dimensions[photo_col_letter].width = 25
     wb.save(output_xlsx_path)
 
-# --- UI CONTENT ---
-# Custom Header with white background for readability
+# --- UI CONFIGURATION ---
+st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
+
+# Custom CSS for UI improvement
+st.markdown("""
+    <style>
+    /* Reset background to a readable light color */
+    .stApp {
+        background-color: #f4f7f9;
+    }
+    
+    /* Global Padding adjustment */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1200px;
+    }
+
+    /* Style the main title and subtext */
+    .header-text {
+        color: #1E3A8A;
+        font-weight: 800;
+        margin-bottom: 0px;
+    }
+    .subheader-text {
+        color: #475569;
+        font-size: 1.1rem;
+        margin-bottom: 20px;
+    }
+
+    /* Instructions Box */
+    .instruction-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #2F5597;
+        color: #1e293b;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* Solid Blue Button with Orange Text */
+    div.stButton > button:first-child, .stDownloadButton > button:first-child {
+        background-color: #2F5597 !important;
+        color: #FFA500 !important;
+        border: none !important;
+        font-weight: bold !important;
+        padding: 0.6rem 1.5rem !important;
+        border-radius: 5px !important;
+        width: 100%;
+        transition: background-color 0.3s;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #1E3A8A !important;
+    }
+
+    /* Section headers */
+    h3 {
+        color: #1E3A8A !important;
+        font-size: 1.5rem !important;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 10px;
+        margin-top: 30px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 try:
     with open("vonotec.png", "rb") as f:
         logo_base64 = base64.b64encode(f.read()).decode()
     st.markdown(f"""
-        <div class="header-container">
-            <div style="display: flex; align-items: center; gap: 30px;">
+        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+            <div style="background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                 <img src="data:image/png;base64,{logo_base64}" width="180">
-                <div>
-                    <h1 class="main-title">Whiteboard AI</h1>
-                    <p class="sub-title">Data Extraction and Master Log Automator</p>
-                </div>
+            </div>
+            <div>
+                <h1 class="header-text">Whiteboard AI</h1>
+                <p class="subheader-text">Data Extraction and Master Log Automator</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
 except FileNotFoundError:
     st.title("Vonotec Whiteboard AI")
 
-# Instructions Container
 st.markdown("""
-    <div class="instruction-box">
-        <strong>Instructions:</strong> Upload whiteboard photos below. 
-        The system will process each image, extract the data, and update the Master Excel file automatically.
+    <div class="instruction-card">
+        Upload one or multiple whiteboard photos below. The AI will automatically extract the data 
+        and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
     </div>
     """, unsafe_allow_html=True)
 
-st.subheader("Upload Whiteboard Photos")
-uploaded_files = st.file_uploader("Select JPG or PNG files", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
-
-current_month_year = datetime.datetime.now().strftime("%B_%Y") 
+current_month_year = datetime.datetime.now().strftime("%B_%Y")
 output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 
+st.subheader("Upload Whiteboard Photos")
+uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
+
 if uploaded_files:
-    if st.button("Process and Update Excel"):
+    st.info(f"{len(uploaded_files)} images selected.")
+    if st.button("Extract Data and Update Excel"):
         processed_log = load_processed_log()
         progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        processed_count = 0
+        skipped_count = 0
+        
         for i, uploaded_file in enumerate(uploaded_files):
             if uploaded_file.name in processed_log:
-                st.info(f"Skipped {uploaded_file.name} (Already Processed)")
+                skipped_count += 1
+                progress_bar.progress((i + 1) / len(uploaded_files))
                 continue
-            
-            temp_path = f"temp_{uploaded_file.name}"
-            with open(temp_path, "wb") as f: f.write(uploaded_file.getbuffer())
-            
+                
+            status_text.text(f"Processing: {uploaded_file.name}")
             try:
+                temp_path = f"temp_{uploaded_file.name}"
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
                 process_image_to_excel(temp_path, output_xlsx_path)
                 processed_log.append(uploaded_file.name)
                 save_processed_log(processed_log)
+                processed_count += 1
+                
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
             except Exception as e:
                 st.error(f"Error processing {uploaded_file.name}: {e}")
-            finally:
-                if os.path.exists(temp_path): os.remove(temp_path)
+            
             progress_bar.progress((i + 1) / len(uploaded_files))
-        st.success("Batch Processing Complete")
+                
+        status_text.text("Processing Complete.")
+        st.success(f"Successfully added {processed_count} files. Skipped {skipped_count} duplicates.")
 
 if os.path.exists(output_xlsx_path):
     st.subheader("Master File Management")
@@ -249,7 +328,9 @@ if os.path.exists(output_xlsx_path):
             )
             
     with col2:
-        if st.button("Start Fresh"):
-            if os.path.exists(output_xlsx_path): os.remove(output_xlsx_path)
-            if os.path.exists(LOG_FILE): os.remove(LOG_FILE)
+        if st.button("Start Fresh (Clear Data)"):
+            if os.path.exists(output_xlsx_path):
+                os.remove(output_xlsx_path)
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
             st.rerun()
