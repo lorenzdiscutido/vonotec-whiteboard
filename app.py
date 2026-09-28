@@ -1,35 +1,67 @@
 import os
 import json
+import uuid
+import hashlib
+import threading
 import datetime
 import base64
+from concurrent.futures import ThreadPoolExecutor
+
 import google.generativeai as genai
 import streamlit as st
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 
-from config import INCOMING_FOLDER, REFERENCE_DATA, MATERIAL_RULES
+from config import REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
 from gemini_client import get_raw_response, parse_and_clean_json
 
 LOG_FILE = "processed_log.json"
 
+# How many photos of ONE batch are sent to Gemini at the same time
+MAX_PARALLEL_EXTRACTIONS = 3
+# Max Gemini calls running at the same time across ALL users (avoids rate limits)
+MAX_TOTAL_GEMINI_CALLS = 4
+
+
 def load_processed_log():
-    """Loads the list of already processed filenames."""
+    """Loads the list of already processed photo fingerprints."""
     if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(LOG_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return []
     return []
 
+
 def save_processed_log(log_list):
-    """Saves the updated list of processed filenames."""
-    with open(LOG_FILE, "w") as f:
+    """Saves the log safely (write to a temp file, then swap it in)."""
+    tmp_path = LOG_FILE + ".tmp"
+    with open(tmp_path, "w") as f:
         json.dump(log_list, f)
+    os.replace(tmp_path, LOG_FILE)
+
 
 # ==========================================
 # 1. CONFIGURATION & RULES
 # ==========================================
 # Securely pull the API key from Streamlit Secrets
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+
+
+@st.cache_resource
+def get_write_lock():
+    """One lock shared by every user session: only one person writes to the
+    master Excel file / log at a time."""
+    return threading.Lock()
+
+
+@st.cache_resource
+def get_gemini_gate():
+    """Caps how many Gemini calls run at once across all users."""
+    return threading.Semaphore(MAX_TOTAL_GEMINI_CALLS)
+
 
 def _populate_reference_sheet(wb):
     ws_ref = wb.create_sheet(title="Reference Data")
@@ -54,11 +86,18 @@ def _populate_reference_sheet(wb):
     ws_ref.column_dimensions['E'].width = 40
     ws_ref.row_dimensions[1].height = 28
 
-def process_image_to_excel(filepath, output_xlsx_path):
-    img = load_image(filepath)
-    raw_text = get_raw_response(img)
-    parsed_data = parse_and_clean_json(raw_text)
 
+def extract_data(filepath, gemini_gate):
+    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here)."""
+    img = load_image(filepath)
+    with gemini_gate:
+        raw_text = get_raw_response(img)
+    return parse_and_clean_json(raw_text)
+
+
+def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
+    """Adds one whiteboard's data to the master Excel file.
+    Must be called while holding the write lock."""
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
@@ -186,7 +225,18 @@ def process_image_to_excel(filepath, output_xlsx_path):
             ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
     ws.column_dimensions[photo_col_letter].width = 25
-    wb.save(output_xlsx_path)
+
+    # Save to a temp file first, then swap it in, so a crash mid-save
+    # can never leave a half-written master file.
+    tmp_path = output_xlsx_path.replace(".xlsx", "_tmp.xlsx")
+    try:
+        wb.save(tmp_path)
+        os.replace(tmp_path, output_xlsx_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
 
 # --- UI CONFIGURATION ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
@@ -331,15 +381,18 @@ st.markdown(
         background-color: #EA580C !important;
     }
 
-    /* Red "Start Fresh (Clear Data)" button (destructive action) */
-    .st-key-start_fresh div.stButton > button:first-child {
+    /* Red "Start Fresh" and "Yes, delete everything" buttons (destructive action) */
+    .st-key-start_fresh div.stButton > button:first-child,
+    .st-key-confirm_delete div.stButton > button:first-child {
         background-color: #DC2626 !important;
         color: #FFFFFF !important;
     }
-    .st-key-start_fresh div.stButton > button:first-child p {
+    .st-key-start_fresh div.stButton > button:first-child p,
+    .st-key-confirm_delete div.stButton > button:first-child p {
         color: #FFFFFF !important;
     }
-    .st-key-start_fresh div.stButton > button:first-child:hover {
+    .st-key-start_fresh div.stButton > button:first-child:hover,
+    .st-key-confirm_delete div.stButton > button:first-child:hover {
         background-color: #B91C1C !important;
     }
 
@@ -394,11 +447,16 @@ st.subheader("Upload Whiteboard Photos")
 current_month_year = datetime.datetime.now().strftime("%B_%Y")
 output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 
+write_lock = get_write_lock()
+gemini_gate = get_gemini_gate()
+
 # Changing the uploader's key resets it, which clears all selected photos at once
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 if "batch_results" not in st.session_state:
     st.session_state.batch_results = []
+if "confirm_reset" not in st.session_state:
+    st.session_state.confirm_reset = False
 
 uploaded_files = st.file_uploader(
     "Choose whiteboard images...",
@@ -438,45 +496,75 @@ if uploaded_files:
         st.rerun()
 
     if extract_clicked:
-        processed_log = load_processed_log()
+        total_files = len(uploaded_files)
         progress_bar = st.progress(0)
         status_text = st.empty()
         results = []
-        
+
         processed_count = 0
         skipped_count = 0
-        
-        for i, uploaded_file in enumerate(uploaded_files):
-            if uploaded_file.name in processed_log:
+        finished_count = 0
+
+        # ---- Step 1: fingerprint every photo and skip duplicates ----
+        processed_log = load_processed_log()
+        seen_hashes = set()
+        pending = []
+        for uploaded_file in uploaded_files:
+            file_bytes = uploaded_file.getvalue()
+            file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+            if file_hash in processed_log or file_hash in seen_hashes:
                 results.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
                 skipped_count += 1
-                progress_bar.progress((i + 1) / len(uploaded_files))
+                finished_count += 1
                 continue
-                
-            status_text.markdown(
-                f'<p class="status-msg">Processing image {i + 1} of {len(uploaded_files)}: {uploaded_file.name}</p>',
-                unsafe_allow_html=True
-            )
-            try:
-                temp_path = f"temp_{uploaded_file.name}"
-                with open(temp_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                
-                process_image_to_excel(temp_path, output_xlsx_path)
-                
-                # Add to log immediately upon success
-                processed_log.append(uploaded_file.name)
-                save_processed_log(processed_log)
-                processed_count += 1
-                
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                    
-            except Exception as e:
-                results.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
-            
-            progress_bar.progress((i + 1) / len(uploaded_files))
-                
+            seen_hashes.add(file_hash)
+
+            # Unique temp name so two users never overwrite each other's photo
+            extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
+            temp_path = f"temp_{uuid.uuid4().hex}{extension}"
+            with open(temp_path, "wb") as f:
+                f.write(file_bytes)
+            pending.append({"name": uploaded_file.name, "hash": file_hash, "temp_path": temp_path})
+
+        progress_bar.progress(finished_count / total_files)
+
+        # ---- Step 2: extract in parallel, write to Excel one at a time ----
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_EXTRACTIONS) as executor:
+            jobs = [
+                (item, executor.submit(extract_data, item["temp_path"], gemini_gate))
+                for item in pending
+            ]
+
+            for item, future in jobs:
+                status_text.markdown(
+                    f'<p class="status-msg">Processing image {finished_count + 1} of {total_files}: {item["name"]}</p>',
+                    unsafe_allow_html=True
+                )
+                try:
+                    parsed_data = future.result()
+
+                    with write_lock:
+                        # Re-check inside the lock in case another user just added the same photo
+                        current_log = load_processed_log()
+                        if item["hash"] in current_log:
+                            results.append(("warning", f"Skipping '{item['name']}' - already processed."))
+                            skipped_count += 1
+                        else:
+                            write_parsed_data_to_excel(parsed_data, item["temp_path"], output_xlsx_path)
+                            current_log.append(item["hash"])
+                            save_processed_log(current_log)
+                            processed_count += 1
+
+                except Exception as e:
+                    results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
+                finally:
+                    if os.path.exists(item["temp_path"]):
+                        os.remove(item["temp_path"])
+
+                finished_count += 1
+                progress_bar.progress(finished_count / total_files)
+
         results.append(("status", "Batch Complete."))
         results.append(("success", f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s)."))
 
@@ -492,21 +580,45 @@ if os.path.exists(output_xlsx_path):
     col1, col2 = st.columns(2)
 
     with col1:
-        with open(output_xlsx_path, "rb") as file:
-            xlsx_bytes = file.read()
-        st.download_button(
-            label=f"Download {output_xlsx_path}",
-            data=xlsx_bytes,
-            file_name=output_xlsx_path,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary"
-        )
+        xlsx_bytes = None
+        try:
+            with open(output_xlsx_path, "rb") as file:
+                xlsx_bytes = file.read()
+        except FileNotFoundError:
+            pass
+
+        if xlsx_bytes is not None:
+            st.download_button(
+                label=f"Download {output_xlsx_path}",
+                data=xlsx_bytes,
+                file_name=output_xlsx_path,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary"
+            )
             
     with col2:
         if st.button("Start Fresh (Clear Data)", type="primary", key="start_fresh"):
-            if os.path.exists(output_xlsx_path):
-                os.remove(output_xlsx_path)
-            if os.path.exists(LOG_FILE):
-                os.remove(LOG_FILE)
-            st.session_state.batch_results = []
+            st.session_state.confirm_reset = True
             st.rerun()
+
+    # Ask before deleting, because this wipes the file for everyone
+    if st.session_state.confirm_reset:
+        st.warning(
+            "This will permanently delete the master Excel file and the processed-photos log "
+            "for everyone using the app. Are you sure?"
+        )
+        confirm_col1, confirm_col2 = st.columns(2)
+        with confirm_col1:
+            if st.button("Yes, delete everything", type="primary", key="confirm_delete"):
+                with write_lock:
+                    if os.path.exists(output_xlsx_path):
+                        os.remove(output_xlsx_path)
+                    if os.path.exists(LOG_FILE):
+                        os.remove(LOG_FILE)
+                st.session_state.batch_results = []
+                st.session_state.confirm_reset = False
+                st.rerun()
+        with confirm_col2:
+            if st.button("Cancel", type="primary", key="cancel_delete"):
+                st.session_state.confirm_reset = False
+                st.rerun()
