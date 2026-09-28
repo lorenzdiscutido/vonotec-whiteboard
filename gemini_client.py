@@ -1,7 +1,10 @@
 # gemini_client.py
 import json
+import re
 import time
 import random
+import threading
+import collections
 import google.generativeai as genai
 import streamlit as st
 from config import JSON_KEYS
@@ -19,7 +22,34 @@ try:
 except ImportError:
     RETRYABLE_ERRORS = ()
 
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 5
+
+# Shared speed limit for ALL users. The free Gemini tier allows 15 requests
+# per minute per model, so we stay a little under it.
+REQUESTS_PER_MINUTE = 12
+RATE_WINDOW_SECONDS = 60
+_call_times = collections.deque()
+_rate_lock = threading.Lock()
+
+def _wait_for_slot():
+    """Blocks until another Gemini call is allowed under the per-minute limit."""
+    while True:
+        with _rate_lock:
+            now = time.monotonic()
+            while _call_times and now - _call_times[0] >= RATE_WINDOW_SECONDS:
+                _call_times.popleft()
+            if len(_call_times) < REQUESTS_PER_MINUTE:
+                _call_times.append(now)
+                return
+            wait = RATE_WINDOW_SECONDS - (now - _call_times[0])
+        time.sleep(max(wait, 0.5))
+
+def _retry_wait_seconds(error, attempt):
+    """Uses the delay Gemini asks for ("Please retry in 27.7s"), else backs off."""
+    match = re.search(r"retry in ([\d.]+)s", str(error))
+    if match:
+        return float(match.group(1)) + 1
+    return (2 ** attempt) + random.random()
 
 # Initialize the Gemini Client (key comes from Streamlit Secrets)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -56,13 +86,14 @@ def get_raw_response(img):
     # Retry a few times if Gemini is busy or rate-limiting (likely with several users)
     response = None
     for attempt in range(MAX_ATTEMPTS):
+        _wait_for_slot()
         try:
             response = model.generate_content([prompt_text, img])
             break
-        except RETRYABLE_ERRORS:
+        except RETRYABLE_ERRORS as e:
             if attempt == MAX_ATTEMPTS - 1:
                 raise
-            time.sleep((2 ** attempt) + random.random())
+            time.sleep(_retry_wait_seconds(e, attempt))
 
     try:
         raw_text = response.text.strip()
