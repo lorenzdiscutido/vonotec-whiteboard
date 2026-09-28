@@ -224,7 +224,6 @@ st.markdown(
         border: none !important;
         font-weight: bold !important;
         -webkit-text-stroke: 1px #FFA500 !important;
-        text-shadow: 0.5px 0.5px 0px #FFA500 !important;
         padding: 0.75rem 2rem !important;
         border-radius: 5px !important;
         width: 100%;
