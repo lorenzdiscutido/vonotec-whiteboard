@@ -223,6 +223,7 @@ st.markdown(
         color: #FFA500 !important;
         border: none !important;
         font-weight: 2000 !important;
+        text-shadow: 0.5px 0.5px 0px #FFA500 !important;
         padding: 0.75rem 2rem !important;
         border-radius: 5px !important;
         width: 100%;
