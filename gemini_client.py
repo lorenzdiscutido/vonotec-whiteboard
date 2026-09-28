@@ -1,10 +1,58 @@
 # gemini_client.py
 import json
+import re
+import time
+import random
+import threading
+import collections
 import google.generativeai as genai
-from config import GEMINI_API_KEY, JSON_KEYS
+import streamlit as st
+from config import JSON_KEYS
 
-# Initialize the Gemini Client
-genai.configure(api_key=GEMINI_API_KEY)
+# Errors from Gemini that are temporary (busy / rate limited) and worth retrying
+try:
+    from google.api_core import exceptions as google_exceptions
+    RETRYABLE_ERRORS = (
+        google_exceptions.ResourceExhausted,
+        google_exceptions.TooManyRequests,
+        google_exceptions.ServiceUnavailable,
+        google_exceptions.DeadlineExceeded,
+        google_exceptions.InternalServerError,
+    )
+except ImportError:
+    RETRYABLE_ERRORS = ()
+
+MAX_ATTEMPTS = 5
+
+# Shared speed limit for ALL users. The free Gemini tier allows 15 requests
+# per minute per model, so we stay a little under it.
+REQUESTS_PER_MINUTE = 12
+RATE_WINDOW_SECONDS = 60
+_call_times = collections.deque()
+_rate_lock = threading.Lock()
+
+def _wait_for_slot():
+    """Blocks until another Gemini call is allowed under the per-minute limit."""
+    while True:
+        with _rate_lock:
+            now = time.monotonic()
+            while _call_times and now - _call_times[0] >= RATE_WINDOW_SECONDS:
+                _call_times.popleft()
+            if len(_call_times) < REQUESTS_PER_MINUTE:
+                _call_times.append(now)
+                return
+            wait = RATE_WINDOW_SECONDS - (now - _call_times[0])
+        time.sleep(max(wait, 0.5))
+
+def _retry_wait_seconds(error, attempt):
+    """Uses the delay Gemini asks for ("Please retry in 27.7s"), else backs off."""
+    match = re.search(r"retry in ([\d.]+)s", str(error))
+    if match:
+        return float(match.group(1)) + 1
+    return (2 ** attempt) + random.random()
+
+# Initialize the Gemini Client (key comes from Streamlit Secrets)
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-flash-lite-latest')
 
 def get_raw_response(img):
@@ -27,6 +75,9 @@ def get_raw_response(img):
         "- TARGETED UNITS: For 'Sealant Dimension', output the unit simply as 'CM'. For 'Concrete Dimension', 'Paint Dimension', and 'Gasket Dimension', output the unit as 'CM²' (squared). "
         "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
         "After the word \"DS\" there should be a space, then the next characters. If there is no space after \"DS\", add one. "
+        "SEALANT 'DS' ONLY RULE: In the Sealant row, if a damage entry is just \"DS\" by itself, with no location modifier after it (such as 'C-C', 'F-C', 'C-F' or any other characters), do NOT output that entry at all. "
+        "Leave out both that damage entry and its matching dimension so the 'Sealant Damage' and 'Sealant Dimension' arrays stay aligned. If nothing remains, return empty arrays []. "
+        "Apply this rule only after fixing the spacing (for example, 'DSC-C' becomes 'DS C-C' and is kept). This rule applies ONLY to the Sealant row. Entries like \"DS C-C\" or \"DS F-C\" must still be output normally. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
@@ -35,8 +86,24 @@ def get_raw_response(img):
         "DO NOT treat location modifiers like 'CC', 'C-C', or 'F-C' as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"])."
     )
 
-    response = model.generate_content([prompt_text, img])
-    raw_text = response.text.strip()
+    # Retry a few times if Gemini is busy or rate-limiting (likely with several users)
+    response = None
+    for attempt in range(MAX_ATTEMPTS):
+        _wait_for_slot()
+        try:
+            response = model.generate_content([prompt_text, img])
+            break
+        except RETRYABLE_ERRORS as e:
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            time.sleep(_retry_wait_seconds(e, attempt))
+
+    try:
+        raw_text = response.text.strip()
+    except ValueError:
+        raise RuntimeError(
+            "Gemini returned no text for this image (it may have been blocked). Please try again."
+        )
     
     # Strip markdown block formatting if present
     if raw_text.startswith("```json"):
