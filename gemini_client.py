@@ -23,6 +23,8 @@ except ImportError:
     RETRYABLE_ERRORS = ()
 
 MAX_ATTEMPTS = 5
+# Max seconds to wait for one Gemini response before treating it as failed and retrying
+REQUEST_TIMEOUT_SECONDS = 60
 
 # Shared speed limit for ALL users. The free Gemini tier allows 15 requests
 # per minute per model, so we stay a little under it.
@@ -139,7 +141,7 @@ def build_extraction_prompt():
 
 
 def build_review_prompt(first_pass, problems):
-    messages = [msg for _material, msg in problems]
+    messages = [msg for _material, msg, _kind in problems]
     problem_text = "\n".join(f"- {p}" for p in messages) if messages else "- (none)"
     return (
         "You are a meticulous QA reviewer. You are given a photo of a handwritten construction-defect "
@@ -157,7 +159,13 @@ def build_review_prompt(first_pass, problems):
         "4. Keep first-pass values that are correct exactly as they are. Do not change something just to be "
         "different. If the photo is genuinely unclear, keep the first-pass value and describe the doubt in "
         "\"Uncertain\".\n"
-        "5. Return the COMPLETE corrected JSON object with the same keys.\n"
+        "5. One of the automatic checks may say the same dimension number appears in two different "
+        "material rows (a possible copy error). Look closely at THOSE specific rows on the photo. If the "
+        "board genuinely shows the same number written independently on each row, that is correct and not "
+        "a mistake: list that material's name in a \"Confirmed Duplicates\" array in your JSON so it is not "
+        "flagged again. If instead it looks like a misread or a copied value, correct it and do not list it.\n"
+        "6. Return the COMPLETE corrected JSON object with the same keys, plus \"Confirmed Duplicates\" "
+        "(use an empty array [] if there is nothing to confirm).\n"
         + _rules_text()
         + "\nFIRST-PASS JSON:\n"
         + json.dumps(first_pass, ensure_ascii=False)
@@ -177,6 +185,9 @@ def _generate(prompt_text, img):
             response = model.generate_content(
                 [prompt_text, img],
                 generation_config={"response_mime_type": "application/json"},
+                # Without this, a stalled connection can hang forever with no
+                # error and no feedback in the UI. This forces a retry instead.
+                request_options={"timeout": REQUEST_TIMEOUT_SECONDS},
             )
             break
         except RETRYABLE_ERRORS as e:
@@ -229,6 +240,12 @@ def parse_and_clean_json(raw_text):
             else:
                 parsed_data[key] = []
 
+    # "Confirmed Duplicates" must always be a list of valid material names
+    confirmed = parsed_data.get("Confirmed Duplicates", [])
+    if not isinstance(confirmed, list):
+        confirmed = [confirmed] if confirmed else []
+    parsed_data["Confirmed Duplicates"] = [str(m).strip().title() for m in confirmed if str(m).strip().title() in MATERIALS]
+
     # "Uncertain" must always be a list of strings
     uncertain = parsed_data.get("Uncertain", [])
     if isinstance(uncertain, list):
@@ -243,13 +260,20 @@ def parse_and_clean_json(raw_text):
 
 def find_problems(parsed_data):
     """Automatic checks that decide whether a photo needs a second look.
-    Returns a list of (material_or_None, message) tuples. `material` is the
-    row the problem belongs to, so the caller can highlight only that row;
-    it is None for board-wide problems (no single row to point to)."""
+    Returns a list of (material_or_None, message, kind) tuples.
+    - `material` is the row the problem belongs to, so the caller can highlight
+      only that row; it is None for board-wide problems (no single row to point to).
+    - `kind` is "structural" (a concrete data problem: wrong code, mismatched
+      arrays, a likely copy error, or nothing detected at all) or "info" (the
+      AI's own uncertainty, or a missing header field). Only "structural"
+      problems trigger the extra AI review pass and the red highlight in Excel;
+      "info" problems are shown in the results for awareness only, so a minor
+      AI hedge doesn't flag an otherwise-correct entry as if it needs fixing.
+    """
     problems = []
 
     if not any(parsed_data.get(f"{m} Damage") for m in MATERIALS):
-        problems.append((None, "No defects were detected on the whole board."))
+        problems.append((None, "No defects were detected on the whole board.", "structural"))
 
     for material in MATERIALS:
         damages = parsed_data.get(f"{material} Damage", [])
@@ -258,16 +282,20 @@ def find_problems(parsed_data):
             problems.append((
                 material,
                 f"{material}: {len(damages)} damage entries but {len(dimensions)} dimension entries.",
+                "structural",
             ))
         allowed = MATERIAL_RULES.get(material, [])
         for entry in damages:
             tokens = str(entry).split()
             if tokens and tokens[0] not in allowed:
-                problems.append((material, f"{material}: code '{tokens[0]}' is not valid for this row."))
+                problems.append((material, f"{material}: code '{tokens[0]}' is not valid for this row.", "structural"))
 
     # Same dimension number appearing in two or more different material rows is a
     # known AI failure mode (copying a clear number instead of reading a blurry one).
     # It can also be genuinely correct, so this is flagged for manual review, not blocked.
+    # If a review pass has already looked closely and confirmed a material's number
+    # is correct (see "Confirmed Duplicates"), it is not flagged again.
+    confirmed_duplicates = set(parsed_data.get("Confirmed Duplicates", []))
     value_to_materials = {}
     for material in MATERIALS:
         for dim in parsed_data.get(f"{material} Dimension", []):
@@ -277,18 +305,19 @@ def find_problems(parsed_data):
                 value_to_materials.setdefault(value, set()).add(material)
     for value, materials_with_value in value_to_materials.items():
         if len(materials_with_value) > 1:
-            for material in materials_with_value:
+            for material in materials_with_value - confirmed_duplicates:
                 problems.append((
                     material,
                     f"{material}: dimension '{value}' also appears in "
                     f"{', '.join(sorted(materials_with_value - {material}))}. "
                     "Please confirm this was not copied from another row.",
+                    "structural",
                 ))
 
     if not str(parsed_data.get("Date", "")).strip():
-        problems.append((None, "Date was not found."))
+        problems.append((None, "Date was not found.", "info"))
     if not str(parsed_data.get("Submitter", "")).strip():
-        problems.append((None, "Submitter was not found."))
+        problems.append((None, "Submitter was not found.", "info"))
 
     for note in parsed_data.get("Uncertain", []):
         # Tag the note with a material row when the AI named one (e.g. "Concrete entry 2: ...")
@@ -296,6 +325,6 @@ def find_problems(parsed_data):
             (m for m in MATERIALS if str(note).strip().lower().startswith(m.lower())),
             None,
         )
-        problems.append((tagged_material, f"The AI was unsure: {note}"))
+        problems.append((tagged_material, f"The AI was unsure: {note}", "info"))
 
     return problems
