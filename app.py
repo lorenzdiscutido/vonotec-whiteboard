@@ -126,6 +126,7 @@ def extract_data(filepath, gemini_gate):
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     """Adds one whiteboard's data to the master Excel file.
     Must be called while holding the write lock."""
+    needs_review = bool(parsed_data.get("Review Notes"))
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
@@ -217,7 +218,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         cell_g.value = g_val
         cell_h.value = h_val
 
-        is_invalid = False
+        is_invalid = needs_review
         if is_data and g_val:
             base_code = str(g_val).split()[0]
             allowed_codes = MATERIAL_RULES.get(current_mat, [])
@@ -592,7 +593,11 @@ if uploaded_files:
                             if review_notes:
                                 shown = "; ".join(review_notes[:3])
                                 extra = f" (+{len(review_notes) - 3} more)" if len(review_notes) > 3 else ""
-                                results.append(("warning", f"Please double-check '{item['name']}': {shown}{extra}"))
+                                results.append((
+                                    "warning",
+                                    f"'{item['name']}' was added to the Excel file, but its data row is "
+                                    f"highlighted in RED for manual validation: {shown}{extra}"
+                                ))
 
                 except Exception as e:
                     results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
