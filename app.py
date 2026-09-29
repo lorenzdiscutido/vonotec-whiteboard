@@ -5,6 +5,7 @@ import hashlib
 import threading
 import datetime
 import base64
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 import google.generativeai as genai
@@ -22,6 +23,9 @@ LOG_FILE = "processed_log.json"
 MAX_PARALLEL_EXTRACTIONS = 3
 # Max Gemini calls running at the same time across ALL users (avoids rate limits)
 MAX_TOTAL_GEMINI_CALLS = 4
+# Max seconds to wait for a free Gemini "slot" before giving up on one photo,
+# so a stuck earlier call can't silently block every future request forever
+GEMINI_GATE_TIMEOUT_SECONDS = 90
 # If Gemini returns broken JSON, try again this many extra times
 EXTRACTION_RETRIES = 2
 # Second AI "review" pass on photos where the automatic checks find problems
@@ -95,12 +99,25 @@ def extract_data(filepath, gemini_gate):
     """Runs in a background thread. Only talks to Gemini (no Streamlit calls here)."""
     img = load_image(filepath)
 
+    def call_gemini(fn, *args):
+        # Waits for a shared Gemini "slot", but not forever: if a stuck earlier
+        # call never released its slot, this fails fast with a clear error
+        # instead of silently hanging every future request.
+        acquired = gemini_gate.acquire(timeout=GEMINI_GATE_TIMEOUT_SECONDS)
+        if not acquired:
+            raise RuntimeError(
+                "The AI service is busy with other requests right now. Please try this photo again."
+            )
+        try:
+            return fn(*args)
+        finally:
+            gemini_gate.release()
+
     # Pass 1: read the board (retry if the answer is not valid JSON)
     parsed_data = None
     for attempt in range(EXTRACTION_RETRIES + 1):
         try:
-            with gemini_gate:
-                raw_text = get_raw_response(img)
+            raw_text = call_gemini(get_raw_response, img)
             parsed_data = parse_and_clean_json(raw_text)
             break
         except json.JSONDecodeError:
@@ -115,8 +132,7 @@ def extract_data(filepath, gemini_gate):
     structural = [p for p in problems if p[2] == "structural"]
     if ENABLE_REVIEW_PASS and structural:
         try:
-            with gemini_gate:
-                raw_review = get_review_response(img, parsed_data, problems)
+            raw_review = call_gemini(get_review_response, img, parsed_data, problems)
             parsed_data = parse_and_clean_json(raw_review)
         except Exception:
             pass  # keep the first-pass result if the review fails
@@ -618,6 +634,10 @@ if uploaded_files:
                                     ))
 
                 except Exception as e:
+                    # Print the full traceback to the app's logs (Manage app > logs on
+                    # Streamlit Cloud), so the exact failing line can be found later.
+                    # The person only sees the short message below.
+                    traceback.print_exc()
                     results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
                 finally:
                     if os.path.exists(item["temp_path"]):
