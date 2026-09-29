@@ -107,9 +107,13 @@ def extract_data(filepath, gemini_gate):
             if attempt == EXTRACTION_RETRIES:
                 raise
 
-    # Pass 2: a reviewer re-reads the board when the automatic checks find problems
+    # Pass 2: a reviewer re-reads the board, but only when a real data problem
+    # was found (wrong code, mismatched entries, a likely copy error, or nothing
+    # detected at all). A minor AI hedge or a missing date/submitter is shown to
+    # the user for awareness but does not by itself trigger this extra AI call.
     problems = find_problems(parsed_data)
-    if ENABLE_REVIEW_PASS and problems:
+    structural = [p for p in problems if p[2] == "structural"]
+    if ENABLE_REVIEW_PASS and structural:
         try:
             with gemini_gate:
                 raw_review = get_review_response(img, parsed_data, problems)
@@ -118,10 +122,11 @@ def extract_data(filepath, gemini_gate):
             pass  # keep the first-pass result if the review fails
         problems = find_problems(parsed_data)
 
-    # Whatever is still doubtful is shown to the user after the batch, and
-    # only the specific material row(s) involved get highlighted red in Excel
-    parsed_data["Review Notes"] = [msg for _material, msg in problems]
-    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg in problems if mat})
+    # Whatever is still doubtful is shown to the user after the batch. Only
+    # "structural" problems highlight their material row red in Excel; "info"
+    # problems (AI hedges, missing date/submitter) are listed but change no color.
+    parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
+    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind == "structural"})
     return parsed_data
 
 
@@ -594,14 +599,22 @@ if uploaded_files:
                             save_processed_log(current_log)
                             processed_count += 1
                             review_notes = parsed_data.get("Review Notes", [])
+                            flagged_materials = parsed_data.get("Flagged Materials", [])
                             if review_notes:
                                 shown = "; ".join(review_notes[:3])
                                 extra = f" (+{len(review_notes) - 3} more)" if len(review_notes) > 3 else ""
-                                results.append((
-                                    "warning",
-                                    f"'{item['name']}' was added to the Excel file, but its data row is "
-                                    f"highlighted in RED for manual validation: {shown}{extra}"
-                                ))
+                                if flagged_materials:
+                                    results.append((
+                                        "warning",
+                                        f"'{item['name']}' was added to the Excel file, but its data row is "
+                                        f"highlighted in RED for manual validation: {shown}{extra}"
+                                    ))
+                                else:
+                                    results.append((
+                                        "warning",
+                                        f"'{item['name']}' was added to the Excel file. FYI only, nothing is "
+                                        f"highlighted red: {shown}{extra}"
+                                    ))
 
                 except Exception as e:
                     results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
