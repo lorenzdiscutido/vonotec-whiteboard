@@ -135,7 +135,8 @@ def build_extraction_prompt():
 
 
 def build_review_prompt(first_pass, problems):
-    problem_text = "\n".join(f"- {p}" for p in problems) if problems else "- (none)"
+    messages = [msg for _material, msg in problems]
+    problem_text = "\n".join(f"- {p}" for p in messages) if messages else "- (none)"
     return (
         "You are a meticulous QA reviewer. You are given a photo of a handwritten construction-defect "
         "inspection whiteboard and a FIRST-PASS JSON extraction made by another analyst. The first pass may "
@@ -237,31 +238,40 @@ def parse_and_clean_json(raw_text):
 
 
 def find_problems(parsed_data):
-    """Automatic checks that decide whether a photo needs a second look."""
+    """Automatic checks that decide whether a photo needs a second look.
+    Returns a list of (material_or_None, message) tuples. `material` is the
+    row the problem belongs to, so the caller can highlight only that row;
+    it is None for board-wide problems (no single row to point to)."""
     problems = []
 
     if not any(parsed_data.get(f"{m} Damage") for m in MATERIALS):
-        problems.append("No defects were detected on the whole board.")
+        problems.append((None, "No defects were detected on the whole board."))
 
     for material in MATERIALS:
         damages = parsed_data.get(f"{material} Damage", [])
         dimensions = parsed_data.get(f"{material} Dimension", [])
         if len(damages) != len(dimensions):
-            problems.append(
-                f"{material}: {len(damages)} damage entries but {len(dimensions)} dimension entries."
-            )
+            problems.append((
+                material,
+                f"{material}: {len(damages)} damage entries but {len(dimensions)} dimension entries.",
+            ))
         allowed = MATERIAL_RULES.get(material, [])
         for entry in damages:
             tokens = str(entry).split()
             if tokens and tokens[0] not in allowed:
-                problems.append(f"{material}: code '{tokens[0]}' is not valid for this row.")
+                problems.append((material, f"{material}: code '{tokens[0]}' is not valid for this row."))
 
     if not str(parsed_data.get("Date", "")).strip():
-        problems.append("Date was not found.")
+        problems.append((None, "Date was not found."))
     if not str(parsed_data.get("Submitter", "")).strip():
-        problems.append("Submitter was not found.")
+        problems.append((None, "Submitter was not found."))
 
     for note in parsed_data.get("Uncertain", []):
-        problems.append(f"The AI was unsure: {note}")
+        # Tag the note with a material row when the AI named one (e.g. "Concrete entry 2: ...")
+        tagged_material = next(
+            (m for m in MATERIALS if str(note).strip().lower().startswith(m.lower())),
+            None,
+        )
+        problems.append((tagged_material, f"The AI was unsure: {note}"))
 
     return problems
