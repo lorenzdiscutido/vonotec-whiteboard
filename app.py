@@ -118,15 +118,19 @@ def extract_data(filepath, gemini_gate):
             pass  # keep the first-pass result if the review fails
         problems = find_problems(parsed_data)
 
-    # Whatever is still doubtful is shown to the user after the batch
-    parsed_data["Review Notes"] = problems
+    # Whatever is still doubtful is shown to the user after the batch, and
+    # only the specific material row(s) involved get highlighted red in Excel
+    parsed_data["Review Notes"] = [msg for _material, msg in problems]
+    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg in problems if mat})
     return parsed_data
 
 
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     """Adds one whiteboard's data to the master Excel file.
     Must be called while holding the write lock."""
-    needs_review = bool(parsed_data.get("Review Notes"))
+    # Only the specific material row(s) a problem points to are highlighted red,
+    # not the whole whiteboard entry.
+    flagged_materials = set(parsed_data.get("Flagged Materials", []))
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
@@ -218,7 +222,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         cell_g.value = g_val
         cell_h.value = h_val
 
-        is_invalid = needs_review
+        is_invalid = is_data and current_mat in flagged_materials
         if is_data and g_val:
             base_code = str(g_val).split()[0]
             allowed_codes = MATERIAL_RULES.get(current_mat, [])
