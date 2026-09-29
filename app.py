@@ -560,6 +560,7 @@ if uploaded_files:
                 results.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
                 skipped_count += 1
                 finished_count += 1
+                progress_bar.progress(finished_count / total_files)
                 continue
             seen_hashes.add(file_hash)
 
