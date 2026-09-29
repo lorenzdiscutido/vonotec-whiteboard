@@ -89,6 +89,7 @@ HOW TO READ THE BOARD (do this before answering)
 3a. Check EVERY one of the four material rows (Sealant, Concrete, Paint, Gasket) independently, even after you have already found entries in other rows. A row genuinely being blank is normal and expected: some inspections have no defect for a given material. But do not assume a row is blank just because you found something in a neighboring row, or because the row's writing is fainter, smaller, or messier than the others. Look at each row on its own before deciding it is empty.
 3b. Boards are sometimes reused, so a row can contain older writing that was not fully erased, alongside newer writing for this inspection. Do not let smudged or partially erased marks distract you from reading the current, fresh writing on that same row. If you genuinely cannot tell whether a mark is old leftover writing or a current entry, still report what is legibly written, and add a short note to "Uncertain" describing the ambiguity (e.g., "Sealant: entry may be an unerased mark from a previous board, please confirm").
 4. Match every dimension to the damage entry it belongs to (same line or position on the board).
+4a. Read each material row's dimension number completely independently. NEVER copy, reuse, infer, or default to a number you read in another row, even if that other number is much clearer, even if it seems like a reasonable guess, and even if the final digits end up the same. Zoom in on THIS row's own digits before writing them down. If a dimension is genuinely too unclear to read, still give your best independent reading of that row's own digits, and add a note to "Uncertain" naming that entry (e.g. "Concrete entry 1 dimension: hard to read, may not be accurate").
 5. Return an empty array only when a row is truly blank. A faint or hard-to-read entry is NOT blank: read it as best you can and mention it in "Uncertain".
 
 FIELD RULES (use exactly these keys: {JSON_KEYS}, plus the extra key "Uncertain")
@@ -130,6 +131,7 @@ def build_extraction_prompt():
         "a) Re-read each material row one more time. Did you miss any entry?\n"
         "b) For each material, do the Damage and Dimension arrays have the same length and order?\n"
         "c) Is every code valid for its row? Fix misreads (CT to C+, DS to US in Concrete).\n"
+        "c2) For every dimension number you wrote, did you actually read it from THAT row, and not copy it from a different material's row?\n"
         "d) Uppercase, spacing and units correct?\n"
         "e) Did you list every doubtful reading in \"Uncertain\"?\n\n"
         "OUTPUT: return ONLY the raw JSON object. No markdown, no explanations."
@@ -262,6 +264,26 @@ def find_problems(parsed_data):
             tokens = str(entry).split()
             if tokens and tokens[0] not in allowed:
                 problems.append((material, f"{material}: code '{tokens[0]}' is not valid for this row."))
+
+    # Same dimension number appearing in two or more different material rows is a
+    # known AI failure mode (copying a clear number instead of reading a blurry one).
+    # It can also be genuinely correct, so this is flagged for manual review, not blocked.
+    value_to_materials = {}
+    for material in MATERIALS:
+        for dim in parsed_data.get(f"{material} Dimension", []):
+            match = re.match(r"\s*([\d.]+)", str(dim))
+            if match:
+                value = match.group(1)
+                value_to_materials.setdefault(value, set()).add(material)
+    for value, materials_with_value in value_to_materials.items():
+        if len(materials_with_value) > 1:
+            for material in materials_with_value:
+                problems.append((
+                    material,
+                    f"{material}: dimension '{value}' also appears in "
+                    f"{', '.join(sorted(materials_with_value - {material}))}. "
+                    "Please confirm this was not copied from another row.",
+                ))
 
     if not str(parsed_data.get("Date", "")).strip():
         problems.append((None, "Date was not found."))
