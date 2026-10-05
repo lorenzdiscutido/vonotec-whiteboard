@@ -2,10 +2,9 @@ import os
 import json
 import uuid
 import hashlib
-import threading
 import datetime
 import base64
-from concurrent.futures import ThreadPoolExecutor
+import traceback
 
 import google.generativeai as genai
 import streamlit as st
@@ -14,14 +13,18 @@ from openpyxl.styles import Font, Alignment, PatternFill
 
 from config import REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
-from gemini_client import get_raw_response, parse_and_clean_json
+from gemini_client import get_raw_response, get_review_response, parse_and_clean_json, find_problems
 
 LOG_FILE = "processed_log.json"
 
-# How many photos of ONE batch are sent to Gemini at the same time
-MAX_PARALLEL_EXTRACTIONS = 3
-# Max Gemini calls running at the same time across ALL users (avoids rate limits)
-MAX_TOTAL_GEMINI_CALLS = 4
+# Single-user version: photos are processed one at a time, in order.
+# (The old multi-user branch added a shared write lock and a Gemini call
+# limiter across sessions; neither is needed here.)
+
+# If Gemini returns broken JSON, try again this many extra times
+EXTRACTION_RETRIES = 2
+# Second AI "review" pass on photos where the automatic checks find problems
+ENABLE_REVIEW_PASS = True
 
 
 def load_processed_log():
@@ -50,19 +53,6 @@ def save_processed_log(log_list):
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 
-@st.cache_resource
-def get_write_lock():
-    """One lock shared by every user session: only one person writes to the
-    master Excel file / log at a time."""
-    return threading.Lock()
-
-
-@st.cache_resource
-def get_gemini_gate():
-    """Caps how many Gemini calls run at once across all users."""
-    return threading.Semaphore(MAX_TOTAL_GEMINI_CALLS)
-
-
 def _populate_reference_sheet(wb):
     ws_ref = wb.create_sheet(title="Reference Data")
     header_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
@@ -87,17 +77,49 @@ def _populate_reference_sheet(wb):
     ws_ref.row_dimensions[1].height = 28
 
 
-def extract_data(filepath, gemini_gate):
-    """Runs in a background thread. Only talks to Gemini (no Streamlit calls here)."""
+def extract_data(filepath):
+    """Reads one whiteboard photo with Gemini (no Streamlit calls here)."""
     img = load_image(filepath)
-    with gemini_gate:
-        raw_text = get_raw_response(img)
-    return parse_and_clean_json(raw_text)
+
+    # Pass 1: read the board (retry if the answer is not valid JSON)
+    parsed_data = None
+    for attempt in range(EXTRACTION_RETRIES + 1):
+        try:
+            raw_text = get_raw_response(img)
+            parsed_data = parse_and_clean_json(raw_text)
+            break
+        except json.JSONDecodeError:
+            if attempt == EXTRACTION_RETRIES:
+                raise
+
+    # Pass 2: a reviewer re-reads the board, but only when a real data problem
+    # was found (wrong code, mismatched entries, a likely copy error, or nothing
+    # detected at all). A minor AI hedge or a missing date/submitter is shown to
+    # the user for awareness but does not by itself trigger this extra AI call.
+    problems = find_problems(parsed_data)
+    structural = [p for p in problems if p[2] == "structural"]
+    if ENABLE_REVIEW_PASS and structural:
+        try:
+            raw_review = get_review_response(img, parsed_data, problems)
+            parsed_data = parse_and_clean_json(raw_review)
+        except Exception:
+            pass  # keep the first-pass result if the review fails
+        problems = find_problems(parsed_data)
+
+    # Whatever is still doubtful is shown to the user after the batch. Only
+    # "structural" problems highlight their material row red in Excel; "info"
+    # problems (AI hedges, missing date/submitter) are listed but change no color.
+    parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
+    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind == "structural"})
+    return parsed_data
 
 
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     """Adds one whiteboard's data to the master Excel file.
     Must be called while holding the write lock."""
+    # Only the specific material row(s) a problem points to are highlighted red,
+    # not the whole whiteboard entry.
+    flagged_materials = set(parsed_data.get("Flagged Materials", []))
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
@@ -189,7 +211,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         cell_g.value = g_val
         cell_h.value = h_val
 
-        is_invalid = False
+        is_invalid = is_data and current_mat in flagged_materials
         if is_data and g_val:
             base_code = str(g_val).split()[0]
             allowed_codes = MATERIAL_RULES.get(current_mat, [])
@@ -447,9 +469,6 @@ st.subheader("Upload Whiteboard Photos")
 current_month_year = datetime.datetime.now().strftime("%B_%Y")
 output_xlsx_path = f"master_output_{current_month_year}.xlsx"
 
-write_lock = get_write_lock()
-gemini_gate = get_gemini_gate()
-
 # Changing the uploader's key resets it, which clears all selected photos at once
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
@@ -508,67 +527,72 @@ if uploaded_files:
 
         processed_count = 0
         skipped_count = 0
-        finished_count = 0
 
-        # ---- Step 1: fingerprint every photo and skip duplicates ----
+        # Photos are read by content, not filename, so the same photo is
+        # recognized as a duplicate even if it was renamed or re-uploaded.
         processed_log = load_processed_log()
         seen_hashes = set()
-        pending = []
-        for uploaded_file in uploaded_files:
+
+        for i, uploaded_file in enumerate(uploaded_files):
+            status_text.markdown(
+                f'<p class="status-msg">Processing image {i + 1} of {total_files}: {uploaded_file.name}</p>',
+                unsafe_allow_html=True
+            )
+
             file_bytes = uploaded_file.getvalue()
             file_hash = hashlib.sha256(file_bytes).hexdigest()
 
             if file_hash in processed_log or file_hash in seen_hashes:
                 results.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
                 skipped_count += 1
-                finished_count += 1
+                progress_bar.progress((i + 1) / total_files)
                 continue
             seen_hashes.add(file_hash)
 
-            # Unique temp name so two users never overwrite each other's photo
+            # A unique temp name avoids any clash with a leftover file from a
+            # previous run under the same original filename.
             extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
             temp_path = f"temp_{uuid.uuid4().hex}{extension}"
             with open(temp_path, "wb") as f:
                 f.write(file_bytes)
-            pending.append({"name": uploaded_file.name, "hash": file_hash, "temp_path": temp_path})
 
-        progress_bar.progress(finished_count / total_files)
+            try:
+                parsed_data = extract_data(temp_path)
+                write_parsed_data_to_excel(parsed_data, temp_path, output_xlsx_path)
 
-        # ---- Step 2: extract in parallel, write to Excel one at a time ----
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_EXTRACTIONS) as executor:
-            jobs = [
-                (item, executor.submit(extract_data, item["temp_path"], gemini_gate))
-                for item in pending
-            ]
+                processed_log.append(file_hash)
+                save_processed_log(processed_log)
+                processed_count += 1
 
-            for item, future in jobs:
-                status_text.markdown(
-                    f'<p class="status-msg">Processing image {finished_count + 1} of {total_files}: {item["name"]}</p>',
-                    unsafe_allow_html=True
-                )
-                try:
-                    parsed_data = future.result()
+                review_notes = parsed_data.get("Review Notes", [])
+                flagged_materials = parsed_data.get("Flagged Materials", [])
+                if review_notes:
+                    shown = "; ".join(review_notes[:3])
+                    extra = f" (+{len(review_notes) - 3} more)" if len(review_notes) > 3 else ""
+                    if flagged_materials:
+                        results.append((
+                            "warning",
+                            f"'{uploaded_file.name}' was added to the Excel file, but its data row is "
+                            f"highlighted in RED for manual validation: {shown}{extra}"
+                        ))
+                    else:
+                        results.append((
+                            "warning",
+                            f"'{uploaded_file.name}' was added to the Excel file. FYI only, nothing is "
+                            f"highlighted red: {shown}{extra}"
+                        ))
 
-                    with write_lock:
-                        # Re-check inside the lock in case another user just added the same photo
-                        current_log = load_processed_log()
-                        if item["hash"] in current_log:
-                            results.append(("warning", f"Skipping '{item['name']}' - already processed."))
-                            skipped_count += 1
-                        else:
-                            write_parsed_data_to_excel(parsed_data, item["temp_path"], output_xlsx_path)
-                            current_log.append(item["hash"])
-                            save_processed_log(current_log)
-                            processed_count += 1
+            except Exception as e:
+                # Print the full traceback to the app's logs (Manage app > logs on
+                # Streamlit Cloud), so the exact failing line can be found later.
+                # The person only sees the short message below.
+                traceback.print_exc()
+                results.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
-                except Exception as e:
-                    results.append(("error", f"An error occurred while processing {item['name']}: {e}"))
-                finally:
-                    if os.path.exists(item["temp_path"]):
-                        os.remove(item["temp_path"])
-
-                finished_count += 1
-                progress_bar.progress(finished_count / total_files)
+            progress_bar.progress((i + 1) / total_files)
 
         results.append(("status", "Batch Complete."))
         results.append(("success", f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s)."))
@@ -606,20 +630,19 @@ if os.path.exists(output_xlsx_path):
             st.session_state.confirm_reset = True
             st.rerun()
 
-    # Ask before deleting, because this wipes the file for everyone
+    # Ask before deleting, since this permanently removes the master data
     if st.session_state.confirm_reset:
         st.warning(
-            "This will permanently delete the master Excel file and the processed-photos log "
-            "for everyone using the app. Are you sure?"
+            "This will permanently delete the master Excel file and the processed-photos log. "
+            "Are you sure?"
         )
         confirm_col1, confirm_col2 = st.columns(2)
         with confirm_col1:
             if st.button("Yes, delete everything", type="primary", key="confirm_delete"):
-                with write_lock:
-                    if os.path.exists(output_xlsx_path):
-                        os.remove(output_xlsx_path)
-                    if os.path.exists(LOG_FILE):
-                        os.remove(LOG_FILE)
+                if os.path.exists(output_xlsx_path):
+                    os.remove(output_xlsx_path)
+                if os.path.exists(LOG_FILE):
+                    os.remove(LOG_FILE)
                 st.session_state.batch_results = []
                 st.session_state.confirm_reset = False
                 st.rerun()
