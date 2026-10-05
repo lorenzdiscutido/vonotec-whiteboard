@@ -2,3 +2,4 @@ streamlit
 openpyxl
 Pillow
 google-generativeai
+requests
