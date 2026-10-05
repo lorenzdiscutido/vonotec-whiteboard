@@ -17,6 +17,7 @@ Required config.py values (not secret, so they live in code):
 """
 import os
 import time
+import random
 from urllib.parse import quote
 
 import requests
@@ -35,6 +36,24 @@ SIMPLE_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
 CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 
 XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Writing to the same file again very soon after the previous write can get a
+# transient "423 Locked" while SharePoint finishes processing that previous
+# write, or a "429"/"503" if it's briefly busy. These clear on their own
+# within a few seconds, so they are retried rather than treated as failures.
+MAX_UPLOAD_ATTEMPTS = 5
+RETRYABLE_STATUS_CODES = {423, 429, 503, 504}
+
+
+def _retry_wait_seconds(response, attempt):
+    """Uses the Retry-After header when SharePoint provides one, else backs off."""
+    retry_after = response.headers.get("Retry-After") if response is not None else None
+    if retry_after:
+        try:
+            return float(retry_after) + 0.5
+        except ValueError:
+            pass
+    return min((2 ** attempt) + random.random(), 20)
 
 # The access token and the resolved site id are reused across calls instead
 # of being fetched every time, since both are slow network round-trips and
@@ -105,10 +124,19 @@ def upload_file(local_path, remote_filename):
     item_path = _encode_item_path(SHAREPOINT_FOLDER_PATH, remote_filename)
     file_size = os.path.getsize(local_path)
 
-    if file_size <= SIMPLE_UPLOAD_LIMIT_BYTES:
-        _upload_small_file(local_path, site_id, item_path, token)
-    else:
-        _upload_large_file(local_path, site_id, item_path, token, file_size)
+    for attempt in range(MAX_UPLOAD_ATTEMPTS):
+        try:
+            if file_size <= SIMPLE_UPLOAD_LIMIT_BYTES:
+                _upload_small_file(local_path, site_id, item_path, token)
+            else:
+                _upload_large_file(local_path, site_id, item_path, token, file_size)
+            return
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in RETRYABLE_STATUS_CODES and attempt < MAX_UPLOAD_ATTEMPTS - 1:
+                time.sleep(_retry_wait_seconds(e.response, attempt))
+                continue
+            raise
 
 
 def _upload_small_file(local_path, site_id, item_path, token):
