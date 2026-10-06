@@ -29,7 +29,7 @@ ENABLE_REVIEW_PASS = True
 # Automatically push the master Excel file to SharePoint after every photo,
 # so data is never only sitting on this app's temporary disk waiting to be
 # downloaded manually. A sync failure never blocks or undoes the local save.
-ENABLE_SHAREPOINT_SYNC = False
+ENABLE_SHAREPOINT_SYNC = True
 
 
 def load_processed_log():
