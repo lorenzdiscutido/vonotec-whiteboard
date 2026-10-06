@@ -3,7 +3,7 @@ PROCESSED_LOG = "processed_files_log.txt"
 GEMINI_API_KEY = ""
 SHAREPOINT_HOSTNAME = "vonotecph.sharepoint.com"
 SHAREPOINT_SITE_NAME = "Vonotec"
-SHAREPOINT_FOLDER_PATH = "07 - Employee Folders (to be reviewed)/Lorenz"
+SHAREPOINT_FOLDER_PATH = "07 - Employee Folders (to be reviewed)/Lorenz/Whiteboard Excel Files"
 
 JSON_KEYS = [
     "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower", 
