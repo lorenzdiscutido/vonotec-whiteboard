@@ -112,6 +112,51 @@ def _encode_item_path(folder_path, filename):
     return "/".join(quote(segment, safe="") for segment in segments)
 
 
+def download_file(remote_filename, local_path):
+    """Downloads the file from SharePoint to local_path, if it exists there.
+
+    This matters because this app's local disk is temporary: it can be wiped
+    by a reboot or redeploy, while the SharePoint copy persists. Without this,
+    a wiped-and-restarted app would start a brand new, empty master file and
+    overwrite the fuller one already in SharePoint the next time it synced.
+
+    Returns True if an existing file was downloaded, False if nothing exists
+    there yet (a normal first-ever run, not an error)."""
+    # This is often the very first SharePoint network call of a fresh session,
+    # before the connection has "warmed up," so a one-off transient failure
+    # here is retried rather than surfaced as a scary warning right away.
+    last_error = None
+    for attempt in range(3):
+        try:
+            token = _get_access_token()
+            site_id = _get_site_id()
+            item_path = _encode_item_path(SHAREPOINT_FOLDER_PATH, remote_filename)
+            url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}:/content"
+
+            response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=120, stream=True)
+            if response.status_code == 404:
+                return False
+            response.raise_for_status()
+
+            with open(local_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    f.write(chunk)
+            return True
+        except requests.exceptions.HTTPError as e:
+            # A real HTTP error (not just "not found") is worth retrying once or
+            # twice, but not endlessly, unlike a plain connection/timeout issue.
+            last_error = e
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+        except requests.exceptions.RequestException as e:
+            # Connection/timeout-type issues: the likely "cold start" case.
+            last_error = e
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+
+    raise last_error
+
+
 def upload_file(local_path, remote_filename):
     """Uploads local_path to the configured SharePoint folder, replacing any
     existing file with the same name.
