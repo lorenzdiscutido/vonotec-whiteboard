@@ -345,6 +345,17 @@ st.markdown(
         margin-bottom: 24px;
     }
 
+    /* Readable labels above inputs, e.g. "Name this batch..." above the text box */
+    div[data-testid="stWidgetLabel"] p,
+    div[data-testid="stWidgetLabel"] label,
+    label[data-testid="stWidgetLabel"],
+    .stTextInput label p,
+    .stTextInput label {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+    }
+
     /* Readable status text: "Processing...", "Batch Complete." */
     div[data-testid="stText"],
     div[data-testid="stText"] p {
