@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import hashlib
@@ -471,9 +472,6 @@ st.markdown(
 
 st.subheader("Upload Whiteboard Photos")
 
-current_month_year = datetime.datetime.now().strftime("%B_%Y")
-output_xlsx_path = f"master_output_{current_month_year}.xlsx"
-
 # Changing the uploader's key resets it, which clears all selected photos at once
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
@@ -481,6 +479,26 @@ if "batch_results" not in st.session_state:
     st.session_state.batch_results = []
 if "confirm_reset" not in st.session_state:
     st.session_state.confirm_reset = False
+# The file this batch will be saved as, remembered after a batch finishes so
+# "Master File Management" below can always point at the right file.
+if "last_output_path" not in st.session_state:
+    st.session_state.last_output_path = None
+if "last_output_label" not in st.session_state:
+    st.session_state.last_output_label = None
+
+
+def sanitize_batch_filename(name):
+    """Turns what the person typed into a safe .xlsx filename, or None if
+    nothing usable was entered."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    name = re.sub(r'[\\/:*?"<>|]', "_", name)  # characters not allowed in Windows/SharePoint filenames
+    name = name.rstrip(". ")  # trailing dots/spaces aren't allowed either
+    name = name[:150]
+    if not name:
+        return None
+    return name if name.lower().endswith(".xlsx") else f"{name}.xlsx"
 
 uploaded_files = st.file_uploader(
     "Choose whiteboard images...",
@@ -512,6 +530,18 @@ if uploaded_files:
         unsafe_allow_html=True
     )
 
+    # Suggest a fresh default name each time a new round of photos is selected
+    # (after Clear Photos or after a batch finishes), without overwriting
+    # whatever the person is actively typing in the meantime.
+    if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
+        st.session_state.batch_name_round = st.session_state.uploader_key
+        st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
+
+    batch_name_raw = st.text_input(
+        "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
+        key="batch_name_input"
+    )
+
     with st.container(key="action_buttons"):
         btn_col1, btn_col2 = st.columns(2, gap="small")
         with btn_col1:
@@ -524,7 +554,15 @@ if uploaded_files:
         st.session_state.batch_results = []
         st.rerun()
 
+    if extract_clicked and not sanitize_batch_filename(batch_name_raw):
+        st.error("Please enter a name for this batch before extracting.")
+        extract_clicked = False
+
     if extract_clicked:
+        output_xlsx_path = sanitize_batch_filename(batch_name_raw)
+        st.session_state.last_output_path = output_xlsx_path
+        st.session_state.last_output_label = batch_name_raw.strip()
+
         total_files = len(uploaded_files)
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -532,6 +570,28 @@ if uploaded_files:
 
         processed_count = 0
         skipped_count = 0
+
+        # This app's local disk is temporary (a reboot or redeploy wipes it),
+        # while the SharePoint copy persists. If there's no local file yet,
+        # pull down whatever's already in SharePoint first, so new entries get
+        # appended to it instead of silently starting over and overwriting it.
+        if ENABLE_SHAREPOINT_SYNC and not os.path.exists(output_xlsx_path):
+            try:
+                found = sharepoint_client.download_file(
+                    os.path.basename(output_xlsx_path), output_xlsx_path
+                )
+                if found:
+                    results.append((
+                        "status",
+                        "Found an existing master file in SharePoint and loaded it before continuing."
+                    ))
+            except Exception:
+                traceback.print_exc()
+                results.append((
+                    "warning",
+                    "Could not check SharePoint for an existing master file before starting. "
+                    "If one already exists there, please verify afterward that no data was lost."
+                ))
 
         # Photos are read by content, not filename, so the same photo is
         # recognized as a duplicate even if it was renamed or re-uploaded.
@@ -622,48 +682,49 @@ if uploaded_files:
         st.session_state.uploader_key += 1
         st.rerun()
 
-if os.path.exists(output_xlsx_path):
+current_batch_path = st.session_state.last_output_path
+if current_batch_path and os.path.exists(current_batch_path):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Master File Management")
+    st.subheader(f'File Management — "{st.session_state.last_output_label}"')
 
     col1, col2 = st.columns(2)
 
     with col1:
         xlsx_bytes = None
         try:
-            with open(output_xlsx_path, "rb") as file:
+            with open(current_batch_path, "rb") as file:
                 xlsx_bytes = file.read()
         except FileNotFoundError:
             pass
 
         if xlsx_bytes is not None:
             st.download_button(
-                label=f"Download {output_xlsx_path}",
+                label=f"Download {current_batch_path}",
                 data=xlsx_bytes,
-                file_name=output_xlsx_path,
+                file_name=current_batch_path,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
-            
+
     with col2:
-        if st.button("Start Fresh (Clear Data)", type="primary", key="start_fresh"):
+        if st.button("Delete This Batch File", type="primary", key="start_fresh"):
             st.session_state.confirm_reset = True
             st.rerun()
 
-    # Ask before deleting, since this permanently removes the master data
+    # Ask before deleting, since this removes that batch's local data
     if st.session_state.confirm_reset:
         st.warning(
-            "This will permanently delete the master Excel file and the processed-photos log. "
-            "Are you sure?"
+            f'This will permanently delete the local copy of "{current_batch_path}". It does not '
+            "touch the processed-photos duplicate log, and it does not delete any copy already "
+            "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
         )
         confirm_col1, confirm_col2 = st.columns(2)
         with confirm_col1:
-            if st.button("Yes, delete everything", type="primary", key="confirm_delete"):
-                if os.path.exists(output_xlsx_path):
-                    os.remove(output_xlsx_path)
-                if os.path.exists(LOG_FILE):
-                    os.remove(LOG_FILE)
-                st.session_state.batch_results = []
+            if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
+                if os.path.exists(current_batch_path):
+                    os.remove(current_batch_path)
+                st.session_state.last_output_path = None
+                st.session_state.last_output_label = None
                 st.session_state.confirm_reset = False
                 st.rerun()
         with confirm_col2:
