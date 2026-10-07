@@ -5,6 +5,10 @@ using the Microsoft Graph API with app-only authentication (client-credentials
 flow). This runs with no one signed in, which is what makes it possible to
 sync in the background every time a photo is processed.
 
+Files can be saved straight into the landing folder, or into a subfolder of
+it. Subfolders can be listed and created from here, so people can group
+their batches (for example one folder per project or per month).
+
 Required Streamlit secrets (set in Streamlit Cloud > Settings > Secrets):
     SHAREPOINT_TENANT_ID
     SHAREPOINT_CLIENT_ID
@@ -16,6 +20,7 @@ Required config.py values (not secret, so they live in code):
     SHAREPOINT_FOLDER_PATH
 """
 import os
+import re
 import time
 import random
 from urllib.parse import quote
@@ -112,8 +117,95 @@ def _encode_item_path(folder_path, filename):
     return "/".join(quote(segment, safe="") for segment in segments)
 
 
-def download_file(remote_filename, local_path):
+def _encode_folder_path(segments):
+    return "/".join(quote(s, safe="") for s in segments if s)
+
+
+def _landing_segments():
+    return [s for s in SHAREPOINT_FOLDER_PATH.split("/") if s]
+
+
+def _remote_folder(subfolder=""):
+    """The landing folder, plus the chosen subfolder inside it (if any)."""
+    parts = _landing_segments()
+    if subfolder:
+        parts += [s for s in subfolder.split("/") if s]
+    return "/".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Subfolders: listing and creating
+# ---------------------------------------------------------------------------
+
+def sanitize_folder_name(name):
+    """Turns what the person typed into a safe SharePoint folder name, or
+    None if nothing usable was entered."""
+    name = (name or "").strip()
+    name = re.sub(r'[\\/:*?"<>|]', "_", name)  # characters not allowed in SharePoint names
+    name = name.rstrip(". ")  # trailing dots/spaces aren't allowed either
+    name = name[:100]
+    return name or None
+
+
+def list_subfolders():
+    """Returns the names of the folders directly inside the landing folder,
+    sorted A-Z. Returns an empty list if the landing folder doesn't exist yet."""
+    site_id = _get_site_id()
+    encoded = _encode_folder_path(_landing_segments())
+    if encoded:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?$select=name,folder&$top=200"
+    else:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children?$select=name,folder&$top=200"
+
+    names = []
+    while url:
+        token = _get_access_token()
+        response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        data = response.json()
+        # Children that have a "folder" facet are folders; the rest are files
+        names += [item["name"] for item in data.get("value", []) if "folder" in item]
+        url = data.get("@odata.nextLink")  # more pages, if there are many folders
+    return sorted(names, key=str.lower)
+
+
+def _create_folder_if_missing(parent_segments, name):
+    site_id = _get_site_id()
+    token = _get_access_token()
+    if parent_segments:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{_encode_folder_path(parent_segments)}:/children"
+    else:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children"
+
+    response = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "fail"},
+        timeout=30,
+    )
+    if response.status_code == 409:
+        return  # already exists, which is fine
+    response.raise_for_status()
+
+
+def ensure_subfolder(name):
+    """Creates the subfolder inside the landing folder. Does nothing if it
+    already exists. Also creates the landing folder itself if it's missing."""
+    parent = []
+    for segment in _landing_segments() + [name]:
+        _create_folder_if_missing(parent, segment)
+        parent.append(segment)
+
+
+# ---------------------------------------------------------------------------
+# Files: download and upload
+# ---------------------------------------------------------------------------
+
+def download_file(remote_filename, local_path, subfolder=""):
     """Downloads the file from SharePoint to local_path, if it exists there.
+    subfolder is the folder inside the landing folder ("" = the landing folder itself).
 
     This matters because this app's local disk is temporary: it can be wiped
     by a reboot or redeploy, while the SharePoint copy persists. Without this,
@@ -130,7 +222,7 @@ def download_file(remote_filename, local_path):
         try:
             token = _get_access_token()
             site_id = _get_site_id()
-            item_path = _encode_item_path(SHAREPOINT_FOLDER_PATH, remote_filename)
+            item_path = _encode_item_path(_remote_folder(subfolder), remote_filename)
             url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}:/content"
 
             response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=120, stream=True)
@@ -157,16 +249,16 @@ def download_file(remote_filename, local_path):
     raise last_error
 
 
-def upload_file(local_path, remote_filename):
-    """Uploads local_path to the configured SharePoint folder, replacing any
-    existing file with the same name.
+def upload_file(local_path, remote_filename, subfolder=""):
+    """Uploads local_path to the landing folder (or a subfolder of it),
+    replacing any existing file with the same name.
 
     Raises an exception on failure. The caller should treat this as
     best-effort: the local Excel file is always the source of truth and is
     saved successfully regardless of whether this upload succeeds."""
     token = _get_access_token()
     site_id = _get_site_id()
-    item_path = _encode_item_path(SHAREPOINT_FOLDER_PATH, remote_filename)
+    item_path = _encode_item_path(_remote_folder(subfolder), remote_filename)
     file_size = os.path.getsize(local_path)
 
     for attempt in range(MAX_UPLOAD_ATTEMPTS):
