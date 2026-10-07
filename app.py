@@ -32,6 +32,13 @@ ENABLE_REVIEW_PASS = True
 # downloaded manually. A sync failure never blocks or undoes the local save.
 ENABLE_SHAREPOINT_SYNC = True
 
+# Local working copies live here, in one subfolder per SharePoint folder, so
+# two batches with the same name in different folders never mix.
+LOCAL_BATCH_DIR = "local_batches"
+# Choices shown in the "Save into which folder?" dropdown
+MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
+NEW_FOLDER_LABEL = "+ Create a new folder..."
+
 
 def load_processed_log():
     """Loads the list of already processed photo fingerprints."""
@@ -256,7 +263,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
     # Save to a temp file first, then swap it in, so a crash mid-save
     # can never leave a half-written master file.
-    tmp_path = output_xlsx_path.replace(".xlsx", "_tmp.xlsx")
+    tmp_path = os.path.splitext(output_xlsx_path)[0] + "_tmp.xlsx"
     try:
         wb.save(tmp_path)
         os.replace(tmp_path, output_xlsx_path)
@@ -496,6 +503,17 @@ if "last_output_path" not in st.session_state:
     st.session_state.last_output_path = None
 if "last_output_label" not in st.session_state:
     st.session_state.last_output_label = None
+# The SharePoint folder that file went into ("" = the main landing folder)
+if "last_output_folder" not in st.session_state:
+    st.session_state.last_output_folder = ""
+# The folder picked last time, so the dropdown starts there next round
+if "last_folder_choice" not in st.session_state:
+    st.session_state.last_folder_choice = MAIN_FOLDER_LABEL
+# Folder names found in SharePoint (None = not loaded yet)
+if "sp_folders" not in st.session_state:
+    st.session_state.sp_folders = None
+if "sp_folders_error" not in st.session_state:
+    st.session_state.sp_folders_error = False
 
 
 def sanitize_batch_filename(name):
@@ -510,6 +528,19 @@ def sanitize_batch_filename(name):
     if not name:
         return None
     return name if name.lower().endswith(".xlsx") else f"{name}.xlsx"
+
+
+def refresh_folder_list():
+    """Reads the current subfolders from SharePoint. If that fails, the app
+    carries on with an empty list (main folder + creating a new folder still work)."""
+    try:
+        st.session_state.sp_folders = sharepoint_client.list_subfolders()
+        st.session_state.sp_folders_error = False
+    except Exception:
+        traceback.print_exc()
+        st.session_state.sp_folders = []
+        st.session_state.sp_folders_error = True
+
 
 uploaded_files = st.file_uploader(
     "Choose whiteboard images...",
@@ -547,6 +578,36 @@ if uploaded_files:
     if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
         st.session_state.batch_name_round = st.session_state.uploader_key
         st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
+        # Re-read the folder list each round, so folders other people created show up
+        st.session_state.sp_folders = None
+
+    # ---- Which SharePoint folder should this batch go into? ----
+    folder_choice = MAIN_FOLDER_LABEL
+    new_folder_raw = ""
+    if ENABLE_SHAREPOINT_SYNC:
+        if st.session_state.sp_folders is None:
+            with st.spinner("Loading SharePoint folders..."):
+                refresh_folder_list()
+        if st.session_state.sp_folders_error:
+            st.warning(
+                "Could not load the folder list from SharePoint right now. You can still save to "
+                "the main folder, or create a new folder."
+            )
+
+        folder_options = [MAIN_FOLDER_LABEL] + list(st.session_state.sp_folders) + [NEW_FOLDER_LABEL]
+        default_choice = st.session_state.last_folder_choice
+        default_index = folder_options.index(default_choice) if default_choice in folder_options else 0
+        folder_choice = st.selectbox(
+            "Save into which SharePoint folder?",
+            folder_options,
+            index=default_index,
+            key="folder_choice_input"
+        )
+        if folder_choice == NEW_FOLDER_LABEL:
+            new_folder_raw = st.text_input(
+                "Name for the new folder",
+                key="new_folder_name_input"
+            )
 
     batch_name_raw = st.text_input(
         "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
@@ -569,10 +630,34 @@ if uploaded_files:
         st.error("Please enter a name for this batch before extracting.")
         extract_clicked = False
 
+    # Work out which folder was chosen (and tidy up a newly typed name)
+    subfolder = ""
+    creating_new_folder = False
+    if extract_clicked and ENABLE_SHAREPOINT_SYNC:
+        if folder_choice == NEW_FOLDER_LABEL:
+            typed = sharepoint_client.sanitize_folder_name(new_folder_raw)
+            if not typed:
+                st.error("Please enter a name for the new folder before extracting.")
+                extract_clicked = False
+            else:
+                # A name that matches an existing folder (ignoring capitals) just uses that folder
+                match = next((f for f in st.session_state.sp_folders if f.lower() == typed.lower()), None)
+                subfolder = match or typed
+                creating_new_folder = match is None
+        elif folder_choice != MAIN_FOLDER_LABEL:
+            subfolder = folder_choice
+
     if extract_clicked:
-        output_xlsx_path = sanitize_batch_filename(batch_name_raw)
+        # Local working copy: one local folder per SharePoint folder
+        local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
+        os.makedirs(local_dir, exist_ok=True)
+        output_xlsx_path = os.path.join(local_dir, sanitize_batch_filename(batch_name_raw))
+        remote_filename = os.path.basename(output_xlsx_path)
+
         st.session_state.last_output_path = output_xlsx_path
         st.session_state.last_output_label = batch_name_raw.strip()
+        st.session_state.last_output_folder = subfolder
+        st.session_state.last_folder_choice = subfolder if subfolder else MAIN_FOLDER_LABEL
 
         total_files = len(uploaded_files)
         progress_bar = st.progress(0)
@@ -582,15 +667,32 @@ if uploaded_files:
         processed_count = 0
         skipped_count = 0
 
+        # Create the new folder in SharePoint first, so it exists before the
+        # first upload. If this fails the batch still runs: the local save is
+        # unaffected and the upload after each photo is retried.
+        if ENABLE_SHAREPOINT_SYNC and creating_new_folder:
+            try:
+                sharepoint_client.ensure_subfolder(subfolder)
+                if subfolder.lower() not in [f.lower() for f in st.session_state.sp_folders]:
+                    st.session_state.sp_folders = sorted(
+                        st.session_state.sp_folders + [subfolder], key=str.lower
+                    )
+                results.append(("status", f'Created the folder "{subfolder}" in SharePoint.'))
+            except Exception:
+                traceback.print_exc()
+                results.append((
+                    "warning",
+                    f'Could not create the folder "{subfolder}" in SharePoint just now. '
+                    "The photos are still being processed and saved in the app; syncing will be tried again after each photo."
+                ))
+
         # This app's local disk is temporary (a reboot or redeploy wipes it),
         # while the SharePoint copy persists. If there's no local file yet,
         # pull down whatever's already in SharePoint first, so new entries get
         # appended to it instead of silently starting over and overwriting it.
         if ENABLE_SHAREPOINT_SYNC and not os.path.exists(output_xlsx_path):
             try:
-                found = sharepoint_client.download_file(
-                    os.path.basename(output_xlsx_path), output_xlsx_path
-                )
+                found = sharepoint_client.download_file(remote_filename, output_xlsx_path, subfolder)
                 if found:
                     results.append((
                         "status",
@@ -645,7 +747,7 @@ if uploaded_files:
                 # above, so a SharePoint hiccup here never loses or blocks that.
                 if ENABLE_SHAREPOINT_SYNC:
                     try:
-                        sharepoint_client.upload_file(output_xlsx_path, os.path.basename(output_xlsx_path))
+                        sharepoint_client.upload_file(output_xlsx_path, remote_filename, subfolder)
                     except Exception:
                         traceback.print_exc()
                         results.append((
@@ -696,7 +798,8 @@ if uploaded_files:
 current_batch_path = st.session_state.last_output_path
 if current_batch_path and os.path.exists(current_batch_path):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader(f'File Management — "{st.session_state.last_output_label}"')
+    folder_note = f' in folder "{st.session_state.last_output_folder}"' if st.session_state.last_output_folder else ""
+    st.subheader(f'File Management — "{st.session_state.last_output_label}"{folder_note}')
 
     col1, col2 = st.columns(2)
 
@@ -710,9 +813,9 @@ if current_batch_path and os.path.exists(current_batch_path):
 
         if xlsx_bytes is not None:
             st.download_button(
-                label=f"Download {current_batch_path}",
+                label=f"Download {os.path.basename(current_batch_path)}",
                 data=xlsx_bytes,
-                file_name=current_batch_path,
+                file_name=os.path.basename(current_batch_path),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
@@ -725,7 +828,7 @@ if current_batch_path and os.path.exists(current_batch_path):
     # Ask before deleting, since this removes that batch's local data
     if st.session_state.confirm_reset:
         st.warning(
-            f'This will permanently delete the local copy of "{current_batch_path}". It does not '
+            f'This will permanently delete the local copy of "{os.path.basename(current_batch_path)}". It does not '
             "touch the processed-photos duplicate log, and it does not delete any copy already "
             "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
         )
@@ -736,6 +839,7 @@ if current_batch_path and os.path.exists(current_batch_path):
                     os.remove(current_batch_path)
                 st.session_state.last_output_path = None
                 st.session_state.last_output_label = None
+                st.session_state.last_output_folder = ""
                 st.session_state.confirm_reset = False
                 st.rerun()
         with confirm_col2:
