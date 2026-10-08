@@ -138,7 +138,7 @@ def extract_data(filepath):
     # "structural" problems highlight their material row red in Excel; "info"
     # problems (AI hedges, missing date/submitter) are listed but change no color.
     parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
-    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind == "structural"})
+    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind in ("structural", "manual")})
     return parsed_data
 
 
@@ -228,10 +228,17 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
     rows_data = []
     for mat in ["Sealant", "Concrete", "Paint", "Gasket"]:
-        rows_data.append((mat, "", True, False, mat)) 
+        rows_data.append((mat, "", True, False, mat, False)) 
         
         dmg_list = parsed_data.get(f"{mat} Damage", [])
         dim_list = parsed_data.get(f"{mat} Dimension", [])
+        # Entries whose dimension was left blank on purpose, for a human to fill in
+        manual_rows = {
+            idx
+            for note in (parsed_data.get("Manual Dimension") or [])
+            if note["material"] == mat
+            for idx in note["indices"]
+        }
         
         expanded_dmg = []
         expanded_dim = []
@@ -244,9 +251,10 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             found_codes = [t for t in tokens if t in VALID_CODES]
             
             if len(found_codes) > 1:
-                for code in found_codes:
+                # Several defects sharing one dimension: only the first gets it
+                for n, code in enumerate(found_codes):
                     expanded_dmg.append(code)
-                    expanded_dim.append(dim_str) 
+                    expanded_dim.append(dim_str if n == 0 else "")
             else:
                 expanded_dmg.append(dmg_str)
                 expanded_dim.append(dim_str)
@@ -255,7 +263,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         for i in range(max_len):
             dmg_val = expanded_dmg[i] if i < len(expanded_dmg) else ""
             dim_val = expanded_dim[i] if i < len(expanded_dim) else ""
-            rows_data.append((dmg_val, dim_val, False, True, mat)) 
+            rows_data.append((dmg_val, dim_val, False, True, mat, i in manual_rows)) 
 
     total_rows = len(rows_data)
 
@@ -265,7 +273,8 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         if total_rows > 1:
             ws.merge_cells(start_row=start_row, start_column=i+1, end_row=start_row + total_rows - 1, end_column=i+1)
 
-    for i, (g_val, h_val, is_title, is_data, current_mat) in enumerate(rows_data):
+    manual_fill = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")
+    for i, (g_val, h_val, is_title, is_data, current_mat, needs_manual) in enumerate(rows_data):
         r = start_row + i
         cell_g = ws.cell(row=r, column=7)
         cell_h = ws.cell(row=r, column=8)
@@ -279,6 +288,12 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             ws.cell(row=r, column=unit_col).value = unit
         else:
             cell_h.value = h_val
+
+        if needs_manual:
+            # Dimension left blank on purpose: yellow = a person must fill this in
+            cell_h.fill = manual_fill
+            if has_unit_col:
+                ws.cell(row=r, column=unit_col).fill = manual_fill
 
         is_invalid = is_data and current_mat in flagged_materials
         if is_data and g_val:
@@ -308,7 +323,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws.merge_cells(f"{photo_col_letter}{start_row}:{photo_col_letter}{start_row + total_rows - 1}")
     
     base_height = max(110 / total_rows, 20)
-    for i, (_g, _h, _is_title, is_data, _mat) in enumerate(rows_data):
+    for i, (_g, _h, _is_title, is_data, _mat, _manual) in enumerate(rows_data):
         r = start_row + i
         ws.row_dimensions[r].height = base_height
         for c in range(1, last_col + 1):
