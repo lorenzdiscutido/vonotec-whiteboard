@@ -6,10 +6,10 @@ SHAREPOINT_SITE_NAME = "Vonotec"
 SHAREPOINT_FOLDER_PATH = "07 - Employee Folders (to be reviewed)/Lorenz/Whiteboard Excel Files"
 
 JSON_KEYS = [
-    "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower", 
-    "Sealant Damage", "Sealant Dimension", 
-    "Concrete Damage", "Concrete Dimension", 
-    "Paint Damage", "Paint Dimension", 
+    "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
+    "Sealant Damage", "Sealant Dimension",
+    "Concrete Damage", "Concrete Dimension",
+    "Paint Damage", "Paint Dimension",
     "Gasket Damage", "Gasket Dimension"
 ]
 
@@ -25,6 +25,7 @@ REFERENCE_DATA = [
     ["DP", "Discolored Paint", "Wear and Tear", "Fades or stains over time due to sun exposure, moisture, and pollution. A predictable result of long-term exposure.", "Retouch paint; ensure proper surface prep."],
     ["FP", "Flaky Paint", "Wear and Tear", "Lapsed warranty; degrades due to age, UV, and temperature shifts. Failures are common after several years of exposure.", "Remove loose paint, prime, and repaint."],
     ["BP", "Bubbly Paint", "Wear and Tear", "Lapsed warranty; degrades due to age, UV, and temperature shifts. Failures are common after several years of exposure.", "Remove bubbles, dry surface, prime, and repaint."],
+    ["NP", "No Paint", "To be updated", "To be updated", "To be updated"],
     ["DG", "Damaged Gasket", "Wear and Tear", "Gaskets degrade due to age, UV, and temperature shifts. Failures are common after several years of exposure", "Remove gasket and reseal."],
     ["DS", "Damaged Sealant", "Wear and Tear", "Lapsed warranty; Cracking or tearing due to joint movement, UV aging, or thermal cycles. Material failure over time is expected even with proper application.", "Remove existing sealant, clean joint, install backer rod and apply new sealant."],
     ["MS", "Missing Sealant", "Workmanship", "Indicates that sealant was never applied during installation. This reflects an omission in workmanship or quality control at the time of construction.", "Clean joint and install backer rod and applynew sealant."],
@@ -34,7 +35,7 @@ REFERENCE_DATA = [
 # STRICT MATERIAL VALIDATION DICTIONARY
 MATERIAL_RULES = {
     "Concrete": ["CC+", "CC-", "C+", "C-", "BH", "US"],
-    "Paint": ["DP", "FP", "BP", "B"], 
+    "Paint": ["DP", "FP", "BP", "B", "NP"],
     "Gasket": ["DG"],
     "Sealant": ["DS", "MS"],
     "Broken Glass": ["BG"]
