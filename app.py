@@ -11,6 +11,7 @@ import google.generativeai as genai
 import streamlit as st
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.utils import get_column_letter
 
 from config import REFERENCE_DATA, MATERIAL_RULES
 from image_utils import load_image, prepare_excel_image
@@ -73,7 +74,7 @@ def _populate_reference_sheet(wb):
     
     for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
         ws_ref.append(row_values)
-        for col_idx in range(1, 6):
+        for col_idx in range(1, len(REFERENCE_DATA[0]) + 1):
             cell = ws_ref.cell(row=row_idx, column=col_idx)
             if row_idx == 1:
                 cell.fill = header_fill
@@ -87,7 +88,21 @@ def _populate_reference_sheet(wb):
     ws_ref.column_dimensions['C'].width = 24
     ws_ref.column_dimensions['D'].width = 45
     ws_ref.column_dimensions['E'].width = 40
+    ws_ref.column_dimensions['F'].width = 18
     ws_ref.row_dimensions[1].height = 28
+
+
+def _refresh_reference_sheet(wb):
+    """Makes sure the Reference Data sheet matches config.py. An older master
+    file (fewer defects, or no unit column) gets the sheet rebuilt, so newly
+    added defect codes are found by the lookup formulas."""
+    if "Reference Data" not in wb.sheetnames:
+        _populate_reference_sheet(wb)
+        return
+    ws_ref = wb["Reference Data"]
+    if ws_ref.max_row != len(REFERENCE_DATA) or ws_ref.max_column != len(REFERENCE_DATA[0]):
+        wb.remove(ws_ref)
+        _populate_reference_sheet(wb)
 
 
 def extract_data(filepath):
@@ -127,9 +142,31 @@ def extract_data(filepath):
     return parsed_data
 
 
+def split_dimension(text):
+    """Splits a dimension like '60 CM' or '120 CM²' into (60, 'CM') / (120, 'CM²'),
+    so the Dimension cell holds a real number and the unit sits in its own cell.
+    Anything that doesn't look like 'number + unit' (for example '30 X 20 CM')
+    is kept whole as text, with no unit."""
+    text = str(text or "").strip()
+    if not text:
+        return "", ""
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([A-Z]+(?:²|\^2|2)?)?", text, flags=re.IGNORECASE)
+    if not match:
+        return text, ""
+    number = float(match.group(1))
+    if number.is_integer():
+        number = int(number)
+    return number, (match.group(2) or "").upper()
+
+
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     """Adds one whiteboard's data to the master Excel file.
-    Must be called while holding the write lock."""
+    Must be called while holding the write lock.
+
+    Layout (new files): A-F details | G Damage | H Dimension (number only) |
+    I Unit | J Whiteboard Photo | K-N lookup columns. Older files that were
+    created before the Unit column existed keep their old layout (unit written
+    inside the Dimension cell), so appending to them never shifts any column."""
     # Only the specific material row(s) a problem points to are highlighted red,
     # not the whole whiteboard entry.
     flagged_materials = set(parsed_data.get("Flagged Materials", []))
@@ -138,41 +175,53 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
         if "Reference Data" not in wb.sheetnames:
             _populate_reference_sheet(wb)
+        # New layout has the photo column in J; the old layout had it in I
+        has_unit_col = (ws["J1"].value == "Whiteboard Photo")
     else:
+        has_unit_col = True
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Whiteboard Data"
-        
+
         ws.append([
             "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
-            "Defects", "", "Whiteboard Photo",
+            "Defects", "", "", "Whiteboard Photo",
             "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS"
         ])
         ws.append([
             "", "", "", "", "", "",
-            "Damage", "Dimension", "",
+            "Damage", "Dimension", "", "",
             "", "", "", ""
         ])
 
-        ws.merge_cells('G1:H1') 
-        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'I', 'J', 'K', 'L', 'M']:
+        ws.merge_cells('G1:I1')   # "Defects" spans Damage, Dimension and Unit
+        ws.merge_cells('H2:I2')   # "Dimension" spans the number and its unit
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N']:
             ws.merge_cells(f'{col}1:{col}2')
-        
+
         gray_fill = PatternFill(start_color="BFBFBF", end_color="BFBFBF", fill_type="solid")
-        for row in ws['A1':'M2']:
+        for row in ws['A1':'N2']:
             for cell in row:
                 cell.font = Font(bold=True)
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-        ws['M1'].fill = gray_fill
-        ws['M2'].fill = gray_fill
+        ws['N1'].fill = gray_fill
+        ws['N2'].fill = gray_fill
 
-        ws.column_dimensions['J'].width = 24
-        ws.column_dimensions['K'].width = 30
-        ws.column_dimensions['L'].width = 28
-        ws.column_dimensions['M'].width = 22
+        ws.column_dimensions['I'].width = 9
+        ws.column_dimensions['K'].width = 24
+        ws.column_dimensions['L'].width = 30
+        ws.column_dimensions['M'].width = 28
+        ws.column_dimensions['N'].width = 22
 
         _populate_reference_sheet(wb)
+
+    # Column positions depend on the layout of this file
+    unit_col = 9 if has_unit_col else None
+    photo_col = 10 if has_unit_col else 9
+    last_col = photo_col + 4
+    photo_col_letter = get_column_letter(photo_col)
+    title_last_col = 9 if has_unit_col else 8
 
     start_row = ws.max_row + 1
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
@@ -222,7 +271,14 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         cell_h = ws.cell(row=r, column=8)
         
         cell_g.value = g_val
-        cell_h.value = h_val
+
+        if has_unit_col and is_data:
+            # Number only in the Dimension cell, unit in its own cell next to it
+            number, unit = split_dimension(h_val)
+            cell_h.value = number
+            ws.cell(row=r, column=unit_col).value = unit
+        else:
+            cell_h.value = h_val
 
         is_invalid = is_data and current_mat in flagged_materials
         if is_data and g_val:
@@ -232,20 +288,19 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 is_invalid = True
 
         if is_title:
-            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=8)
+            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=title_last_col)
             cell_g.font = Font(bold=True)
         elif is_data:
             lookup_val = f'LEFT($G{r}, FIND(" ", $G{r}&" ") - 1)'
-            ws.cell(row=r, column=10).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 3, FALSE), "")'
-            ws.cell(row=r, column=11).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 4, FALSE), "")'
-            ws.cell(row=r, column=12).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
-            ws.cell(row=r, column=13).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 1).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 3, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 2).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 4, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
 
             if is_invalid:
-                for col_idx in range(7, 14):
+                for col_idx in range(7, last_col + 1):
                     ws.cell(row=r, column=col_idx).font = Font(color="FF0000")
 
-    photo_col_letter = 'I' 
     excel_img = prepare_excel_image(filepath, total_rows)
     ws.add_image(excel_img, f"{photo_col_letter}{start_row}")
     
@@ -253,11 +308,14 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws.merge_cells(f"{photo_col_letter}{start_row}:{photo_col_letter}{start_row + total_rows - 1}")
     
     base_height = max(110 / total_rows, 20)
-    for i in range(total_rows):
+    for i, (_g, _h, _is_title, is_data, _mat) in enumerate(rows_data):
         r = start_row + i
         ws.row_dimensions[r].height = base_height
-        for c in range(1, 14):
+        for c in range(1, last_col + 1):
             ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        if has_unit_col and is_data:
+            # The unit sits right next to the number, like "60 | CM"
+            ws.cell(row=r, column=unit_col).alignment = Alignment(horizontal='left', vertical='center')
             
     ws.column_dimensions[photo_col_letter].width = 25
 
