@@ -36,6 +36,25 @@ VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
 # Words/characters that show the AI was unsure about what it read
 HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 
+# ==========================================================================
+# DEFECTS, LOCATION MODIFIERS AND UNITS: edit ONLY this block when they change.
+# The Gemini prompt below is built from it.
+# ==========================================================================
+# Location modifiers that follow a SEALANT defect code (e.g. "DS CC", "MS FG")
+SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF"]
+
+# (material, defect codes, unit of the dimension written next to those codes)
+DEFECT_UNITS = [
+    ("Sealant",  ["DS", "MS"],                 "CM"),
+    ("Concrete", ["US", "BH"],                 "CM²"),
+    ("Concrete", ["CC-", "CC+", "C-", "C+"],   "CM"),
+    ("Paint",    ["DP", "FP", "BP"],           "CM²"),
+    ("Gasket",   ["DG"],                       "CM"),
+]
+# Defect codes that exist on the reference sheet but are not read per material
+OTHER_DEFECT_CODES = ["BG"]
+# ==========================================================================
+
 
 def _wait_for_slot():
     """Blocks until another Gemini call is allowed under the per-minute limit."""
@@ -64,8 +83,29 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-flash-lite-latest')
 
 
+def _defect_reference_text():
+    """Turns the DEFECT_UNITS / SEALANT_LOCATION_MODIFIERS tables into prompt text."""
+    lines = []
+    for material, codes, unit in DEFECT_UNITS:
+        lines.append(f"- {material} defect codes {', '.join(codes)}: dimension unit is {unit}.")
+    modifiers = ", ".join(SEALANT_LOCATION_MODIFIERS)
+    all_codes = []
+    for _material, codes, _unit in DEFECT_UNITS:
+        all_codes += [c for c in codes if c not in all_codes]
+    all_codes += [c for c in OTHER_DEFECT_CODES if c not in all_codes]
+    return (
+        "DEFECT CODES, LOCATION MODIFIERS AND UNITS (this list is the current, official one): "
+        + " ".join(lines)
+        + f" The ONLY valid sealant location modifiers are: {modifiers}. They follow the sealant defect code in the same string "
+        "(e.g., 'DS CC', 'MS FG'). Note that 'CC-' and 'CC+' (with a minus or plus sign) are CONCRETE crack defect codes, "
+        "while 'CC' with no sign written after a sealant code is a location modifier. "
+        f"The valid defect codes to watch for are: {', '.join(all_codes)}. "
+    )
+
+
 def _extraction_prompt():
     """The reading rules, shared by the first pass and the review pass."""
+    modifiers_quoted = ", ".join(f"'{m}'" for m in SEALANT_LOCATION_MODIFIERS)
     return (
         f"Extract the data from this whiteboard grid into a flat JSON object using exactly these keys: {JSON_KEYS}. "
         "Follow these strict extraction rules based on this specific whiteboard layout: "
@@ -77,22 +117,24 @@ def _extraction_prompt():
         "6. Materials (Sealant, Concrete, Paint, Gasket): You MUST extract multiple damage entries as JSON ARRAYS. "
         "- Each material gets two keys: '[Material] Damage' and '[Material] Dimension'. Both must be formatted as arrays of strings. "
         "- Example exact JSON output for Sealant:\n"
-        "\"Sealant Damage\": [\"DS C-C\", \"DS F-C\"],\n"
+        "\"Sealant Damage\": [\"DS CC\", \"DS FG\"],\n"
         "\"Sealant Dimension\": [\"340 CM\", \"120 CM\"]\n"
+        + _defect_reference_text() +
         "CRITICAL FORMATTING FOR RULE 6: "
         "- FORCE UPPERCASE: Convert all text to uppercase (e.g., 'ds' to 'DS'). "
-        "- TARGETED UNITS: For 'Sealant Dimension', output the unit simply as 'CM'. For 'Concrete Dimension', 'Paint Dimension', and 'Gasket Dimension', output the unit as 'CM²' (squared). "
+        "- UNITS DEPEND ON THE DEFECT CODE: write each dimension with the unit that belongs to the defect code in the SAME position of the damage array, "
+        "exactly as listed above (for example Concrete 'US' and 'BH' use 'CM²', but Concrete 'CC-', 'CC+', 'C-', 'C+' use 'CM'; Paint uses 'CM²'; Gasket and Sealant use 'CM'). "
+        "Use the unit with the superscript ² for square units (CM²). "
         "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
         "After the word \"DS\" there should be a space, then the next characters. If there is no space after \"DS\", add one. "
-        "SEALANT 'DS' ONLY RULE: In the Sealant row, if a damage entry is just \"DS\" by itself, with no location modifier after it (such as 'C-C', 'F-C', 'C-F' or any other characters), do NOT output that entry at all. "
+        f"SEALANT 'DS' ONLY RULE: In the Sealant row, if a damage entry is just \"DS\" by itself, with no location modifier after it (one of {modifiers_quoted}, or any other characters), do NOT output that entry at all. "
         "Leave out both that damage entry and its matching dimension so the 'Sealant Damage' and 'Sealant Dimension' arrays stay aligned. If nothing remains, return empty arrays []. "
-        "Apply this rule only after fixing the spacing (for example, 'DSC-C' becomes 'DS C-C' and is kept). This rule applies ONLY to the Sealant row. Entries like \"DS C-C\" or \"DS F-C\" must still be output normally. "
+        "Apply this rule only after fixing the spacing (for example, 'DSCC' becomes 'DS CC' and is kept). This rule applies ONLY to the Sealant row. Entries like \"DS CC\" or \"DS FG\" must still be output normally. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
-        "The valid defect codes to watch for are: CC-, C-, CC+, C+, BH, US, DP, FP, BP, DG, DS, MS, BG. "
-        "DO NOT treat location modifiers like 'CC', 'C-C', or 'F-C' as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"])."
+        f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"])."
     )
 
 
@@ -150,6 +192,51 @@ def get_review_response(img, parsed_data, problems):
     return _generate_text([review_prompt, img])
 
 
+# (material, defect code) -> the unit its dimension must be written in
+_UNIT_TABLE = {
+    (material, code): unit
+    for material, codes, unit in DEFECT_UNITS
+    for code in codes
+}
+# A trailing centimetre unit in any common spelling: CM, CM2, CM^2, CM², SQ CM, SQ.CM, SQUARE CM
+_UNIT_SUFFIX = re.compile(r"\s*(?:(?:SQ\.?|SQUARE)\s*)?CM(?:\s*(?:\^\s*2|²|2))?\s*$")
+# A dimension that is only numbers (and x / * between them), with no unit at all
+_NUMBER_ONLY = re.compile(r"^[\d.,\s xX×*/+-]+$")
+
+
+def _apply_unit(dimension, unit):
+    """Rewrites one dimension so it ends in `unit`. Leaves it untouched when it
+    is empty, has no number, or uses a unit we don't recognise (e.g. meters)."""
+    text = str(dimension).strip()
+    if not text:
+        return dimension
+    match = _UNIT_SUFFIX.search(text)
+    if match:
+        number_part = text[:match.start()].strip()
+        return f"{number_part} {unit}" if number_part else dimension
+    if _NUMBER_ONLY.match(text):
+        return f"{text} {unit}"
+    return dimension
+
+
+def _fix_dimension_units(parsed_data):
+    """Makes every dimension use the unit that belongs to its defect code
+    (from DEFECT_UNITS), no matter what unit Gemini wrote."""
+    for material in MATERIALS:
+        damages = parsed_data[f"{material} Damage"]
+        dimensions = parsed_data[f"{material} Dimension"]
+        for i in range(min(len(damages), len(dimensions))):
+            units = {
+                _UNIT_TABLE[(material, token)]
+                for token in str(damages[i]).split()
+                if (material, token) in _UNIT_TABLE
+            }
+            # Only when the entry has exactly one kind of unit: an entry with
+            # mixed codes (e.g. US and CC-) is ambiguous, so it is left alone.
+            if len(units) == 1:
+                dimensions[i] = _apply_unit(dimensions[i], units.pop())
+
+
 def parse_and_clean_json(raw_text):
     """Converts the raw text into JSON and enforces array formatting."""
     parsed_data = json.loads(raw_text)
@@ -165,6 +252,9 @@ def parse_and_clean_json(raw_text):
                 parsed_data[key] = [str(item).upper() for item in parsed_data[key]]
             else:
                 parsed_data[key] = []
+
+    # Force each dimension's unit to match its defect code (CM vs CM²)
+    _fix_dimension_units(parsed_data)
 
     return parsed_data
 
