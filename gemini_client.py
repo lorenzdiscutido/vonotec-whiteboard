@@ -128,13 +128,11 @@ def _extraction_prompt():
         "Use the unit with the superscript ² for square units (CM²). "
         "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
         "After the word \"DS\" or \"MS\" there should be a space, then the next characters. If there is no space, add one. "
-        f"SEALANT 'DS' ONLY RULE: In the Sealant row, if a damage entry is just \"DS\" by itself, with no location modifier after it (one of {modifiers_quoted}, or any other characters), do NOT output that entry at all. "
-        "Leave out both that damage entry and its matching dimension so the 'Sealant Damage' and 'Sealant Dimension' arrays stay aligned. If nothing remains, return empty arrays []. "
-        "Apply this rule only after fixing the spacing (for example, 'DSCC' becomes 'DS CC' and is kept). This rule applies ONLY to the Sealant row. Entries like \"DS CC\" or \"MS FG\" must still be output normally. "
+        "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
-        "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP'). "
+        "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
         f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
         "SHARED DIMENSION RULE: Every dimension you output must be physically written on the board for that defect. "
         "NEVER copy or repeat one dimension onto other defects. If a material row lists several defect codes but only ONE dimension is written, "
@@ -267,7 +265,12 @@ def _normalize_dimensions(parsed_data):
     """Handles several defects that share a single dimension on the board.
     
     Rule: the dimension belongs to the FIRST defect only; every other defect is
-    left with a blank dimension and flagged for a human to fill in.
+    left with a blank dimension and flagged for a human to fill in. This covers:
+      - one damage string with several codes ('C+ US') and one dimension,
+      - more damage entries than dimensions,
+      - a leftover dimension entry that is only a unit with no number ('CM').
+    The blanks are listed in parsed_data["Manual Dimension"], which
+    find_problems() turns into a flag and the Excel writer highlights red.
     """
     notes = []
     for material in MATERIALS:
@@ -325,7 +328,6 @@ def _normalize_dimensions(parsed_data):
         parsed_data[f"{material} Dimension"] = new_dimensions
 
     parsed_data["Manual Dimension"] = notes
-
 
 def parse_and_clean_json(raw_text):
     """Converts the raw text into JSON and enforces array formatting."""
