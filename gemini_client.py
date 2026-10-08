@@ -119,8 +119,8 @@ def _extraction_prompt():
         "- Example exact JSON output for Sealant:\n"
         "\"Sealant Damage\": [\"DS CC\", \"DS FG\"],\n"
         "\"Sealant Dimension\": [\"340 CM\", \"120 CM\"]\n"
-        + _defect_reference_text() +
-        "CRITICAL FORMATTING FOR RULE 6: "
+        + _defect_reference_text()
+        + "CRITICAL FORMATTING FOR RULE 6: "
         "- FORCE UPPERCASE: Convert all text to uppercase (e.g., 'ds' to 'DS'). "
         "- UNITS DEPEND ON THE DEFECT CODE: write each dimension with the unit that belongs to the defect code in the SAME position of the damage array, "
         "exactly as listed above (for example Concrete 'US' and 'BH' use 'CM²', but Concrete 'CC-', 'CC+', 'C-', 'C+' use 'CM'; Paint uses 'CM²'; Gasket and Sealant use 'CM'). "
@@ -134,7 +134,10 @@ def _extraction_prompt():
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
-        f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"])."
+        f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
+        "CRITICAL RULE FOR MULTIPLE CODES SHARING ONE DIMENSION: "
+        "If multiple defect codes are written for a single material row sharing only ONE dimension (e.g., 'US BH C-' with '200 CM'), "
+        "DO NOT duplicate or copy that dimension for every defect code. Output only the single dimension written on the board."
     )
 
 
@@ -266,24 +269,30 @@ def _normalize_dimensions(parsed_data):
     """Handles several defects that share a single dimension on the board.
 
     Rule: the dimension belongs to the FIRST defect only; every other defect is
-    left with a blank dimension and flagged for a human to fill in. This covers:
-      - one damage string with several codes ('C+ US') and one dimension,
-      - more damage entries than dimensions,
-      - a leftover dimension entry that is only a unit with no number ('CM').
-    The blanks are listed in parsed_data["Manual Dimension"], which
-    find_problems() turns into a flag and the Excel writer into yellow cells."""
+    left with a blank dimension and flagged for a human to fill in.
+    """
     notes = []
     for material in MATERIALS:
         damages = parsed_data[f"{material} Damage"]
         dimensions = parsed_data[f"{material} Dimension"]
         new_damages, new_dimensions = [], []
 
+        # --- SAFEGUARD: Catch AI duplicated dimensions ---
+        # If Gemini split defects into separate entries but copied the same
+        # measurement number across all of them (e.g. ['200 CM²', '200 CM²', '200 CM']),
+        # collapse it back to 1 dimension so only the first defect receives it.
+        if len(damages) > 1 and len(damages) == len(dimensions):
+            nums = [re.search(r"(\d+(?:\.\d+)?)", str(d)) for d in dimensions]
+            extracted_nums = [m.group(1) for m in nums if m]
+            if len(extracted_nums) == len(damages) and len(set(extracted_nums)) == 1:
+                dimensions = [dimensions[0]]
+
         for i, entry in enumerate(damages):
             size = dimensions[i] if i < len(dimensions) else None  # None = dimensions ran out
             groups = _group_defect_codes(entry)
 
             if len(groups) > 1:
-                # Several defects written together: only the first gets the dimension
+                # Several defects written together in one string: only the first gets the dimension
                 first_index = len(new_damages)
                 for g, group in enumerate(groups):
                     new_damages.append(group)
@@ -304,7 +313,7 @@ def _normalize_dimensions(parsed_data):
             else:
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
                 if size is None or no_number:
-                    # No dimension of its own (array ran out, or only a stray unit like 'CM')
+                    # Dimension ran out or only contains a unit -> flag for manual entry
                     notes.append({
                         "material": material,
                         "indices": [len(new_damages)],
@@ -319,8 +328,6 @@ def _normalize_dimensions(parsed_data):
                     new_damages.append(entry)
                     new_dimensions.append(size)
 
-        # Any extra dimensions beyond the last damage entry stay as they were,
-        # so the existing "entries don't match" check can still catch them.
         new_dimensions.extend(dimensions[len(damages):])
 
         parsed_data[f"{material} Damage"] = new_damages
