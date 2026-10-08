@@ -6,6 +6,7 @@ import hashlib
 import datetime
 import base64
 import traceback
+import math
 
 import google.generativeai as genai
 import streamlit as st
@@ -41,6 +42,17 @@ LOCAL_BATCH_DIR = "local_batches"
 # Choices shown in the "Save into which folder?" dropdown
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
+
+def py_mround(number, multiple):
+    """Replicates Excel's MROUND function."""
+    if multiple == 0:
+        return 0
+    return multiple * round(number / multiple)
+
+def py_roundup(number, digits):
+    """Replicates Excel's ROUNDUP function."""
+    factor = 10 ** digits
+    return math.ceil(number * factor) / factor
 
 def load_processed_log():
     """Loads the list of already processed photo fingerprints."""
@@ -90,7 +102,7 @@ def _populate_reference_sheet(wb):
     ws_ref.row_dimensions[1].height = 28
 
 def _refresh_reference_sheet(wb):
-    """Makes sure the Reference Data sheet matches config.py. An older master file (fewer defects, or no unit column) gets the sheet rebuilt, so newly added defect codes are found by the lookup formulas."""
+    """Makes sure the Reference Data sheet matches config.py."""
     if "Reference Data" not in wb.sheetnames:
         _populate_reference_sheet(wb)
         return
@@ -116,8 +128,7 @@ def extract_data(filepath):
 
     # Pass 2: a reviewer re-reads the board, but only when a real data problem
     # was found (wrong code, mismatched entries, a likely copy error, or nothing
-    # detected at all). A minor AI hedge or a missing date/submitter is shown to
-    # the user for awareness but does not by itself trigger this extra AI call.
+    # detected at all).
     problems = find_problems(parsed_data)
     structural = [p for p in problems if p[2] == "structural"]
     if ENABLE_REVIEW_PASS and structural:
@@ -128,15 +139,12 @@ def extract_data(filepath):
             pass  # keep the first-pass result if the review fails
         problems = find_problems(parsed_data)
 
-    # Whatever is still doubtful is shown to the user after the batch. Only
-    # "structural" problems highlight their material row red in Excel; "info"
-    # problems (AI hedges, missing date/submitter) are listed but change no color.
     parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
     parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind in ("structural", "manual")})
     return parsed_data
 
 def split_dimension(text):
-    """Splits a dimension like '60 CM' or '120 CM²' into (60, 'CM') / (120, 'CM²'), so the Dimension cell holds a real number and the unit sits in its own cell. Anything that doesn't look like 'number + unit' (for example '30 X 20 CM') is kept whole as text, with no unit."""
+    """Splits a dimension like '60 CM' or '120 CM²' into (60, 'CM')."""
     text = str(text or "").strip()
     if not text:
         return "", ""
@@ -149,14 +157,7 @@ def split_dimension(text):
     return number, (match.group(2) or "").upper()
 
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
-    """Adds one whiteboard's data to the master Excel file. Must be called while holding the write lock.
-    
-    Layout (new files): A-F details | G Damage | H Dimension (number only) |
-    I Unit | J Whiteboard Photo | K-N lookup columns | O Repair Dimension. Older files that were
-    created before the Unit column existed keep their old layout (unit written
-    inside the Dimension cell), so appending to them never shifts any column."""
-    # Only the specific material row(s) a problem points to are highlighted red,
-    # not the whole whiteboard entry.
+    """Adds one whiteboard's data to the master Excel file."""
     flagged_materials = set(parsed_data.get("Flagged Materials", []))
     
     if os.path.exists(output_xlsx_path):
@@ -208,7 +209,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
         _populate_reference_sheet(wb)
 
-    # Column positions depend on the layout of this file
     unit_col = 9 if has_unit_col else None
     photo_col = 10 if has_unit_col else 9
     last_col = photo_col + 5
@@ -224,7 +224,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         
         dmg_list = parsed_data.get(f"{mat} Damage", [])
         dim_list = parsed_data.get(f"{mat} Dimension", [])
-        # Entries whose dimension was left blank on purpose, for a human to fill in
         manual_rows = {
             idx
             for note in (parsed_data.get("Manual Dimension") or [])
@@ -275,7 +274,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         # Setup dimension values
         number_val = None
         if has_unit_col and is_data:
-            # Number only in the Dimension cell, unit in its own cell next to it
             number_val, unit = split_dimension(h_val)
             cell_h.value = number_val
             ws.cell(row=r, column=unit_col).value = unit
@@ -302,20 +300,46 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             # -------- NEW FEATURE: HIDDEN REPAIR DIMENSION COMPUTATION --------
             repair_val = ""
             parts = str(g_val).split()
-            if parts and parts[0] in ["MS", "DS"] and has_unit_col and isinstance(number_val, (int, float)):
-                limits = {"CC": 4.8, "CF": 3.2, "GG": 1.8, "FG": 1.8, "FF": 3.2}
-                modifier = parts[1] if len(parts) > 1 else None
+            
+            # Check if there's a valid code and a numerical dimension to compute
+            if parts and has_unit_col and isinstance(number_val, (int, float)):
+                base_code = parts[0]
                 
-                computed = number_val * 0.08
-                if modifier in limits:
-                    limit = limits[modifier]
-                    if computed > limit:
-                        computed = limit
+                if base_code in ["US", "BH"]:
+                    repair_val = py_roundup(number_val * 1.15 / 1000.0, 2)
+                    
+                elif base_code in ["CC-", "C-", "CC+", "C+"]:
+                    mr = py_mround(number_val * 1.5, 10)
+                    repair_val = py_roundup(mr / 100.0, 2)
+                    
+                elif base_code in ["DP", "FP", "BP"]:
+                    ru = py_roundup(number_val * 1.3 / 1000.0, 2)
+                    repair_val = max(1.0, ru)
+                    
+                elif base_code == "DG":
+                    mr = py_mround(number_val * 8, 10)
+                    computed = mr / 100.0
+                    # Apply max limit of 3.2 for DG before rounding up
+                    if computed > 3.2:
+                        computed = 3.2
+                    repair_val = py_roundup(computed, 2)
+                    
+                elif base_code in ["MS", "DS"]:
+                    limits = {"CC": 4.8, "CF": 3.2, "GG": 1.8, "FG": 1.8, "FF": 3.2}
+                    modifier = parts[1] if len(parts) > 1 else None
+                    computed = number_val * 0.08
+                    
+                    if modifier in limits and computed > limits[modifier]:
+                        computed = limits[modifier]
                         
-                # MROUND to 0.05 logic directly in Python:
-                repair_val = round(0.05 * round(computed / 0.05), 2)
-                
-            ws.cell(row=r, column=photo_col + 5).value = repair_val
+                    repair_val = round(py_mround(computed, 0.05), 2)
+                    
+            cell_repair = ws.cell(row=r, column=photo_col + 5)
+            cell_repair.value = repair_val
+            
+            # Ensure 2 decimal places are always displayed natively in Excel
+            if repair_val != "":
+                cell_repair.number_format = '0.00'
 
             if is_invalid:
                 for col_idx in range(7, last_col + 1):
@@ -334,13 +358,10 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         for c in range(1, last_col + 1):
             ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         if has_unit_col and is_data:
-            # The unit sits right next to the number, like "60 | CM"
             ws.cell(row=r, column=unit_col).alignment = Alignment(horizontal='left', vertical='center')
             
     ws.column_dimensions[photo_col_letter].width = 25
 
-    # Save to a temp file first, then swap it in, so a crash mid-save
-    # can never leave a half-written master file.
     tmp_path = os.path.splitext(output_xlsx_path)[0] + "_tmp.xlsx"
     try:
         wb.save(tmp_path)
@@ -555,7 +576,6 @@ st.markdown(
 
 st.subheader("Upload Whiteboard Photos")
 
-# Changing the uploader's key resets it, which clears all selected photos at once
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 if "batch_results" not in st.session_state:
@@ -563,42 +583,34 @@ if "batch_results" not in st.session_state:
 if "confirm_reset" not in st.session_state:
     st.session_state.confirm_reset = False
 
-# The file this batch will be saved as, remembered after a batch finishes so
-# "Master File Management" below can always point at the right file.
 if "last_output_path" not in st.session_state:
     st.session_state.last_output_path = None
 if "last_output_label" not in st.session_state:
     st.session_state.last_output_label = None
 
-# The SharePoint folder that file went into ("" = the main landing folder)
 if "last_output_folder" not in st.session_state:
     st.session_state.last_output_folder = ""
 
-# The folder picked last time, so the dropdown starts there next round
 if "last_folder_choice" not in st.session_state:
     st.session_state.last_folder_choice = MAIN_FOLDER_LABEL
 
-# Folder names found in SharePoint (None = not loaded yet)
 if "sp_folders" not in st.session_state:
     st.session_state.sp_folders = None
 if "sp_folders_error" not in st.session_state:
     st.session_state.sp_folders_error = False
 
 def sanitize_batch_filename(name):
-    """Turns what the person typed into a safe .xlsx filename, or None if nothing usable was entered."""
     name = (name or "").strip()
     if not name:
         return None
-    name = re.sub(r'[\/:*?"<>|]', "_", name)  # characters not allowed in Windows/SharePoint filenames
-    name = name.rstrip(". ")  # trailing dots/spaces aren't allowed either
+    name = re.sub(r'[\/:*?"<>|]', "_", name)
+    name = name.rstrip(". ")
     name = name[:150]
     if not name:
         return None
     return name if name.lower().endswith(".xlsx") else f"{name}.xlsx"
 
 def refresh_folder_list():
-    """Reads the current subfolders from SharePoint. If that fails, the app carries on
-    with an empty list (main folder + creating a new folder still work)."""
     try:
         st.session_state.sp_folders = sharepoint_client.list_subfolders()
         st.session_state.sp_folders_error = False
@@ -615,12 +627,9 @@ uploaded_files = st.file_uploader(
     key=f"uploader_{st.session_state.uploader_key}"
 )
 
-# As soon as new photos are selected, drop the previous batch's messages
-# so "Batch Complete." can't be mistaken for the new photos being processed
 if uploaded_files:
     st.session_state.batch_results = []
 
-# Show the results of the last batch (kept even after the uploader is cleared)
 for kind, text in st.session_state.batch_results:
     if kind == "warning":
         st.warning(text)
@@ -637,16 +646,11 @@ if uploaded_files:
         unsafe_allow_html=True
     )
 
-# Suggest a fresh default name each time a new round of photos is selected
-# (after Clear Photos or after a batch finishes), without overwriting
-# whatever the person is actively typing in the meantime.
 if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
     st.session_state.batch_name_round = st.session_state.uploader_key
     st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
-    # Re-read the folder list each round, so folders other people created show up
     st.session_state.sp_folders = None
 
-# ---- Which SharePoint folder should this batch go into? ----
 folder_choice = MAIN_FOLDER_LABEL
 new_folder_raw = ""
 if ENABLE_SHAREPOINT_SYNC:
@@ -695,7 +699,6 @@ if extract_clicked and not sanitize_batch_filename(batch_name_raw):
     st.error("Please enter a name for this batch before extracting.")
     extract_clicked = False
 
-# Work out which folder was chosen (and tidy up a newly typed name)
 subfolder = ""
 creating_new_folder = False
 if extract_clicked and ENABLE_SHAREPOINT_SYNC:
@@ -705,7 +708,6 @@ if extract_clicked and ENABLE_SHAREPOINT_SYNC:
             st.error("Please enter a name for the new folder before extracting.")
             extract_clicked = False
         else:
-            # A name that matches an existing folder (ignoring capitals) just uses that folder
             match = next((f for f in st.session_state.sp_folders if f.lower() == typed.lower()), None)
             subfolder = match or typed
             creating_new_folder = match is None
@@ -713,7 +715,6 @@ if extract_clicked and ENABLE_SHAREPOINT_SYNC:
         subfolder = folder_choice
 
 if extract_clicked:
-    # Local working copy: one local folder per SharePoint folder
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
     output_xlsx_path = os.path.join(local_dir, sanitize_batch_filename(batch_name_raw))
@@ -732,9 +733,6 @@ if extract_clicked:
     processed_count = 0
     skipped_count = 0
 
-    # Create the new folder in SharePoint first, so it exists before the
-    # first upload. If this fails the batch still runs: the local save is
-    # unaffected and the upload after each photo is retried.
     if ENABLE_SHAREPOINT_SYNC and creating_new_folder:
         try:
             sharepoint_client.ensure_subfolder(subfolder)
@@ -751,10 +749,6 @@ if extract_clicked:
                 "The photos are still being processed and saved in the app; syncing will be tried again after each photo."
             ))
 
-    # This app's local disk is temporary (a reboot or redeploy wipes it),
-    # while the SharePoint copy persists. If there's no local file yet,
-    # pull down whatever's already in SharePoint first, so new entries get
-    # appended to it instead of silently starting over and overwriting it.
     if ENABLE_SHAREPOINT_SYNC and not os.path.exists(output_xlsx_path):
         try:
             found = sharepoint_client.download_file(remote_filename, output_xlsx_path, subfolder)
@@ -771,8 +765,6 @@ if extract_clicked:
                 "If one already exists there, please verify afterward that no data was lost."
             ))
 
-    # Photos are read by content, not filename, so the same photo is
-    # recognized as a duplicate even if it was renamed or re-uploaded.
     processed_log = load_processed_log()
     seen_hashes = set()
 
@@ -792,8 +784,6 @@ if extract_clicked:
             continue
         seen_hashes.add(file_hash)
 
-        # A unique temp name avoids any clash with a leftover file from a
-        # previous run under the same original filename.
         extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
         temp_path = f"temp_{uuid.uuid4().hex}{extension}"
         with open(temp_path, "wb") as f:
@@ -807,9 +797,6 @@ if extract_clicked:
             save_processed_log(processed_log)
             processed_count += 1
 
-            # Push the updated master file to SharePoint right away. This is
-            # best-effort: the photo's data is already safely saved locally
-            # above, so a SharePoint hiccup here never loses or blocks that.
             if ENABLE_SHAREPOINT_SYNC:
                 try:
                     sharepoint_client.upload_file(output_xlsx_path, remote_filename, subfolder)
@@ -841,9 +828,6 @@ if extract_clicked:
                     ))
 
         except Exception as e:
-            # Print the full traceback to the app's logs (Manage app > logs on
-            # Streamlit Cloud), so the exact failing line can be found later.
-            # The person only sees the short message below.
             traceback.print_exc()
             results.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
         finally:
@@ -855,7 +839,6 @@ if extract_clicked:
     results.append(("status", "Batch Complete."))
     results.append(("success", f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s)."))
 
-    # Save the messages, then clear the uploader automatically
     st.session_state.batch_results = results
     st.session_state.uploader_key += 1
     st.rerun()
@@ -890,7 +873,6 @@ if current_batch_path and os.path.exists(current_batch_path):
             st.session_state.confirm_reset = True
             st.rerun()
 
-    # Ask before deleting, since this removes that batch's local data
     if st.session_state.confirm_reset:
         st.warning(
             f'This will permanently delete the local copy of "{os.path.basename(current_batch_path)}". It does not '
