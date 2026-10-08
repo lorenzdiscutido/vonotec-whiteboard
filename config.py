@@ -10,7 +10,8 @@ JSON_KEYS = [
     "Sealant Damage", "Sealant Dimension",
     "Concrete Damage", "Concrete Dimension",
     "Paint Damage", "Paint Dimension",
-    "Gasket Damage", "Gasket Dimension"
+    "Gasket Damage", "Gasket Dimension",
+    "With Film Damage", "With Film Dimension"
 ]
 
 # Added C+ and C- variations to accommodate different worker handwriting styles
@@ -30,8 +31,8 @@ REFERENCE_DATA = [
     ["DS", "Damaged Sealant", "Wear and Tear", "Lapsed warranty; Cracking or tearing due to joint movement, UV aging, or thermal cycles. Material failure over time is expected even with proper application.", "Remove existing sealant, clean joint, install backer rod and apply new sealant."],
     ["MS", "Missing Sealant", "Workmanship", "Indicates that sealant was never applied during installation. This reflects an omission in workmanship or quality control at the time of construction.", "Clean joint and install backer rod and applynew sealant."],
     ["BG", "Broken Glass (BG)", "Unclassified (Circumstantial)", "Typically the result of impact, high wind pressure, or spontaneous breakage due to thermal stress. Often sudden and isolated.", "Replace glass and reseal edges."],
-    ["Glass Frame", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"],
-    ["Frame", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"]
+    ["GLASS-FRAME", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"],
+    ["FRAME", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"]
 ]
 
 # STRICT MATERIAL VALIDATION DICTIONARY
@@ -40,5 +41,6 @@ MATERIAL_RULES = {
     "Paint": ["DP", "FP", "BP", "B", "NP"],
     "Gasket": ["DG"],
     "Sealant": ["DS", "MS"],
-    "Broken Glass": ["BG", "Glass Frame", "Frame"]
+    "Broken Glass": ["BG"],
+    "With Film": ["GLASS-FRAME", "FRAME"]
 }
