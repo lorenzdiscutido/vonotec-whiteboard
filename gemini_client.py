@@ -52,6 +52,7 @@ DEFECT_UNITS = [
     ("Concrete", ["US", "BH"],                 "CM²"),
     ("Concrete", ["CC-", "CC+", "C-", "C+"],   "CM"),
     ("Paint",    ["DP", "FP", "BP"],           "CM²"),
+    ("Paint",    ["NP"],                       ""),
     ("Gasket",   ["DG"],                       "CM"),
 ]
 
@@ -88,7 +89,8 @@ def _defect_reference_text():
     """Turns the DEFECT_UNITS / SEALANT_LOCATION_MODIFIERS tables into prompt text."""
     lines = []
     for material, codes, unit in DEFECT_UNITS:
-        lines.append(f"- {material} defect codes {', '.join(codes)}: dimension unit is {unit}.")
+        if unit:
+            lines.append(f"- {material} defect codes {', '.join(codes)}: dimension unit is {unit}.")
     modifiers = ", ".join(SEALANT_LOCATION_MODIFIERS)
     all_codes = []
     for _material, codes, _unit in DEFECT_UNITS:
@@ -131,6 +133,7 @@ def _extraction_prompt():
         "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
+        "NO PAINT (NP) RULE: The defect code 'NP' under Paint has no dimension. Whenever you extract 'NP', you MUST output an empty string \"\" for its matching dimension to keep the 'Paint Damage' and 'Paint Dimension' arrays perfectly aligned. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
         f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
@@ -206,7 +209,7 @@ _NUMBER_ONLY = re.compile(r"^[\d.,\s xX×*/+-]+$")
 def _apply_unit(dimension, unit):
     """Rewrites one dimension so it ends in unit. Leaves it untouched when it is empty, has no number, or uses a unit we don't recognise (e.g. meters)."""
     text = str(dimension).strip()
-    if not text:
+    if not text or not unit:
         return dimension
 
     match = _UNIT_SUFFIX.search(text)
@@ -270,7 +273,7 @@ def _normalize_dimensions(parsed_data):
       - more damage entries than dimensions,
       - a leftover dimension entry that is only a unit with no number ('CM').
     The blanks are listed in parsed_data["Manual Dimension"], which
-    find_problems() turns into a flag and the Excel writer highlights red.
+    find_problems() turns into a flag and the Excel writer handles properly.
     """
     notes = []
     for material in MATERIALS:
@@ -288,26 +291,39 @@ def _normalize_dimensions(parsed_data):
                 for g, group in enumerate(groups):
                     new_damages.append(group)
                     new_dimensions.append((size or "") if g == 0 else "")
-                blanks = list(range(first_index + 1, first_index + len(groups)))
+                
+                # We filter out NP from being flagged as a manual blank
+                blanks = [
+                    first_index + idx 
+                    for idx, group in enumerate(groups) 
+                    if idx > 0 and group != "NP"
+                ]
                 
                 # Check if it's missing a number or entirely blank
                 if size is None or size.strip() == "" or (size.strip() and not _HAS_DIGIT.search(size)):
-                    new_dimensions[first_index] = ""
-                    blanks = [first_index] + blanks
-                notes.append({
-                    "material": material,
-                    "indices": blanks,
-                    "message": (
-                        f"{material}: {' and '.join(groups)} were written with only one dimension. "
-                        f"It was applied to '{groups[0]}' only; the others were left blank "
-                        "(manual entry required)."
-                    ),
-                })
+                    if groups[0] != "NP":
+                        new_dimensions[first_index] = ""
+                        blanks = [first_index] + blanks
+
+                if blanks:
+                    notes.append({
+                        "material": material,
+                        "indices": blanks,
+                        "message": (
+                            f"{material}: {' and '.join(groups)} were written with only one dimension. "
+                            f"It was applied to '{groups[0]}' only; the others were left blank "
+                            "(manual entry required)."
+                        ),
+                    })
             else:
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
                 
-                # Trigger manual note if size is None, completely empty string (""), or has no number
-                if size is None or size.strip() == "" or no_number:
+                if entry == "NP":
+                    # NP naturally has no dimension, leave it safely blank without flagging
+                    new_damages.append(entry)
+                    new_dimensions.append("")
+                elif size is None or size.strip() == "" or no_number:
+                    # Trigger manual note if size is None, completely empty string (""), or has no number
                     notes.append({
                         "material": material,
                         "indices": [len(new_damages)],
@@ -394,6 +410,9 @@ def find_problems(parsed_data):
         else:
             for idx, (d, size) in enumerate(zip(dmg, dim)):
                 if idx in manual_indices.get(mat, ()):
+                    continue
+                # Do not flag 'NP' (No Paint) for having a blank dimension
+                if str(d).strip() == "NP":
                     continue
                 if str(d).strip() and not str(size).strip():
                     problems.append((mat, f"{mat}: '{d}' has no dimension", "structural"))
