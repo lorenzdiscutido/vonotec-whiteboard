@@ -237,6 +237,98 @@ def _fix_dimension_units(parsed_data):
                 dimensions[i] = _apply_unit(dimensions[i], units.pop())
 
 
+_HAS_DIGIT = re.compile(r"\d")
+
+
+def _group_defect_codes(entry):
+    """Splits one damage string that holds several defect codes into one string
+    per defect, keeping location modifiers with their own code:
+        'C+ US'          -> ['C+', 'US']
+        'DS CC MS FG'    -> ['DS CC', 'MS FG']
+        'DS CC'          -> ['DS CC']   (only one defect code, so nothing to split)"""
+    entry = str(entry)
+    tokens = entry.split()
+    if sum(1 for t in tokens if t in VALID_CODES) < 2:
+        return [entry]
+    groups, leading = [], []
+    for token in tokens:
+        if token in VALID_CODES:
+            groups.append(leading + [token])
+            leading = []
+        elif groups:
+            groups[-1].append(token)
+        else:
+            leading.append(token)
+    return [" ".join(g) for g in groups]
+
+
+def _normalize_dimensions(parsed_data):
+    """Handles several defects that share a single dimension on the board.
+
+    Rule: the dimension belongs to the FIRST defect only; every other defect is
+    left with a blank dimension and flagged for a human to fill in. This covers:
+      - one damage string with several codes ('C+ US') and one dimension,
+      - more damage entries than dimensions,
+      - a leftover dimension entry that is only a unit with no number ('CM').
+    The blanks are listed in parsed_data["Manual Dimension"], which
+    find_problems() turns into a flag and the Excel writer into yellow cells."""
+    notes = []
+    for material in MATERIALS:
+        damages = parsed_data[f"{material} Damage"]
+        dimensions = parsed_data[f"{material} Dimension"]
+        new_damages, new_dimensions = [], []
+
+        for i, entry in enumerate(damages):
+            size = dimensions[i] if i < len(dimensions) else None  # None = dimensions ran out
+            groups = _group_defect_codes(entry)
+
+            if len(groups) > 1:
+                # Several defects written together: only the first gets the dimension
+                first_index = len(new_damages)
+                for g, group in enumerate(groups):
+                    new_damages.append(group)
+                    new_dimensions.append((size or "") if g == 0 else "")
+                blanks = list(range(first_index + 1, first_index + len(groups)))
+                if size is None or (size.strip() and not _HAS_DIGIT.search(size)):
+                    new_dimensions[first_index] = ""
+                    blanks = [first_index] + blanks
+                notes.append({
+                    "material": material,
+                    "indices": blanks,
+                    "message": (
+                        f"{material}: {' and '.join(groups)} were written with only one dimension. "
+                        f"It was applied to '{groups[0]}' only; the others were left blank "
+                        "(yellow cell) for manual entry."
+                    ),
+                })
+            else:
+                no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
+                if size is None or no_number:
+                    # No dimension of its own (array ran out, or only a stray unit like 'CM')
+                    notes.append({
+                        "material": material,
+                        "indices": [len(new_damages)],
+                        "message": (
+                            f"{material}: '{entry}' has no dimension of its own (one dimension was "
+                            "shared by several defects). Left blank (yellow cell) for manual entry."
+                        ),
+                    })
+                    new_damages.append(entry)
+                    new_dimensions.append("")
+                else:
+                    new_damages.append(entry)
+                    new_dimensions.append(size)
+
+        # Any extra dimensions beyond the last damage entry stay as they were,
+        # so the existing "entries don't match" check can still catch them.
+        new_dimensions.extend(dimensions[len(damages):])
+
+        parsed_data[f"{material} Damage"] = new_damages
+        parsed_data[f"{material} Dimension"] = new_dimensions
+
+    parsed_data["Manual Dimension"] = notes
+
+
 def parse_and_clean_json(raw_text):
     """Converts the raw text into JSON and enforces array formatting."""
     parsed_data = json.loads(raw_text)
@@ -253,6 +345,10 @@ def parse_and_clean_json(raw_text):
             else:
                 parsed_data[key] = []
 
+    # Several defects sharing one dimension: first defect keeps it, the rest are
+    # left blank and flagged for manual entry
+    _normalize_dimensions(parsed_data)
+
     # Force each dimension's unit to match its defect code (CM vs CM²)
     _fix_dimension_units(parsed_data)
 
@@ -265,12 +361,21 @@ def find_problems(parsed_data):
     Returns a list of (material, message, kind) tuples.
       kind "structural": a real data problem. Triggers the review pass and
                          turns that material's rows red in Excel.
+      kind "manual":     needs a human (e.g. a dimension left blank on purpose).
+                         Turns the rows red but does not trigger the review pass.
       kind "info":       shown to the user for awareness only.
     material is None when the problem is not tied to one material row.
     """
     problems = []
     any_entries = False
     seen_dimension_lists = {}
+
+    # Blank dimensions that the "one dimension for several defects" rule already
+    # handled: these get their own "manual" flag instead of the generic check
+    manual_notes = parsed_data.get("Manual Dimension", []) or []
+    manual_indices = {}
+    for note in manual_notes:
+        manual_indices.setdefault(note["material"], set()).update(note["indices"])
 
     for mat in MATERIALS:
         dmg = parsed_data.get(f"{mat} Damage", []) or []
@@ -288,7 +393,9 @@ def find_problems(parsed_data):
                 "structural",
             ))
         else:
-            for d, size in zip(dmg, dim):
+            for idx, (d, size) in enumerate(zip(dmg, dim)):
+                if idx in manual_indices.get(mat, ()):
+                    continue
                 if str(d).strip() and not str(size).strip():
                     problems.append((mat, f"{mat}: '{d}' has no dimension", "structural"))
 
@@ -317,6 +424,12 @@ def find_problems(parsed_data):
         for text in list(dmg) + list(dim):
             if any(marker in str(text).upper() for marker in HEDGE_MARKERS):
                 problems.append((mat, f"{mat}: the AI was unsure about '{text}'", "info"))
+
+    # Blank dimensions left on purpose for a human to fill in. Kind "manual"
+    # highlights the rows red like "structural" does, but does NOT trigger the
+    # extra AI review pass (the rule already decided what to do).
+    for note in manual_notes:
+        problems.append((note["material"], note["message"], "manual"))
 
     # Nothing detected at all
     if not any_entries:
