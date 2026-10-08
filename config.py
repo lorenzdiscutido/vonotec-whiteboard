@@ -25,11 +25,13 @@ REFERENCE_DATA = [
     ["DP", "Discolored Paint", "Wear and Tear", "Fades or stains over time due to sun exposure, moisture, and pollution. A predictable result of long-term exposure.", "Retouch paint; ensure proper surface prep."],
     ["FP", "Flaky Paint", "Wear and Tear", "Lapsed warranty; degrades due to age, UV, and temperature shifts. Failures are common after several years of exposure.", "Remove loose paint, prime, and repaint."],
     ["BP", "Bubbly Paint", "Wear and Tear", "Lapsed warranty; degrades due to age, UV, and temperature shifts. Failures are common after several years of exposure.", "Remove bubbles, dry surface, prime, and repaint."],
-    ["NP", "No Paint", "To be updated", "To be updated", "To be updated"],
+    ["NP", "No Paint", "Workmanship", "Skipped by previous workers", "Include in next beautification projects."],
     ["DG", "Damaged Gasket", "Wear and Tear", "Gaskets degrade due to age, UV, and temperature shifts. Failures are common after several years of exposure", "Remove gasket and reseal."],
     ["DS", "Damaged Sealant", "Wear and Tear", "Lapsed warranty; Cracking or tearing due to joint movement, UV aging, or thermal cycles. Material failure over time is expected even with proper application.", "Remove existing sealant, clean joint, install backer rod and apply new sealant."],
     ["MS", "Missing Sealant", "Workmanship", "Indicates that sealant was never applied during installation. This reflects an omission in workmanship or quality control at the time of construction.", "Clean joint and install backer rod and applynew sealant."],
-    ["BG", "Broken Glass (BG)", "Unclassified (Circumstantial)", "Typically the result of impact, high wind pressure, or spontaneous breakage due to thermal stress. Often sudden and isolated.", "Replace glass and reseal edges."]
+    ["BG", "Broken Glass (BG)", "Unclassified (Circumstantial)", "Typically the result of impact, high wind pressure, or spontaneous breakage due to thermal stress. Often sudden and isolated.", "Replace glass and reseal edges."],
+    ["Glass Frame", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"],
+    ["Frame", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works"]
 ]
 
 # STRICT MATERIAL VALIDATION DICTIONARY
@@ -38,5 +40,5 @@ MATERIAL_RULES = {
     "Paint": ["DP", "FP", "BP", "B", "NP"],
     "Gasket": ["DG"],
     "Sealant": ["DS", "MS"],
-    "Broken Glass": ["BG"]
+    "Broken Glass": ["BG", "Glass Frame", "Frame"]
 }
