@@ -135,11 +135,12 @@ def _extraction_prompt():
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
         f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
-        "CRITICAL RULE FOR MULTIPLE CODES SHARING ONE DIMENSION: "
-        "If multiple defect codes are written for a single material row sharing only ONE dimension (e.g., 'US BH C-' with '200 CM'), "
-        "DO NOT duplicate or copy that dimension for every defect code. Output only the single dimension written on the board."
+        "SHARED DIMENSION RULE: Every dimension you output must be physically written on the board for that defect. "
+        "NEVER copy or repeat one dimension onto other defects. If a material row lists several defect codes but only ONE dimension is written, "
+        "output every defect code in the Damage array, put the dimension on the FIRST defect only, and use an empty string \"\" for the other defects, "
+        "so both arrays have the same length. Example: board shows 'US BH C-' and '200 CM' -> "
+        "\"Concrete Damage\": [\"US\", \"BH\", \"C-\"], \"Concrete Dimension\": [\"200 CM\", \"\", \"\"]."
     )
-
 
 def _generate_text(parts):
     """Calls Gemini (retrying when it is busy) and returns the reply text
@@ -267,7 +268,7 @@ def _group_defect_codes(entry):
 
 def _normalize_dimensions(parsed_data):
     """Handles several defects that share a single dimension on the board.
-
+    
     Rule: the dimension belongs to the FIRST defect only; every other defect is
     left with a blank dimension and flagged for a human to fill in.
     """
@@ -277,28 +278,20 @@ def _normalize_dimensions(parsed_data):
         dimensions = parsed_data[f"{material} Dimension"]
         new_damages, new_dimensions = [], []
 
-        # --- SAFEGUARD: Catch AI duplicated dimensions ---
-        # If Gemini split defects into separate entries but copied the same
-        # measurement number across all of them (e.g. ['200 CM²', '200 CM²', '200 CM']),
-        # collapse it back to 1 dimension so only the first defect receives it.
-        if len(damages) > 1 and len(damages) == len(dimensions):
-            nums = [re.search(r"(\d+(?:\.\d+)?)", str(d)) for d in dimensions]
-            extracted_nums = [m.group(1) for m in nums if m]
-            if len(extracted_nums) == len(damages) and len(set(extracted_nums)) == 1:
-                dimensions = [dimensions[0]]
-
         for i, entry in enumerate(damages):
             size = dimensions[i] if i < len(dimensions) else None  # None = dimensions ran out
             groups = _group_defect_codes(entry)
 
             if len(groups) > 1:
-                # Several defects written together in one string: only the first gets the dimension
+                # Several defects written together: only the first gets the dimension
                 first_index = len(new_damages)
                 for g, group in enumerate(groups):
                     new_damages.append(group)
                     new_dimensions.append((size or "") if g == 0 else "")
                 blanks = list(range(first_index + 1, first_index + len(groups)))
-                if size is None or (size.strip() and not _HAS_DIGIT.search(size)):
+                
+                # Check if it's missing a number or entirely blank
+                if size is None or size.strip() == "" or (size.strip() and not _HAS_DIGIT.search(size)):
                     new_dimensions[first_index] = ""
                     blanks = [first_index] + blanks
                 notes.append({
@@ -312,8 +305,9 @@ def _normalize_dimensions(parsed_data):
                 })
             else:
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
-                if size is None or no_number:
-                    # Dimension ran out or only contains a unit -> flag for manual entry
+                
+                # Trigger manual note if size is None, completely empty string (""), or has no number
+                if size is None or size.strip() == "" or no_number:
                     notes.append({
                         "material": material,
                         "indices": [len(new_damages)],
@@ -334,7 +328,6 @@ def _normalize_dimensions(parsed_data):
         parsed_data[f"{material} Dimension"] = new_dimensions
 
     parsed_data["Manual Dimension"] = notes
-
 
 def parse_and_clean_json(raw_text):
     """Converts the raw text into JSON and enforces array formatting."""
