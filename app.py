@@ -21,25 +21,11 @@ import sharepoint_client
 
 LOG_FILE = "processed_log.json"
 
-# Single-user version: photos are processed one at a time, in order.
-# (The old multi-user branch added a shared write lock and a Gemini call
-# limiter across sessions; neither is needed here.)
-# If Gemini returns broken JSON, try again this many extra times
 EXTRACTION_RETRIES = 2
-
-# Second AI "review" pass on photos where the automatic checks find problems
 ENABLE_REVIEW_PASS = True
-
-# Automatically push the master Excel file to SharePoint after every photo,
-# so data is never only sitting on this app's temporary disk waiting to be
-# downloaded manually. A sync failure never blocks or undoes the local save.
 ENABLE_SHAREPOINT_SYNC = True
-
-# Local working copies live here, in one subfolder per SharePoint folder, so
-# two batches with the same name in different folders never mix.
 LOCAL_BATCH_DIR = "local_batches"
 
-# Choices shown in the "Save into which folder?" dropdown
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
 
@@ -55,7 +41,6 @@ def py_roundup(number, digits):
     return math.ceil(number * factor) / factor
 
 def load_processed_log():
-    """Loads the list of already processed photo fingerprints."""
     if os.path.exists(LOG_FILE):
         try:
             with open(LOG_FILE, "r") as f:
@@ -65,7 +50,6 @@ def load_processed_log():
     return []
 
 def save_processed_log(log_list):
-    """Saves the log safely (write to a temp file, then swap it in)."""
     tmp_path = LOG_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump(log_list, f)
@@ -74,7 +58,6 @@ def save_processed_log(log_list):
 # ==========================================
 # 1. CONFIGURATION & RULES
 # ==========================================
-# Securely pull the API key from Streamlit Secrets
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def _populate_reference_sheet(wb):
@@ -102,7 +85,6 @@ def _populate_reference_sheet(wb):
     ws_ref.row_dimensions[1].height = 28
 
 def _refresh_reference_sheet(wb):
-    """Makes sure the Reference Data sheet matches config.py."""
     if "Reference Data" not in wb.sheetnames:
         _populate_reference_sheet(wb)
         return
@@ -112,10 +94,8 @@ def _refresh_reference_sheet(wb):
         _populate_reference_sheet(wb)
 
 def extract_data(filepath):
-    """Reads one whiteboard photo with Gemini (no Streamlit calls here)."""
     img = load_image(filepath)
 
-    # Pass 1: read the board (retry if the answer is not valid JSON)
     parsed_data = None
     for attempt in range(EXTRACTION_RETRIES + 1):
         try:
@@ -126,9 +106,6 @@ def extract_data(filepath):
             if attempt == EXTRACTION_RETRIES:
                 raise
 
-    # Pass 2: a reviewer re-reads the board, but only when a real data problem
-    # was found (wrong code, mismatched entries, a likely copy error, or nothing
-    # detected at all).
     problems = find_problems(parsed_data)
     structural = [p for p in problems if p[2] == "structural"]
     if ENABLE_REVIEW_PASS and structural:
@@ -136,7 +113,7 @@ def extract_data(filepath):
             raw_review = get_review_response(img, parsed_data, problems)
             parsed_data = parse_and_clean_json(raw_review)
         except Exception:
-            pass  # keep the first-pass result if the review fails
+            pass  
         problems = find_problems(parsed_data)
 
     parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
@@ -144,7 +121,6 @@ def extract_data(filepath):
     return parsed_data
 
 def split_dimension(text):
-    """Splits a dimension like '60 CM' or '120 CM²' into (60, 'CM')."""
     text = str(text or "").strip()
     if not text:
         return "", ""
@@ -157,7 +133,6 @@ def split_dimension(text):
     return number, (match.group(2) or "").upper()
 
 def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
-    """Adds one whiteboard's data to the master Excel file."""
     flagged_materials = set(parsed_data.get("Flagged Materials", []))
     
     if os.path.exists(output_xlsx_path):
@@ -165,7 +140,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
         if "Reference Data" not in wb.sheetnames:
             _populate_reference_sheet(wb)
-        # New layout has the photo column in J; the old layout had it in I
         has_unit_col = (ws["J1"].value == "Whiteboard Photo")
     else:
         has_unit_col = True
@@ -184,8 +158,8 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             "", "", "", "", ""
         ])
 
-        ws.merge_cells('G1:I1')   # "Defects" spans Damage, Dimension and Unit
-        ws.merge_cells('H2:I2')   # "Dimension" spans the number and its unit
+        ws.merge_cells('G1:I1')   
+        ws.merge_cells('H2:I2')   
         for col in ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O']:
             ws.merge_cells(f'{col}1:{col}2')
 
@@ -219,7 +193,8 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
 
     rows_data = []
-    for mat in ["Sealant", "Concrete", "Paint", "Gasket"]:
+    # Added "With Film" directly into the material parsing loop
+    for mat in ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]:
         rows_data.append((mat, "", True, False, mat, False)) 
         
         dmg_list = parsed_data.get(f"{mat} Damage", [])
@@ -242,7 +217,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             found_codes = [t for t in tokens if t in VALID_CODES]
             
             if len(found_codes) > 1:
-                # Several defects sharing one dimension: only the first gets it
                 for n, code in enumerate(found_codes):
                     expanded_dmg.append(code)
                     expanded_dim.append(dim_str if n == 0 else "")
@@ -271,7 +245,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         
         cell_g.value = g_val
 
-        # Setup dimension values
         number_val = None
         if has_unit_col and is_data:
             number_val, unit = split_dimension(h_val)
@@ -297,11 +270,9 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
             ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
 
-            # -------- NEW FEATURE: HIDDEN REPAIR DIMENSION COMPUTATION --------
             repair_val = ""
             parts = str(g_val).split()
             
-            # Check if there's a valid code and a numerical dimension to compute
             if parts and has_unit_col and isinstance(number_val, (int, float)):
                 base_code = parts[0]
                 
@@ -319,7 +290,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 elif base_code == "DG":
                     mr = py_mround(number_val * 8, 10)
                     computed = mr / 100.0
-                    # Apply max limit of 3.2 for DG before rounding up
                     if computed > 3.2:
                         computed = 3.2
                     repair_val = py_roundup(computed, 2)
@@ -337,7 +307,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             cell_repair = ws.cell(row=r, column=photo_col + 5)
             cell_repair.value = repair_val
             
-            # Ensure 2 decimal places are always displayed natively in Excel
             if repair_val != "":
                 cell_repair.number_format = '0.00'
 
@@ -374,163 +343,37 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 # --- UI CONFIGURATION ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
 
-# Inject Custom CSS for readability and closer vertical spacing in header
 st.markdown(
     """
     <style>
-    .stApp {
-        background-color: #f4f7f9;
-    }
-    .header-container {
-        background-color: #ffffff;
-        padding: 20px 24px;
-        border-radius: 14px;
-        box-shadow: 0 4px 14px rgba(15,23,42,0.08);
-        margin-bottom: 24px;
-    }
-    /* Logo and title block share the same vertical center */
-    .header-flex {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-    }
-    .header-flex img {
-        display: block;
-        height: auto;
-        margin: 0;
-    }
-    .header-flex > div {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .main-title {
-        color: #1E3A8A !important;
-        font-weight: 800 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1.2 !important;
-    }
-    .sub-title {
-        color: #475569 !important;
-        margin: 4px 0 0 0 !important;
-        padding: 0 !important;
-        line-height: 1.3 !important;
-        font-size: 1rem;
-    }
-    /* Solid Blue Button with White Text */
-    div.stButton > button:first-child, .stDownloadButton > button:first-child {
-        background-color: #2F5597 !important;
-        color: #ffffff !important;
-        border: none !important;
-        font-weight: 700 !important;
-        padding: 0.75rem 2rem !important;
-        border-radius: 8px !important;
-        width: 100%;
-        box-shadow: 0 2px 6px rgba(47,85,151,0.25);
-        transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    div.stButton > button:first-child p, .stDownloadButton > button:first-child p {
-        color: #ffffff !important;
-        font-weight: 700 !important;
-    }
-    div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover {
-        background-color: #1E3A8A !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(30,58,138,0.3);
-    }
-    .instruction-text {
-        color: #1e293b !important;
-        background-color: #ffffff;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #2F5597;
-        margin-bottom: 24px;
-    }
-    /* Readable labels above inputs, e.g. "Name this batch..." above the text box */
-    div[data-testid="stWidgetLabel"] p,
-    div[data-testid="stWidgetLabel"] label,
-    label[data-testid="stWidgetLabel"],
-    .stTextInput label p,
-    .stTextInput label {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-        opacity: 1 !important;
-    }
-    /* Readable status text: "Processing...", "Batch Complete." */
-    div[data-testid="stText"],
-    div[data-testid="stText"] p {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-    }
-    /* Readable "N image(s) selected." line */
-    .status-msg {
-        color: #1e293b !important;
-        font-weight: 600;
-        margin: 1.25rem 0 1.25rem 0;
-    }
-    /* Space below the file uploader dropzone */
-    div[data-testid="stFileUploader"] {
-        margin-bottom: 1.5rem;
-    }
-    /* Space above the action buttons */
-    .st-key-action_buttons {
-        margin-top: 0.75rem;
-        margin-bottom: 1rem;
-    }
-    /* Readable Skipped / Success / Error messages */
-    div[data-testid="stAlert"] {
-        background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
-        border-left: 5px solid #2F5597 !important;
-    }
-    div[data-testid="stAlert"] p,
-    div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] {
-        color: #1e293b !important;
-    }
-    /* Bring Extract and Clear Photos buttons closer together */
-    .st-key-action_buttons div[data-testid="stHorizontalBlock"] {
-        gap: 0.5rem !important;
-        justify-content: flex-start !important;
-        flex-wrap: wrap !important;
-    }
-    .st-key-action_buttons div[data-testid="stColumn"],
-    .st-key-action_buttons div[data-testid="column"] {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        min-width: 0 !important;
-    }
-    .st-key-action_buttons div.stButton {
-        width: auto !important;
-    }
-    /* Orange "Clear All Photos" button (mild action) */
-    .st-key-clear_photos div.stButton > button:first-child {
-        background-color: #F97316 !important;
-        color: #FFFFFF !important;
-    }
-    .st-key-clear_photos div.stButton > button:first-child p {
-        color: #FFFFFF !important;
-    }
-    .st-key-clear_photos div.stButton > button:first-child:hover {
-        background-color: #EA580C !important;
-    }
-    /* Red "Start Fresh" and "Yes, delete everything" buttons (destructive action) */
-    .st-key-start_fresh div.stButton > button:first-child,
-    .st-key-confirm_delete div.stButton > button:first-child {
-        background-color: #DC2626 !important;
-        color: #FFFFFF !important;
-    }
-    .st-key-start_fresh div.stButton > button:first-child p,
-    .st-key-confirm_delete div.stButton > button:first-child p {
-        color: #FFFFFF !important;
-    }
-    .st-key-start_fresh div.stButton > button:first-child:hover,
-    .st-key-confirm_delete div.stButton > button:first-child:hover {
-        background-color: #B91C1C !important;
-    }
-    h3 {
-        color: #1E3A8A !important;
-    }
+    .stApp { background-color: #f4f7f9; }
+    .header-container { background-color: #ffffff; padding: 20px 24px; border-radius: 14px; box-shadow: 0 4px 14px rgba(15,23,42,0.08); margin-bottom: 24px; }
+    .header-flex { display: flex; align-items: center; gap: 20px; }
+    .header-flex img { display: block; height: auto; margin: 0; }
+    .header-flex > div { display: flex; flex-direction: column; justify-content: center; }
+    .main-title { color: #1E3A8A !important; font-weight: 800 !important; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; }
+    .sub-title { color: #475569 !important; margin: 4px 0 0 0 !important; padding: 0 !important; line-height: 1.3 !important; font-size: 1rem; }
+    div.stButton > button:first-child, .stDownloadButton > button:first-child { background-color: #2F5597 !important; color: #ffffff !important; border: none !important; font-weight: 700 !important; padding: 0.75rem 2rem !important; border-radius: 8px !important; width: 100%; box-shadow: 0 2px 6px rgba(47,85,151,0.25); transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+    div.stButton > button:first-child p, .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; }
+    div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover { background-color: #1E3A8A !important; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(30,58,138,0.3); }
+    .instruction-text { color: #1e293b !important; background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2F5597; margin-bottom: 24px; }
+    div[data-testid="stWidgetLabel"] p, div[data-testid="stWidgetLabel"] label, label[data-testid="stWidgetLabel"], .stTextInput label p, .stTextInput label { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
+    div[data-testid="stText"], div[data-testid="stText"] p { color: #1e293b !important; font-weight: 600 !important; }
+    .status-msg { color: #1e293b !important; font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
+    div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
+    .st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
+    div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
+    div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
+    .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
+    .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+    .st-key-action_buttons div.stButton { width: auto !important; }
+    .st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
+    .st-key-clear_photos div.stButton > button:first-child p { color: #FFFFFF !important; }
+    .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #EA580C !important; }
+    .st-key-start_fresh div.stButton > button:first-child, .st-key-confirm_delete div.stButton > button:first-child { background-color: #DC2626 !important; color: #FFFFFF !important; }
+    .st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
+    .st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
+    h3 { color: #1E3A8A !important; }
     </style>
     """,
     unsafe_allow_html=True
