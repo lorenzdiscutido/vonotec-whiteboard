@@ -289,12 +289,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         else:
             cell_h.value = h_val
 
-        if needs_manual:
-            # Dimension left blank on purpose: yellow = a person must fill this in
-            cell_h.fill = manual_fill
-            if has_unit_col:
-                ws.cell(row=r, column=unit_col).fill = manual_fill
-
         is_invalid = is_data and current_mat in flagged_materials
         if is_data and g_val:
             base_code = str(g_val).split()[0]
