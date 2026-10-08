@@ -273,7 +273,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         if total_rows > 1:
             ws.merge_cells(start_row=start_row, start_column=i+1, end_row=start_row + total_rows - 1, end_column=i+1)
 
-    manual_fill = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")
     for i, (g_val, h_val, is_title, is_data, current_mat, needs_manual) in enumerate(rows_data):
         r = start_row + i
         cell_g = ws.cell(row=r, column=7)
