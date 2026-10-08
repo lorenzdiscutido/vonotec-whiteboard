@@ -6,7 +6,6 @@ import hashlib
 import datetime
 import base64
 import traceback
-import math
 
 import google.generativeai as genai
 import streamlit as st
@@ -28,17 +27,6 @@ LOCAL_BATCH_DIR = "local_batches"
 
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
-
-def py_mround(number, multiple):
-    """Replicates Excel's MROUND function."""
-    if multiple == 0:
-        return 0
-    return multiple * round(number / multiple)
-
-def py_roundup(number, digits):
-    """Replicates Excel's ROUNDUP function."""
-    factor = 10 ** digits
-    return math.ceil(number * factor) / factor
 
 def load_processed_log():
     if os.path.exists(LOG_FILE):
@@ -193,7 +181,7 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
 
     rows_data = []
-    # Added "With Film" directly into the material parsing loop
+    # Loop includes the new "With Film" row
     for mat in ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]:
         rows_data.append((mat, "", True, False, mat, False)) 
         
@@ -270,44 +258,47 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
             ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
 
-            repair_val = ""
+            # -------- REPAIR DIMENSION EXCEL FORMULA INJECTION --------
+            repair_formula = ""
             parts = str(g_val).split()
             
-            if parts and has_unit_col and isinstance(number_val, (int, float)):
+            if parts and has_unit_col:
                 base_code = parts[0]
+                h_cell = f"$H{r}"
+                raw_formula = ""
                 
+                # Build the raw formula string exactly as requested
                 if base_code in ["US", "BH"]:
-                    repair_val = py_roundup(number_val * 1.15 / 1000.0, 2)
+                    raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
                     
                 elif base_code in ["CC-", "C-", "CC+", "C+"]:
-                    mr = py_mround(number_val * 1.5, 10)
-                    repair_val = py_roundup(mr / 100.0, 2)
+                    raw_formula = f"ROUNDUP(MROUND({h_cell}*1.5, 10)/100, 2)"
                     
                 elif base_code in ["DP", "FP", "BP"]:
-                    ru = py_roundup(number_val * 1.3 / 1000.0, 2)
-                    repair_val = max(1.0, ru)
+                    raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
                     
                 elif base_code == "DG":
-                    mr = py_mround(number_val * 8, 10)
-                    computed = mr / 100.0
-                    if computed > 3.2:
-                        computed = 3.2
-                    repair_val = py_roundup(computed, 2)
+                    raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>3.2, 3.2, MROUND({h_cell}*8, 10))/100, 2)"
                     
                 elif base_code in ["MS", "DS"]:
                     limits = {"CC": 4.8, "CF": 3.2, "GG": 1.8, "FG": 1.8, "FF": 3.2}
                     modifier = parts[1] if len(parts) > 1 else None
-                    computed = number_val * 0.08
-                    
-                    if modifier in limits and computed > limits[modifier]:
-                        computed = limits[modifier]
-                        
-                    repair_val = round(py_mround(computed, 0.05), 2)
+                    if modifier in limits:
+                        limit = limits[modifier]
+                        raw_formula = f"MROUND(IF(({h_cell}*8/100)>{limit}, {limit}, ({h_cell}*8/100)), 0.05)"
+                    else:
+                        # Fallback if there's no modifier or an unlisted one
+                        raw_formula = f"MROUND({h_cell}*0.08, 0.05)"
+                
+                # Wrap the formula to hide #VALUE! errors if the dimension cell is completely empty
+                if raw_formula:
+                    repair_formula = f"=IF(ISNUMBER({h_cell}), {raw_formula}, \"\")"
                     
             cell_repair = ws.cell(row=r, column=photo_col + 5)
-            cell_repair.value = repair_val
+            cell_repair.value = repair_formula
             
-            if repair_val != "":
+            # Still formats it to perfectly display 2 decimal places in Excel
+            if repair_formula != "":
                 cell_repair.number_format = '0.00'
 
             if is_invalid:
