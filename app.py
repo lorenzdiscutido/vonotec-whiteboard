@@ -238,9 +238,19 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
         number_val = None
         if has_unit_col and is_data:
-            number_val, unit = split_dimension(h_val)
+            number_val, _ = split_dimension(h_val)  # Ignored parsed unit to enforce standard below
+            
+            # Determine correct unit natively from the defect code, even if dimension is completely blank
+            board_unit = ""
+            if g_val:
+                base_code = str(g_val).split()[0]
+                if base_code in ["US", "BH", "DP", "FP", "BP"]:
+                    board_unit = "CM²"
+                elif base_code in ["CC-", "C-", "CC+", "C+", "DG", "DS", "MS", "GLASS-FRAME", "FRAME"]:
+                    board_unit = "CM"
+
             cell_h.value = number_val
-            ws.cell(row=r, column=unit_col).value = unit
+            ws.cell(row=r, column=unit_col).value = board_unit
         else:
             cell_h.value = h_val
 
