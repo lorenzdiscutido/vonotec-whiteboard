@@ -181,7 +181,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
     start_row = ws.max_row + 1
     
-    # FIX: Exclude modifiers so they are not treated as independent splittable codes 
     SEALANT_MODIFIERS = {"CC", "CF", "FC", "GG", "FG", "GF", "FF"}
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - SEALANT_MODIFIERS
 
@@ -273,13 +272,13 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 
                 if base_code in ["US", "BH"]:
                     raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
-                    repair_unit = "Sq.M."
+                    repair_unit = "SQ.M."
                 elif base_code in ["CC-", "C-", "CC+", "C+"]:
                     raw_formula = f"ROUNDUP(MROUND({h_cell}*1.5, 10)/100, 2)"
                     repair_unit = "L.M."
                 elif base_code in ["DP", "FP", "BP"]:
                     raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
-                    repair_unit = "Sq.M."
+                    repair_unit = "SQ.M."
                 elif base_code == "DG":
                     raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), MROUND({h_cell}*8, 10))/100, 2)"
                     repair_unit = "L.M."
