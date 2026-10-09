@@ -70,6 +70,7 @@ def _populate_reference_sheet(wb):
     ws_ref.column_dimensions['D'].width = 45
     ws_ref.column_dimensions['E'].width = 40
     ws_ref.column_dimensions['F'].width = 18
+    ws_ref.column_dimensions['G'].width = 15
     ws_ref.row_dimensions[1].height = 28
 
 def _refresh_reference_sheet(wb):
@@ -138,29 +139,29 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws.append([
             "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
             "Defects", "", "", "Whiteboard Photo",
-            "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS", "Repair Dimension"
+            "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS", "Repair Dimension", "Repair Unit"
         ])
         ws.append([
             "", "", "", "", "", "",
-            "Damage", "Dimension", "", "",
-            "", "", "", "", ""
+            "Damage", "Dimension", "Unit", "",
+            "", "", "", "", "", ""
         ])
 
         ws.merge_cells('G1:I1')   
         ws.merge_cells('H2:I2')   
-        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O']:
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P']:
             ws.merge_cells(f'{col}1:{col}2')
 
         gray_fill = PatternFill(start_color="BFBFBF", end_color="BFBFBF", fill_type="solid")
-        for row in ws['A1':'O2']:
+        for row in ws['A1':'P2']:
             for cell in row:
                 cell.font = Font(bold=True)
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-        ws['N1'].fill = gray_fill
-        ws['N2'].fill = gray_fill
         ws['O1'].fill = gray_fill
         ws['O2'].fill = gray_fill
+        ws['P1'].fill = gray_fill
+        ws['P2'].fill = gray_fill
 
         ws.column_dimensions['I'].width = 9
         ws.column_dimensions['K'].width = 24
@@ -168,12 +169,13 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
         ws.column_dimensions['M'].width = 28
         ws.column_dimensions['N'].width = 22
         ws.column_dimensions['O'].width = 18
+        ws.column_dimensions['P'].width = 15
 
         _populate_reference_sheet(wb)
 
     unit_col = 9 if has_unit_col else None
     photo_col = 10 if has_unit_col else 9
-    last_col = photo_col + 5
+    last_col = photo_col + 6
     photo_col_letter = get_column_letter(photo_col)
     title_last_col = 9 if has_unit_col else 8
 
@@ -181,7 +183,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
 
     rows_data = []
-    # Loop includes the new "With Film" row
     for mat in ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]:
         rows_data.append((mat, "", True, False, mat, False)) 
         
@@ -253,13 +254,14 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             cell_g.font = Font(bold=True)
         elif is_data:
             lookup_val = f'LEFT($G{r}, FIND(" ", $G{r}&" ") - 1)'
-            ws.cell(row=r, column=photo_col + 1).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 3, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 2).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 4, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 5, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A$2:$E$15, 2, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 1).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 3, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 2).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 4, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 5, FALSE), "")'
+            ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 2, FALSE), "")'
 
             # -------- REPAIR DIMENSION EXCEL FORMULA INJECTION --------
             repair_formula = ""
+            repair_unit = ""
             parts = str(g_val).split()
             
             if parts and has_unit_col:
@@ -267,40 +269,44 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 h_cell = f"$H{r}"
                 raw_formula = ""
                 
+                # --- Un-cramped Formulas utilizing VLOOKUP for limits ---
                 if base_code in ["US", "BH"]:
                     raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
+                    repair_unit = "Sq.M."
                 elif base_code in ["CC-", "C-", "CC+", "C+"]:
                     raw_formula = f"ROUNDUP(MROUND({h_cell}*1.5, 10)/100, 2)"
+                    repair_unit = "L.M."
                 elif base_code in ["DP", "FP", "BP"]:
                     raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
+                    repair_unit = "Sq.M."
                 elif base_code == "DG":
-                    raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>3.2, 3.2, MROUND({h_cell}*8, 10))/100, 2)"
+                    # Looks up the 3.2 max limit directly from Reference Data
+                    raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), MROUND({h_cell}*8, 10))/100, 2)"
+                    repair_unit = "L.M."
+                elif base_code in ["GLASS-FRAME", "FRAME"]:
+                    repair_unit = "L.M."
                 elif base_code in ["MS", "DS"]:
-                    limits = {"CC": 4.8, "CF": 3.2, "GG": 1.8, "FG": 1.8, "FF": 3.2}
+                    repair_unit = "L.M."
                     modifier = parts[1] if len(parts) > 1 else None
-                    if modifier in limits:
-                        limit = limits[modifier]
-                        raw_formula = f"MROUND(IF(({h_cell}*8/100)>{limit}, {limit}, ({h_cell}*8/100)), 0.05)"
+                    if modifier:
+                        # Looks up specific CC, CF, FG, etc. max limit directly from Reference Data
+                        raw_formula = f"MROUND(IF(({h_cell}*8/100)>VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), ({h_cell}*8/100)), 0.05)"
                     else:
+                        # Fallback if no modifier exists
                         raw_formula = f"MROUND({h_cell}*0.08, 0.05)"
                 
-                # Wrap formula to avoid #VALUE errors
+                # Wrap formula to hide #VALUE errors if dimension is completely empty
                 if raw_formula:
                     repair_formula = f"=IF(ISNUMBER({h_cell}), {raw_formula}, \"\")"
                     
             cell_repair = ws.cell(row=r, column=photo_col + 5)
             cell_repair.value = repair_formula
             
-            # --- APPLY L.M. / Sq.M. FORMATTING ---
-            if parts:
-                base_code = parts[0]
-                if base_code in ["US", "BH", "DP", "FP", "BP"]:
-                    cell_repair.number_format = '0.00 "Sq.M."'
-                elif base_code in ["CC-", "C-", "CC+", "C+", "DG", "MS", "DS", "GLASS-FRAME", "FRAME"]:
-                    cell_repair.number_format = '0.00 "L.M."'
-                else:
-                    if repair_formula != "":
-                        cell_repair.number_format = '0.00'
+            cell_unit = ws.cell(row=r, column=photo_col + 6)
+            cell_unit.value = repair_unit
+            
+            if repair_formula != "":
+                cell_repair.number_format = '0.00'
 
             if is_invalid:
                 for col_idx in range(7, last_col + 1):
