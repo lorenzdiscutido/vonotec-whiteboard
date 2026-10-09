@@ -39,7 +39,7 @@ HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 # DEFECTS, LOCATION MODIFIERS AND UNITS
 # ==========================================================================
 
-SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF"]
+SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
 
 DEFECT_UNITS = [
     ("Sealant",   ["DS", "MS"],                 "CM"),
@@ -120,6 +120,7 @@ def _extraction_prompt():
         "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
         "After the word \"DS\" or \"MS\" there should be a space, then the next characters. If there is no space, add one. "
         "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
+        "INTERCHANGED MODIFIER RULE: If a sealant location modifier is written in reverse (e.g., 'FC' instead of 'CF', or 'GF' instead of 'FG'), standardizing it to 'CF' or 'FG' is preferred, but outputting 'FC' or 'GF' is also acceptable. "
         "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. If they wrote 'Frame', extract it as 'FRAME'. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
