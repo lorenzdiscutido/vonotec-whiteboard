@@ -267,19 +267,14 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 h_cell = f"$H{r}"
                 raw_formula = ""
                 
-                # Build the raw formula string exactly as requested
                 if base_code in ["US", "BH"]:
                     raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
-                    
                 elif base_code in ["CC-", "C-", "CC+", "C+"]:
                     raw_formula = f"ROUNDUP(MROUND({h_cell}*1.5, 10)/100, 2)"
-                    
                 elif base_code in ["DP", "FP", "BP"]:
                     raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
-                    
                 elif base_code == "DG":
                     raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>3.2, 3.2, MROUND({h_cell}*8, 10))/100, 2)"
-                    
                 elif base_code in ["MS", "DS"]:
                     limits = {"CC": 4.8, "CF": 3.2, "GG": 1.8, "FG": 1.8, "FF": 3.2}
                     modifier = parts[1] if len(parts) > 1 else None
@@ -287,19 +282,25 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                         limit = limits[modifier]
                         raw_formula = f"MROUND(IF(({h_cell}*8/100)>{limit}, {limit}, ({h_cell}*8/100)), 0.05)"
                     else:
-                        # Fallback if there's no modifier or an unlisted one
                         raw_formula = f"MROUND({h_cell}*0.08, 0.05)"
                 
-                # Wrap the formula to hide #VALUE! errors if the dimension cell is completely empty
+                # Wrap formula to avoid #VALUE errors
                 if raw_formula:
                     repair_formula = f"=IF(ISNUMBER({h_cell}), {raw_formula}, \"\")"
                     
             cell_repair = ws.cell(row=r, column=photo_col + 5)
             cell_repair.value = repair_formula
             
-            # Still formats it to perfectly display 2 decimal places in Excel
-            if repair_formula != "":
-                cell_repair.number_format = '0.00'
+            # --- APPLY L.M. / Sq.M. FORMATTING ---
+            if parts:
+                base_code = parts[0]
+                if base_code in ["US", "BH", "DP", "FP", "BP"]:
+                    cell_repair.number_format = '0.00 "Sq.M."'
+                elif base_code in ["CC-", "C-", "CC+", "C+", "DG", "MS", "DS", "GLASS-FRAME", "FRAME"]:
+                    cell_repair.number_format = '0.00 "L.M."'
+                else:
+                    if repair_formula != "":
+                        cell_repair.number_format = '0.00'
 
             if is_invalid:
                 for col_idx in range(7, last_col + 1):
