@@ -31,15 +31,16 @@ _call_times = collections.deque()
 _rate_lock = threading.Lock()
 
 MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]
-VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
+SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
+
+# FIX: Exclude modifiers from VALID_CODES so the script doesn't split "DS CC" into "DS" and "CC"
+VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODIFIERS)
 
 HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 
 # ==========================================================================
 # DEFECTS, LOCATION MODIFIERS AND UNITS
 # ==========================================================================
-
-SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
 
 DEFECT_UNITS = [
     ("Sealant",   ["DS", "MS"],                 "CM"),
