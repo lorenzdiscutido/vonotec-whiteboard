@@ -180,7 +180,10 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     title_last_col = 9 if has_unit_col else 8
 
     start_row = ws.max_row + 1
-    VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]}
+    
+    # FIX: Exclude modifiers so they are not treated as independent splittable codes 
+    SEALANT_MODIFIERS = {"CC", "CF", "FC", "GG", "FG", "GF", "FF"}
+    VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - SEALANT_MODIFIERS
 
     rows_data = []
     for mat in ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]:
@@ -259,7 +262,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
             ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 5, FALSE), "")'
             ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 2, FALSE), "")'
 
-            # -------- REPAIR DIMENSION EXCEL FORMULA INJECTION --------
             repair_formula = ""
             repair_unit = ""
             parts = str(g_val).split()
@@ -269,7 +271,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                 h_cell = f"$H{r}"
                 raw_formula = ""
                 
-                # --- Un-cramped Formulas utilizing VLOOKUP for limits ---
                 if base_code in ["US", "BH"]:
                     raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
                     repair_unit = "Sq.M."
@@ -280,7 +281,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                     raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
                     repair_unit = "Sq.M."
                 elif base_code == "DG":
-                    # Looks up the 3.2 max limit directly from Reference Data
                     raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), MROUND({h_cell}*8, 10))/100, 2)"
                     repair_unit = "L.M."
                 elif base_code in ["GLASS-FRAME", "FRAME"]:
@@ -289,13 +289,10 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
                     repair_unit = "L.M."
                     modifier = parts[1] if len(parts) > 1 else None
                     if modifier:
-                        # Looks up specific CC, CF, FG, etc. max limit directly from Reference Data
                         raw_formula = f"MROUND(IF(({h_cell}*8/100)>VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), ({h_cell}*8/100)), 0.05)"
                     else:
-                        # Fallback if no modifier exists
                         raw_formula = f"MROUND({h_cell}*0.08, 0.05)"
                 
-                # Wrap formula to hide #VALUE errors if dimension is completely empty
                 if raw_formula:
                     repair_formula = f"=IF(ISNUMBER({h_cell}), {raw_formula}, \"\")"
                     
