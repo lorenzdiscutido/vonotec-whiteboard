@@ -33,3 +33,18 @@ div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMark
 h3 { color: #1E3A8A !important; }
 .sync-name { color: #1e293b !important; font-weight: 700; margin: 0.35rem 0 0 0 !important; }
 .sync-detail { color: #475569 !important; font-size: 0.9rem; margin: 0 0 0.9rem 0 !important; }
+
+/* View switch ("Whiteboard Extraction" / "Analytics Dashboard") */
+.st-key-view_switch { margin-bottom: 1rem; }
+.st-key-view_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
+.st-key-view_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
+.st-key-view_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
+.st-key-view_switch label p { color: #1e293b !important; font-weight: 700 !important; }
+.st-key-view_switch label:has(input:checked) p { color: #ffffff !important; }
+
+/* Analytics Dashboard: the page background is light, so text must be dark */
+.st-key-analytics p, .st-key-analytics li, .st-key-analytics label, .st-key-analytics summary,
+.st-key-analytics h4, .st-key-analytics div[data-testid="stMetric"] * { color: #1e293b !important; }
+.st-key-analytics h4 { color: #1E3A8A !important; font-weight: 700 !important; margin-top: 1.25rem; }
+.st-key-analytics div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #2F5597; border-radius: 8px; padding: 0.75rem 1rem; }
+.st-key-analytics div[data-testid="stVegaLiteChart"], .st-key-analytics div[data-testid="stArrowVegaLiteChart"] { background-color: #ffffff; border-radius: 8px; padding: 0.5rem; }
