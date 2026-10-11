@@ -8,13 +8,10 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 
-from config import REFERENCE_DATA, MATERIAL_RULES
-from gemini_client import MATERIALS, VALID_CODES, DEFECT_UNITS
+from config import REFERENCE_DATA, REFERENCE_SHEET_COLUMNS, MATERIAL_RULES
+from defect_rules import BOARD_UNITS, repair_rule
+from gemini_client import MATERIALS, VALID_CODES
 from image_utils import prepare_excel_image
-
-# Board unit of each defect code, read from DEFECT_UNITS in gemini_client.py,
-# so a new defect code only needs its unit entered in one place.
-BOARD_UNITS = {code: unit for _material, codes, unit in DEFECT_UNITS for code in codes}
 
 # The Reference Data sheet range used by the lookup formulas (column F = Repair Limit)
 REFERENCE_RANGE = "'Reference Data'!$A:$F"
@@ -30,8 +27,8 @@ def _populate_reference_sheet(wb):
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
 
     for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
-        ws_ref.append(row_values)
-        for col_idx in range(1, len(REFERENCE_DATA[0]) + 1):
+        ws_ref.append(row_values[:REFERENCE_SHEET_COLUMNS])  # the app-only rule columns stay out of Excel
+        for col_idx in range(1, REFERENCE_SHEET_COLUMNS + 1):
             cell = ws_ref.cell(row=row_idx, column=col_idx)
             if row_idx == 1:
                 cell.fill = header_fill
@@ -62,47 +59,6 @@ def split_dimension(text):
     if number.is_integer():
         number = int(number)
     return number, (match.group(2) or "").upper()
-
-
-# ---------------------------------------------------------------------------
-# Repair dimension rules: edit ONLY this block when a repair formula changes
-# ---------------------------------------------------------------------------
-
-def _limit_lookup(code):
-    """Excel lookup of a code's Repair Limit (column F of the Reference Data sheet)."""
-    return f'VLOOKUP("{code}", {REFERENCE_RANGE}, 6, FALSE)'
-
-
-def _repair_rule(parts, h):
-    """Returns (excel_formula, repair_unit) for one damage entry.
-    `parts` is the damage text split into words ('DS CC' -> ['DS', 'CC']) and
-    `h` is the cell holding the board dimension. The formula is "" when the
-    defect has no calculated repair dimension."""
-    code = parts[0]
-
-    if code in ("US", "BH"):
-        return f"ROUNDUP({h}*1.15/1000, 2)", "SQ.M."
-
-    if code in ("CC-", "C-", "CC+", "C+"):
-        return f"ROUNDUP(MROUND({h}*1.5, 10)/100, 2)", "L.M."
-
-    if code in ("DP", "FP", "BP"):
-        return f"IF(ROUNDUP({h}*1.3/1000, 2)<1, 1, ROUNDUP({h}*1.3/1000, 2))", "SQ.M."
-
-    if code == "DG":
-        limit = _limit_lookup("DG")
-        return f"ROUNDUP(IF(MROUND({h}*8, 10)>{limit}, {limit}, MROUND({h}*8, 10))/100, 2)", "L.M."
-
-    if code in ("GLASS-FRAME", "FRAME"):
-        return "", "L.M."
-
-    if code in ("MS", "DS"):
-        if len(parts) > 1:  # with a location modifier (CC, CF, GG, ...)
-            limit = _limit_lookup(parts[1])
-            return f"MROUND(IF(({h}*8/100)>{limit}, {limit}, ({h}*8/100)), 0.05)", "L.M."
-        return f"MROUND({h}*0.08, 0.05)", "L.M."
-
-    return "", ""  # e.g. NP: no repair dimension
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +190,7 @@ def _write_data_row(ws, row, g_val, h_val, material, flagged_materials, lay):
     repair_formula, repair_unit = "", ""
     if parts and lay.has_unit_col:
         h_cell = f"$H{row}"
-        raw_formula, repair_unit = _repair_rule(parts, h_cell)
+        raw_formula, repair_unit = repair_rule(parts, h_cell)
         if raw_formula:
             repair_formula = f'=IF(ISNUMBER({h_cell}), {raw_formula}, "")'
 
