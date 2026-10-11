@@ -17,6 +17,10 @@ LOCAL_BATCH_DIR = "local_batches"
 # Remembers which local batch files have been uploaded to SharePoint
 SYNC_STATUS_FILE = "sync_status.json"
 
+# How often (in seconds) the Analytics Dashboard checks SharePoint for new or
+# changed Excel files. Lower = more current, but more SharePoint requests.
+DASHBOARD_REFRESH_SECONDS = 15
+
 # Choices shown in the "Save into which folder?" dropdown
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
