@@ -29,9 +29,9 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
 CHART_COLOR = "#FF9933"        # light orange, matching the Vonotec logo
-CHART_BACKGROUND = "#FFFFFF"   # set explicitly: the app's blue theme would otherwise show through
-CHART_TEXT = "#1E293B"
-CHART_GRID = "#E2E8F0"
+CHART_BACKGROUND = "#2F5597"   # Vonotec blue, set explicitly so it is the same in every Streamlit version
+CHART_TEXT = "#FFFFFF"         # axis labels and titles, light so they read on the blue
+CHART_GRID = "#5B7DB8"         # soft lighter-blue gridlines behind the bars
 # Folder/file lists are kept for just under one refresh interval, so every
 # automatic check really asks SharePoint instead of reusing the previous answer.
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
