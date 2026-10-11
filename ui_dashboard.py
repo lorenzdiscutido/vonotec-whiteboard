@@ -28,7 +28,10 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 # What the Folder column shows for files that sit directly in the landing folder
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
-CHART_COLOR = "#2F5597"
+CHART_COLOR = "#FF9933"        # light orange, matching the Vonotec logo
+CHART_BACKGROUND = "#FFFFFF"   # set explicitly: the app's blue theme would otherwise show through
+CHART_TEXT = "#1E293B"
+CHART_GRID = "#E2E8F0"
 # Folder/file lists are kept for just under one refresh interval, so every
 # automatic check really asks SharePoint instead of reusing the previous answer.
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
@@ -137,12 +140,19 @@ def _bar_chart(counts, column, title):
         alt.Chart(counts)
         .mark_bar(color=CHART_COLOR, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
         .encode(
+            # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
             x=alt.X(f"{column}:N", sort=list(counts[column]), title=column,
+                    scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
                     axis=alt.Axis(labelAngle=0, labelLimit=120)),
             y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Defects")],
         )
-        .properties(height=280, width="container")
+        .properties(height=280, width="container", background=CHART_BACKGROUND)
+        .configure_axis(
+            labelColor=CHART_TEXT, titleColor=CHART_TEXT,
+            gridColor=CHART_GRID, domainColor=CHART_TEXT, tickColor=CHART_TEXT,
+        )
+        .configure_view(stroke=None)
     )
     st.markdown(f"#### {title}")
     st.altair_chart(chart, theme=None)  # theme=None keeps dark axis text on the light page
