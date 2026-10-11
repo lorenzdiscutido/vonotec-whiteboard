@@ -39,12 +39,16 @@ def render_header():
             unsafe_allow_html=True
         )
 
+
+
+def render_instructions():
+    """The how-to box shown above the uploader (Whiteboard Extraction view only)."""
     st.markdown(
         """
         <div class="instruction-text">
-            Upload one or multiple whiteboard photos below. The AI will automatically extract the data 
+            Upload one or multiple whiteboard photos below. The AI will automatically extract the data
             and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
         </div>
-        """, 
+        """,
         unsafe_allow_html=True
     )
