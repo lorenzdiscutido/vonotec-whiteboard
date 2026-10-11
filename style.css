@@ -1,0 +1,33 @@
+/* Hide the "Press Enter to apply" text inside text inputs */
+div[data-testid="InputInstructions"] {
+    display: none !important;
+}
+
+.stApp { background-color: #f4f7f9; }
+.header-container { background-color: #ffffff; padding: 20px 24px; border-radius: 14px; box-shadow: 0 4px 14px rgba(15,23,42,0.08); margin-bottom: 24px; }
+.header-flex { display: flex; align-items: center; gap: 20px; }
+.header-flex img { display: block; height: auto; margin: 0; }
+.header-flex > div { display: flex; flex-direction: column; justify-content: center; }
+.main-title { color: #1E3A8A !important; font-weight: 800 !important; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; }
+.sub-title { color: #475569 !important; margin: 4px 0 0 0 !important; padding: 0 !important; line-height: 1.3 !important; font-size: 1rem; }
+div.stButton > button:first-child, .stDownloadButton > button:first-child { background-color: #2F5597 !important; color: #ffffff !important; border: none !important; font-weight: 700 !important; padding: 0.75rem 2rem !important; border-radius: 8px !important; width: 100%; box-shadow: 0 2px 6px rgba(47,85,151,0.25); transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+div.stButton > button:first-child p, .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; }
+div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover { background-color: #1E3A8A !important; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(30,58,138,0.3); }
+.instruction-text { color: #1e293b !important; background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2F5597; margin-bottom: 24px; }
+div[data-testid="stWidgetLabel"] p, div[data-testid="stWidgetLabel"] label, label[data-testid="stWidgetLabel"], .stTextInput label p, .stTextInput label { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
+div[data-testid="stText"], div[data-testid="stText"] p { color: #1e293b !important; font-weight: 600 !important; }
+.status-msg { color: #1e293b !important; font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
+div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
+.st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
+div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
+div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+.st-key-action_buttons div.stButton { width: auto !important; }
+.st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
+.st-key-clear_photos div.stButton > button:first-child p { color: #FFFFFF !important; }
+.st-key-clear_photos div.stButton > button:first-child:hover { background-color: #EA580C !important; }
+.st-key-start_fresh div.stButton > button:first-child, .st-key-confirm_delete div.stButton > button:first-child { background-color: #DC2626 !important; color: #FFFFFF !important; }
+.st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
+.st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
+h3 { color: #1E3A8A !important; }
