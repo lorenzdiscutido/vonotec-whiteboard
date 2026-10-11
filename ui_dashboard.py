@@ -150,7 +150,11 @@ def _bar_chart(counts, column, title):
             y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Defects")],
         )
-        .properties(height=280, width="container", background=CHART_BACKGROUND)
+        # padding: breathing room between the chart and the rounded frame, so nothing touches the edge
+        .properties(
+            height=280, width="container", background=CHART_BACKGROUND,
+            padding={"left": 16, "right": 32, "top": 20, "bottom": 16},
+        )
         .configure_axis(
             labelColor=CHART_TEXT, titleColor=CHART_TEXT,
             gridColor=CHART_GRID, domainColor=CHART_TEXT, tickColor=CHART_TEXT,
