@@ -2,11 +2,14 @@
 """Reusable Streamlit sections for the Whiteboard app.
 (Header and CSS stay in ui_components.py.)"""
 import os
+import html
+import hashlib
 import traceback
 
 import streamlit as st
 
 import sharepoint_client
+import sync_tracker
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 
 _SESSION_DEFAULTS = {
@@ -172,6 +175,7 @@ def render_file_management():
             if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
                 if os.path.exists(path):
                     os.remove(path)
+                sync_tracker.forget(path)
                 st.session_state.last_output_path = None
                 st.session_state.last_output_label = None
                 st.session_state.last_output_folder = ""
@@ -181,3 +185,76 @@ def render_file_management():
             if st.button("Cancel", type="primary", key="cancel_delete"):
                 st.session_state.confirm_reset = False
                 st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Pending Syncs: batch files that never reached SharePoint
+# ---------------------------------------------------------------------------
+
+def _push_pending(item):
+    """Uploads one stranded file and leaves a message for the next screen draw."""
+    with st.spinner(f"Pushing {item['filename']} to SharePoint..."):
+        ok, reason = sync_tracker.sync_file(item["path"], item["subfolder"])
+    if ok:
+        st.session_state.sync_notice = ("success", f"'{item['filename']}' is now uploaded to SharePoint.")
+    else:
+        st.session_state.sync_notice = (
+            "error", f"Could not push '{item['filename']}' to SharePoint: {reason}. You can try again."
+        )
+    st.rerun()
+
+
+def render_pending_syncs():
+    """Lists batch files that are not up to date in SharePoint, each with a
+    Push button. Draws nothing when everything is synced."""
+    if not ENABLE_SHAREPOINT_SYNC:
+        return
+
+    notice = st.session_state.pop("sync_notice", None)
+    if notice:
+        (st.success if notice[0] == "success" else st.error)(notice[1])
+
+    pending = sync_tracker.pending_files()
+    if not pending:
+        return
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.subheader("Pending Syncs")
+    st.warning(
+        f"{len(pending)} file(s) are not up to date in SharePoint. Pushing a file replaces the "
+        "SharePoint copy with the one stored here. These files are kept only on the app's "
+        "temporary storage and are lost if the app restarts, so download any you want to keep."
+    )
+
+    for item in pending:
+        folder_note = f' in folder "{item["subfolder"]}"' if item["subfolder"] else ""
+        detail = item["reason"]
+        if item["last_error"]:
+            detail += f' (last attempt {item["last_attempt"]}: {item["last_error"]})'
+
+        info_col, push_col, download_col = st.columns([3, 1.3, 1.3])
+        with info_col:
+            st.markdown(
+                f'<p class="sync-name">{html.escape(item["filename"])}{html.escape(folder_note)}</p>'
+                f'<p class="sync-detail">{html.escape(detail)}</p>',
+                unsafe_allow_html=True,
+            )
+        widget_id = hashlib.md5(item["key"].encode("utf-8")).hexdigest()[:10]
+        with push_col:
+            if st.button("Push to SharePoint", type="primary", key=f"push_{widget_id}"):
+                _push_pending(item)
+        with download_col:
+            try:
+                with open(item["path"], "rb") as f:
+                    file_bytes = f.read()
+            except OSError:
+                file_bytes = None
+            if file_bytes is not None:
+                st.download_button(
+                    label="Download",
+                    data=file_bytes,
+                    file_name=item["filename"],
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    key=f"download_{widget_id}",
+                )
