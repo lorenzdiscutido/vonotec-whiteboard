@@ -28,10 +28,12 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 # What the Folder column shows for files that sit directly in the landing folder
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
-CHART_COLOR = "#FF9933"        # light orange, matching the Vonotec logo
-CHART_BACKGROUND = "#2F5597"   # Vonotec blue, set explicitly so it is the same in every Streamlit version
+CHART_COLOR = "#FFAD5C"        # light orange, matching the Vonotec logo
+# Vonotec blue, set explicitly so it is the same in every Streamlit version.
+# Keep it the same as the chart frame's background in style.css (.st-key-analytics ... stVegaLiteChart).
+CHART_BACKGROUND = "#4A72B5"
 CHART_TEXT = "#FFFFFF"         # axis labels and titles, light so they read on the blue
-CHART_GRID = "#5B7DB8"         # soft lighter-blue gridlines behind the bars
+CHART_GRID = "#7F9CD0"         # soft lighter-blue gridlines behind the bars
 # Folder/file lists are kept for just under one refresh interval, so every
 # automatic check really asks SharePoint instead of reusing the previous answer.
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
@@ -138,12 +140,13 @@ def _bar_chart(counts, column, title):
 
     chart = (
         alt.Chart(counts)
-        .mark_bar(color=CHART_COLOR, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+        .mark_bar(color=CHART_COLOR, cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
         .encode(
             # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
             x=alt.X(f"{column}:N", sort=list(counts[column]), title=column,
                     scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                    axis=alt.Axis(labelAngle=0, labelLimit=120)),
+                    # With many bars the labels would run into each other, so tilt them
+                    axis=alt.Axis(labelAngle=-45 if len(counts) > 12 else 0, labelLimit=120)),
             y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Defects")],
         )
