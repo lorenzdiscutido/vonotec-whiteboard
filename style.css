@@ -31,3 +31,5 @@ div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMark
 .st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
 .st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
 h3 { color: #1E3A8A !important; }
+.sync-name { color: #1e293b !important; font-weight: 700; margin: 0.35rem 0 0 0 !important; }
+.sync-detail { color: #475569 !important; font-size: 0.9rem; margin: 0 0 0.9rem 0 !important; }
