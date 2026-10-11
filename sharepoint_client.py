@@ -200,6 +200,52 @@ def ensure_subfolder(name):
 
 
 # ---------------------------------------------------------------------------
+# Files: listing
+# ---------------------------------------------------------------------------
+
+def list_xlsx_files(subfolder=""):
+    """Returns the Excel files directly inside the landing folder (subfolder="")
+    or inside one subfolder of it, sorted A-Z by name.
+
+    Each item: {"name", "modified", "size", "subfolder"}. "modified" is
+    SharePoint's last-modified time; the dashboard uses it to know when a
+    cached copy of the file is out of date. Excel's hidden "~$..." lock files
+    (created while someone has a workbook open) are left out. Returns an empty
+    list if the folder doesn't exist."""
+    site_id = _get_site_id()
+    encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
+    select = "$select=name,size,lastModifiedDateTime,file&$top=200"
+    if encoded:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?{select}"
+    else:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children?{select}"
+
+    files = []
+    while url:
+        token = _get_access_token()
+        response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        data = response.json()
+        for item in data.get("value", []):
+            name = item.get("name", "")
+            # Children with a "file" facet are files; folders have a "folder" facet instead
+            if "file" not in item:
+                continue
+            if name.startswith("~$") or not name.lower().endswith(".xlsx"):
+                continue
+            files.append({
+                "name": name,
+                "modified": item.get("lastModifiedDateTime", ""),
+                "size": item.get("size", 0),
+                "subfolder": subfolder,
+            })
+        url = data.get("@odata.nextLink")  # more pages, if there are many files
+    return sorted(files, key=lambda f: f["name"].lower())
+
+
+# ---------------------------------------------------------------------------
 # Files: download and upload
 # ---------------------------------------------------------------------------
 
