@@ -5,7 +5,8 @@
     extraction.py       Gemini reading + review pass
     excel_writer.py     master Excel file (layout, units, repair formulas)
     batch_processor.py  the per-photo batch loop
-    ui_sections.py      session state, folder picker, file management
+    ui_sections.py      session state, folder picker, file management, pending syncs
+    sync_tracker.py     remembers which batch files reached SharePoint
     ui_components.py    CSS and header
 """
 import os
@@ -20,7 +21,7 @@ from batch_processor import run_batch
 from ui_sections import (
     init_session_state, show_batch_results, status_message,
     render_folder_picker, resolve_subfolder, remember_new_folder,
-    render_action_buttons, render_file_management,
+    render_action_buttons, render_file_management, render_pending_syncs,
 )
 
 # --- PAGE SETUP ---
@@ -129,3 +130,6 @@ if extract_clicked:
 
 # --- DOWNLOAD / DELETE ---
 render_file_management()
+
+# --- FILES THAT NEVER REACHED SHAREPOINT ---
+render_pending_syncs()
