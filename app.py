@@ -1,742 +1,131 @@
+# app.py
+"""Main flow of the Whiteboard AI web app. Everything else lives in:
+    settings.py         switches and constants
+    file_utils.py       processed-photo log, filename cleanup
+    extraction.py       Gemini reading + review pass
+    excel_writer.py     master Excel file (layout, units, repair formulas)
+    batch_processor.py  the per-photo batch loop
+    ui_sections.py      session state, folder picker, file management
+    ui_components.py    CSS and header
+"""
 import os
-import re
-import json
-import uuid
-import hashlib
 import datetime
-import base64
-import traceback
 
-import google.generativeai as genai
 import streamlit as st
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
-from openpyxl.utils import get_column_letter
 
-from config import REFERENCE_DATA, MATERIAL_RULES
-from image_utils import load_image, prepare_excel_image
-from gemini_client import get_raw_response, get_review_response, parse_and_clean_json, find_problems
-import sharepoint_client
+import ui_components
+from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL
+from file_utils import sanitize_batch_filename
+from batch_processor import run_batch
+from ui_sections import (
+    init_session_state, show_batch_results, status_message,
+    render_folder_picker, resolve_subfolder, remember_new_folder,
+    render_action_buttons, render_file_management,
+)
 
-LOG_FILE = "processed_log.json"
-
-EXTRACTION_RETRIES = 2
-ENABLE_REVIEW_PASS = True
-ENABLE_SHAREPOINT_SYNC = True
-LOCAL_BATCH_DIR = "local_batches"
-
-MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
-NEW_FOLDER_LABEL = "+ Create a new folder..."
-
-def load_processed_log():
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return []
-    return []
-
-def save_processed_log(log_list):
-    tmp_path = LOG_FILE + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(log_list, f)
-    os.replace(tmp_path, LOG_FILE)
-
-# ==========================================
-# 1. CONFIGURATION & RULES
-# ==========================================
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-def _populate_reference_sheet(wb):
-    ws_ref = wb.create_sheet(title="Reference Data")
-    header_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-
-    for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
-        ws_ref.append(row_values)
-        for col_idx in range(1, len(REFERENCE_DATA[0]) + 1):
-            cell = ws_ref.cell(row=row_idx, column=col_idx)
-            if row_idx == 1:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            else:
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-
-    ws_ref.column_dimensions['A'].width = 15
-    ws_ref.column_dimensions['B'].width = 26
-    ws_ref.column_dimensions['C'].width = 24
-    ws_ref.column_dimensions['D'].width = 45
-    ws_ref.column_dimensions['E'].width = 40
-    ws_ref.column_dimensions['F'].width = 18
-    ws_ref.column_dimensions['G'].width = 15
-    ws_ref.row_dimensions[1].height = 28
-
-def _refresh_reference_sheet(wb):
-    if "Reference Data" not in wb.sheetnames:
-        _populate_reference_sheet(wb)
-        return
-    ws_ref = wb["Reference Data"]
-    if ws_ref.max_row != len(REFERENCE_DATA) or ws_ref.max_column != len(REFERENCE_DATA[0]):
-        wb.remove(ws_ref)
-        _populate_reference_sheet(wb)
-
-def extract_data(filepath):
-    img = load_image(filepath)
-
-    parsed_data = None
-    for attempt in range(EXTRACTION_RETRIES + 1):
-        try:
-            raw_text = get_raw_response(img)
-            parsed_data = parse_and_clean_json(raw_text)
-            break
-        except json.JSONDecodeError:
-            if attempt == EXTRACTION_RETRIES:
-                raise
-
-    problems = find_problems(parsed_data)
-    structural = [p for p in problems if p[2] == "structural"]
-    if ENABLE_REVIEW_PASS and structural:
-        try:
-            raw_review = get_review_response(img, parsed_data, problems)
-            parsed_data = parse_and_clean_json(raw_review)
-        except Exception:
-            pass  
-        problems = find_problems(parsed_data)
-
-    parsed_data["Review Notes"] = [msg for _material, msg, _kind in problems]
-    parsed_data["Flagged Materials"] = sorted({mat for mat, _msg, kind in problems if mat and kind in ("structural", "manual")})
-    return parsed_data
-
-def split_dimension(text):
-    text = str(text or "").strip()
-    if not text:
-        return "", ""
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([A-Z]+(?:²|^2|2)?)?", text, flags=re.IGNORECASE)
-    if not match:
-        return text, ""
-    number = float(match.group(1))
-    if number.is_integer():
-        number = int(number)
-    return number, (match.group(2) or "").upper()
-
-def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
-    flagged_materials = set(parsed_data.get("Flagged Materials", []))
-    
-    if os.path.exists(output_xlsx_path):
-        wb = openpyxl.load_workbook(output_xlsx_path)
-        ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
-        if "Reference Data" not in wb.sheetnames:
-            _populate_reference_sheet(wb)
-        has_unit_col = (ws["J1"].value == "Whiteboard Photo")
-    else:
-        has_unit_col = True
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Whiteboard Data"
-
-        ws.append([
-            "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
-            "Defects", "", "", "Whiteboard Photo",
-            "POSSIBLE CAUSE", "Possible Cause Justification", "Recommended Repair", "FINDINGS", "Repair Dimension", "Repair Unit"
-        ])
-        ws.append([
-            "", "", "", "", "", "",
-            "Damage", "Dimension", "Unit", "",
-            "", "", "", "", "", ""
-        ])
-
-        ws.merge_cells('G1:I1')   
-        ws.merge_cells('H2:I2')   
-        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P']:
-            ws.merge_cells(f'{col}1:{col}2')
-
-        gray_fill = PatternFill(start_color="BFBFBF", end_color="BFBFBF", fill_type="solid")
-        for row in ws['A1':'P2']:
-            for cell in row:
-                cell.font = Font(bold=True)
-                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        ws['O1'].fill = gray_fill
-        ws['O2'].fill = gray_fill
-        ws['P1'].fill = gray_fill
-        ws['P2'].fill = gray_fill
-
-        ws.column_dimensions['I'].width = 9
-        ws.column_dimensions['K'].width = 24
-        ws.column_dimensions['L'].width = 30
-        ws.column_dimensions['M'].width = 28
-        ws.column_dimensions['N'].width = 22
-        ws.column_dimensions['O'].width = 18
-        ws.column_dimensions['P'].width = 15
-
-        _populate_reference_sheet(wb)
-
-    unit_col = 9 if has_unit_col else None
-    photo_col = 10 if has_unit_col else 9
-    last_col = photo_col + 6
-    photo_col_letter = get_column_letter(photo_col)
-    title_last_col = 9 if has_unit_col else 8
-
-    start_row = ws.max_row + 1
-    
-    SEALANT_MODIFIERS = {"CC", "CF", "FC", "GG", "FG", "GF", "FF"}
-    VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - SEALANT_MODIFIERS
-
-    rows_data = []
-    for mat in ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]:
-        rows_data.append((mat, "", True, False, mat, False)) 
-        
-        dmg_list = parsed_data.get(f"{mat} Damage", [])
-        dim_list = parsed_data.get(f"{mat} Dimension", [])
-        manual_rows = {
-            idx
-            for note in (parsed_data.get("Manual Dimension") or [])
-            if note["material"] == mat
-            for idx in note["indices"]
-        }
-        
-        expanded_dmg = []
-        expanded_dim = []
-        
-        for i in range(max(len(dmg_list), len(dim_list))):
-            dmg_str = dmg_list[i] if i < len(dmg_list) else ""
-            dim_str = dim_list[i] if i < len(dim_list) else ""
-            
-            tokens = str(dmg_str).split()
-            found_codes = [t for t in tokens if t in VALID_CODES]
-            
-            if len(found_codes) > 1:
-                for n, code in enumerate(found_codes):
-                    expanded_dmg.append(code)
-                    expanded_dim.append(dim_str if n == 0 else "")
-            else:
-                expanded_dmg.append(dmg_str)
-                expanded_dim.append(dim_str)
-        
-        max_len = max(len(expanded_dmg), 1) 
-        for i in range(max_len):
-            dmg_val = expanded_dmg[i] if i < len(expanded_dmg) else ""
-            dim_val = expanded_dim[i] if i < len(expanded_dim) else ""
-            rows_data.append((dmg_val, dim_val, False, True, mat, i in manual_rows)) 
-
-    total_rows = len(rows_data)
-
-    static_keys = ["Submitter", "Date", "Elevation", "Drop", "Floor", "Tower"]
-    for i, key in enumerate(static_keys):
-        ws.cell(row=start_row, column=i+1).value = parsed_data.get(key, "")
-        if total_rows > 1:
-            ws.merge_cells(start_row=start_row, start_column=i+1, end_row=start_row + total_rows - 1, end_column=i+1)
-
-    for i, (g_val, h_val, is_title, is_data, current_mat, needs_manual) in enumerate(rows_data):
-        r = start_row + i
-        cell_g = ws.cell(row=r, column=7)
-        cell_h = ws.cell(row=r, column=8)
-        
-        cell_g.value = g_val
-
-        number_val = None
-        if has_unit_col and is_data:
-            number_val, _ = split_dimension(h_val)  # Ignored parsed unit to enforce standard below
-            
-            # Determine correct unit natively from the defect code, even if dimension is completely blank
-            board_unit = ""
-            if g_val:
-                base_code = str(g_val).split()[0]
-                if base_code in ["US", "BH", "DP", "FP", "BP"]:
-                    board_unit = "CM²"
-                elif base_code in ["CC-", "C-", "CC+", "C+", "DG", "DS", "MS", "GLASS-FRAME", "FRAME"]:
-                    board_unit = "CM"
-
-            cell_h.value = number_val
-            ws.cell(row=r, column=unit_col).value = board_unit
-        else:
-            cell_h.value = h_val
-
-        is_invalid = is_data and current_mat in flagged_materials
-        if is_data and g_val:
-            base_code = str(g_val).split()[0]
-            allowed_codes = MATERIAL_RULES.get(current_mat, [])
-            if base_code not in allowed_codes:
-                is_invalid = True
-
-        if is_title:
-            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=title_last_col)
-            cell_g.font = Font(bold=True)
-        elif is_data:
-            lookup_val = f'LEFT($G{r}, FIND(" ", $G{r}&" ") - 1)'
-            ws.cell(row=r, column=photo_col + 1).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 3, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 2).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 4, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 3).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 5, FALSE), "")'
-            ws.cell(row=r, column=photo_col + 4).value = f'=IFERROR(VLOOKUP({lookup_val}, \'Reference Data\'!$A:$F, 2, FALSE), "")'
-
-            repair_formula = ""
-            repair_unit = ""
-            parts = str(g_val).split()
-            
-            if parts and has_unit_col:
-                base_code = parts[0]
-                h_cell = f"$H{r}"
-                raw_formula = ""
-                
-                if base_code in ["US", "BH"]:
-                    raw_formula = f"ROUNDUP({h_cell}*1.15/1000, 2)"
-                    repair_unit = "SQ.M."
-                elif base_code in ["CC-", "C-", "CC+", "C+"]:
-                    raw_formula = f"ROUNDUP(MROUND({h_cell}*1.5, 10)/100, 2)"
-                    repair_unit = "L.M."
-                elif base_code in ["DP", "FP", "BP"]:
-                    raw_formula = f"IF(ROUNDUP({h_cell}*1.3/1000, 2)<1, 1, ROUNDUP({h_cell}*1.3/1000, 2))"
-                    repair_unit = "SQ.M."
-                elif base_code == "DG":
-                    raw_formula = f"ROUNDUP(IF(MROUND({h_cell}*8, 10)>VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"DG\", 'Reference Data'!$A:$F, 6, FALSE), MROUND({h_cell}*8, 10))/100, 2)"
-                    repair_unit = "L.M."
-                elif base_code in ["GLASS-FRAME", "FRAME"]:
-                    repair_unit = "L.M."
-                elif base_code in ["MS", "DS"]:
-                    repair_unit = "L.M."
-                    modifier = parts[1] if len(parts) > 1 else None
-                    if modifier:
-                        raw_formula = f"MROUND(IF(({h_cell}*8/100)>VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), VLOOKUP(\"{modifier}\", 'Reference Data'!$A:$F, 6, FALSE), ({h_cell}*8/100)), 0.05)"
-                    else:
-                        raw_formula = f"MROUND({h_cell}*0.08, 0.05)"
-                
-                if raw_formula:
-                    repair_formula = f"=IF(ISNUMBER({h_cell}), {raw_formula}, \"\")"
-                    
-            cell_repair = ws.cell(row=r, column=photo_col + 5)
-            cell_repair.value = repair_formula
-            
-            cell_unit = ws.cell(row=r, column=photo_col + 6)
-            cell_unit.value = repair_unit
-            
-            if repair_formula != "":
-                cell_repair.number_format = '0.00'
-
-            if is_invalid:
-                for col_idx in range(7, last_col + 1):
-                    ws.cell(row=r, column=col_idx).font = Font(color="FF0000")
-
-    excel_img = prepare_excel_image(filepath, total_rows)
-    ws.add_image(excel_img, f"{photo_col_letter}{start_row}")
-
-    if total_rows > 1:
-        ws.merge_cells(f"{photo_col_letter}{start_row}:{photo_col_letter}{start_row + total_rows - 1}")
-
-    base_height = max(110 / total_rows, 20)
-    for i, (_g, _h, _is_title, is_data, _mat, _manual) in enumerate(rows_data):
-        r = start_row + i
-        ws.row_dimensions[r].height = base_height
-        for c in range(1, last_col + 1):
-            ws.cell(row=r, column=c).alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        if has_unit_col and is_data:
-            ws.cell(row=r, column=unit_col).alignment = Alignment(horizontal='left', vertical='center')
-            
-    ws.column_dimensions[photo_col_letter].width = 25
-
-    tmp_path = os.path.splitext(output_xlsx_path)[0] + "_tmp.xlsx"
-    try:
-        wb.save(tmp_path)
-        os.replace(tmp_path, output_xlsx_path)
-    except Exception:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        raise
-
-# --- UI CONFIGURATION ---
+# --- PAGE SETUP ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
-
-st.markdown(
-    """
-    <style>
-    .stApp { background-color: #f4f7f9; }
-    .header-container { background-color: #ffffff; padding: 20px 24px; border-radius: 14px; box-shadow: 0 4px 14px rgba(15,23,42,0.08); margin-bottom: 24px; }
-    .header-flex { display: flex; align-items: center; gap: 20px; }
-    .header-flex img { display: block; height: auto; margin: 0; }
-    .header-flex > div { display: flex; flex-direction: column; justify-content: center; }
-    .main-title { color: #1E3A8A !important; font-weight: 800 !important; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; }
-    .sub-title { color: #475569 !important; margin: 4px 0 0 0 !important; padding: 0 !important; line-height: 1.3 !important; font-size: 1rem; }
-    div.stButton > button:first-child, .stDownloadButton > button:first-child { background-color: #2F5597 !important; color: #ffffff !important; border: none !important; font-weight: 700 !important; padding: 0.75rem 2rem !important; border-radius: 8px !important; width: 100%; box-shadow: 0 2px 6px rgba(47,85,151,0.25); transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
-    div.stButton > button:first-child p, .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; }
-    div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover { background-color: #1E3A8A !important; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(30,58,138,0.3); }
-    .instruction-text { color: #1e293b !important; background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2F5597; margin-bottom: 24px; }
-    div[data-testid="stWidgetLabel"] p, div[data-testid="stWidgetLabel"] label, label[data-testid="stWidgetLabel"], .stTextInput label p, .stTextInput label { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
-    div[data-testid="stText"], div[data-testid="stText"] p { color: #1e293b !important; font-weight: 600 !important; }
-    .status-msg { color: #1e293b !important; font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
-    div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
-    .st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
-    div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
-    div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
-    .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
-    .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-    .st-key-action_buttons div.stButton { width: auto !important; }
-    .st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
-    .st-key-clear_photos div.stButton > button:first-child p { color: #FFFFFF !important; }
-    .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #EA580C !important; }
-    .st-key-start_fresh div.stButton > button:first-child, .st-key-confirm_delete div.stButton > button:first-child { background-color: #DC2626 !important; color: #FFFFFF !important; }
-    .st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
-    .st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
-    h3 { color: #1E3A8A !important; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-try:
-    with open("vonotec.png", "rb") as f:
-        logo_base64 = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f"""
-        <div class="header-container">
-            <div class="header-flex">
-                <img src="data:image/png;base64,{logo_base64}" width="180">
-                <div>
-                    <h1 class="main-title">Whiteboard AI</h1>
-                    <p class="sub-title">Data Extraction and Master Log Automator</p>
-                </div>
-            </div>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-except FileNotFoundError:
-    st.markdown(
-        """
-        <div class="header-container">
-            <h1 class="main-title">VONOTEC Whiteboard AI</h1>
-            <p class="sub-title">Data Extraction and Master Log Automator</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-
-st.markdown(
-    """
-    <div class="instruction-text">
-        Upload one or multiple whiteboard photos below. The AI will automatically extract the data 
-        and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
-
+ui_components.load_local_css("style.css")
+ui_components.render_header()
 st.subheader("Upload Whiteboard Photos")
 
-if "uploader_key" not in st.session_state:
-    st.session_state.uploader_key = 0
-if "batch_results" not in st.session_state:
-    st.session_state.batch_results = []
-if "confirm_reset" not in st.session_state:
-    st.session_state.confirm_reset = False
+init_session_state()
 
-if "last_output_path" not in st.session_state:
-    st.session_state.last_output_path = None
-if "last_output_label" not in st.session_state:
-    st.session_state.last_output_label = None
-
-if "last_output_folder" not in st.session_state:
-    st.session_state.last_output_folder = ""
-
-if "last_folder_choice" not in st.session_state:
-    st.session_state.last_folder_choice = MAIN_FOLDER_LABEL
-
-if "sp_folders" not in st.session_state:
-    st.session_state.sp_folders = None
-if "sp_folders_error" not in st.session_state:
-    st.session_state.sp_folders_error = False
-
-def sanitize_batch_filename(name):
-    name = (name or "").strip()
-    if not name:
-        return None
-    name = re.sub(r'[\/:*?"<>|]', "_", name)
-    name = name.rstrip(". ")
-    name = name[:150]
-    if not name:
-        return None
-    return name if name.lower().endswith(".xlsx") else f"{name}.xlsx"
-
-def refresh_folder_list():
-    try:
-        st.session_state.sp_folders = sharepoint_client.list_subfolders()
-        st.session_state.sp_folders_error = False
-    except Exception:
-        traceback.print_exc()
-        st.session_state.sp_folders = []
-        st.session_state.sp_folders_error = True
-
+# --- UPLOADER ---
 uploaded_files = st.file_uploader(
-    "Choose whiteboard images...", 
-    type=["jpg", "jpeg", "png"], 
+    "Choose whiteboard images...",
+    type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     label_visibility="collapsed",
-    key=f"uploader_{st.session_state.uploader_key}"
+    key=f"uploader_{st.session_state.uploader_key}",
 )
 
+# As soon as new photos are selected, drop the previous batch's messages
 if uploaded_files:
     st.session_state.batch_results = []
-
-for kind, text in st.session_state.batch_results:
-    if kind == "warning":
-        st.warning(text)
-    elif kind == "error":
-        st.error(text)
-    elif kind == "success":
-        st.success(text)
-    else:
-        st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
+show_batch_results()
 
 if uploaded_files:
-    st.markdown(
-        f'<p class="status-msg">{len(uploaded_files)} image(s) selected.</p>',
-        unsafe_allow_html=True
-    )
+    status_message(f"{len(uploaded_files)} image(s) selected.")
 
+
+def start_batch(batch_name_raw, folder_choice, new_folder_raw):
+    """Validates the form, runs the batch, then stores the messages and resets the uploader."""
+    if not uploaded_files:
+        st.error("Please select at least one photo before extracting.")
+        return
+
+    filename = sanitize_batch_filename(batch_name_raw)
+    if not filename:
+        st.error("Please enter a name for this batch before extracting.")
+        return
+
+    subfolder, creating_new_folder, error = resolve_subfolder(folder_choice, new_folder_raw)
+    if error:
+        st.error(error)
+        return
+
+    local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
+    os.makedirs(local_dir, exist_ok=True)
+    output_path = os.path.join(local_dir, filename)
+
+    st.session_state.last_output_path = output_path
+    st.session_state.last_output_label = batch_name_raw.strip()
+    st.session_state.last_output_folder = subfolder
+    st.session_state.last_folder_choice = subfolder if subfolder else MAIN_FOLDER_LABEL
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    def on_progress(index, total, name, finished):
+        if finished:
+            progress_bar.progress((index + 1) / total)
+        else:
+            status_text.markdown(
+                f'<p class="status-msg">Processing image {index + 1} of {total}: {name}</p>',
+                unsafe_allow_html=True,
+            )
+
+    outcome = run_batch(uploaded_files, output_path, subfolder, creating_new_folder, on_progress)
+
+    if outcome.created_folder:
+        remember_new_folder(subfolder)
+
+    results = outcome.messages
+    results.append(("status", "Batch Complete."))
+    results.append((
+        "success",
+        f"Successfully added {outcome.processed} new file(s). Skipped {outcome.skipped} duplicate(s).",
+    ))
+    st.session_state.batch_results = results
+    st.session_state.uploader_key += 1  # clears the uploader
+    st.rerun()
+
+
+# --- BATCH FORM ---
+# Suggest a fresh default name each time a new round of photos is selected,
+# without overwriting what the person is typing in the meantime.
 if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
     st.session_state.batch_name_round = st.session_state.uploader_key
     st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
+    # Re-read the folder list each round, so folders other people created show up
     st.session_state.sp_folders = None
 
-folder_choice = MAIN_FOLDER_LABEL
-new_folder_raw = ""
-if ENABLE_SHAREPOINT_SYNC:
-    if st.session_state.sp_folders is None:
-        with st.spinner("Loading SharePoint folders..."):
-            refresh_folder_list()
-    if st.session_state.sp_folders_error:
-        st.warning(
-            "Could not load the folder list from SharePoint right now. You can still save to "
-            "the main folder, or create a new folder."
-        )
-
-    folder_options = [MAIN_FOLDER_LABEL] + list(st.session_state.sp_folders) + [NEW_FOLDER_LABEL]
-    default_choice = st.session_state.last_folder_choice
-    default_index = folder_options.index(default_choice) if default_choice in folder_options else 0
-    folder_choice = st.selectbox(
-        "Save into which SharePoint folder?",
-        folder_options,
-        index=default_index,
-        key="folder_choice_input"
-    )
-    if folder_choice == NEW_FOLDER_LABEL:
-        new_folder_raw = st.text_input(
-            "Name for the new folder",
-            key="new_folder_name_input"
-        )
-
+folder_choice, new_folder_raw = render_folder_picker()
 batch_name_raw = st.text_input(
     "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
-    key="batch_name_input"
+    key="batch_name_input",
 )
 
-with st.container(key="action_buttons"):
-    btn_col1, btn_col2 = st.columns(2, gap="small")
-    with btn_col1:
-        extract_clicked = st.button("Extract Data & Update Excel", type="primary")
-    with btn_col2:
-        clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
+extract_clicked, clear_clicked = render_action_buttons()
 
 if clear_clicked:
     st.session_state.uploader_key += 1
     st.session_state.batch_results = []
     st.rerun()
 
-if extract_clicked and not sanitize_batch_filename(batch_name_raw):
-    st.error("Please enter a name for this batch before extracting.")
-    extract_clicked = False
-
-subfolder = ""
-creating_new_folder = False
-if extract_clicked and ENABLE_SHAREPOINT_SYNC:
-    if folder_choice == NEW_FOLDER_LABEL:
-        typed = sharepoint_client.sanitize_folder_name(new_folder_raw)
-        if not typed:
-            st.error("Please enter a name for the new folder before extracting.")
-            extract_clicked = False
-        else:
-            match = next((f for f in st.session_state.sp_folders if f.lower() == typed.lower()), None)
-            subfolder = match or typed
-            creating_new_folder = match is None
-    elif folder_choice != MAIN_FOLDER_LABEL:
-        subfolder = folder_choice
-
 if extract_clicked:
-    local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
-    os.makedirs(local_dir, exist_ok=True)
-    output_xlsx_path = os.path.join(local_dir, sanitize_batch_filename(batch_name_raw))
-    remote_filename = os.path.basename(output_xlsx_path)
+    start_batch(batch_name_raw, folder_choice, new_folder_raw)
 
-    st.session_state.last_output_path = output_xlsx_path
-    st.session_state.last_output_label = batch_name_raw.strip()
-    st.session_state.last_output_folder = subfolder
-    st.session_state.last_folder_choice = subfolder if subfolder else MAIN_FOLDER_LABEL
-
-    total_files = len(uploaded_files)
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    results = []
-
-    processed_count = 0
-    skipped_count = 0
-
-    if ENABLE_SHAREPOINT_SYNC and creating_new_folder:
-        try:
-            sharepoint_client.ensure_subfolder(subfolder)
-            if subfolder.lower() not in [f.lower() for f in st.session_state.sp_folders]:
-                st.session_state.sp_folders = sorted(
-                    st.session_state.sp_folders + [subfolder], key=str.lower
-                )
-            results.append(("status", f'Created the folder "{subfolder}" in SharePoint.'))
-        except Exception:
-            traceback.print_exc()
-            results.append((
-                "warning",
-                f'Could not create the folder "{subfolder}" in SharePoint just now. '
-                "The photos are still being processed and saved in the app; syncing will be tried again after each photo."
-            ))
-
-    if ENABLE_SHAREPOINT_SYNC and not os.path.exists(output_xlsx_path):
-        try:
-            found = sharepoint_client.download_file(remote_filename, output_xlsx_path, subfolder)
-            if found:
-                results.append((
-                    "status",
-                    "Found an existing master file in SharePoint and loaded it before continuing."
-                ))
-        except Exception:
-            traceback.print_exc()
-            results.append((
-                "warning",
-                "Could not check SharePoint for an existing master file before starting. "
-                "If one already exists there, please verify afterward that no data was lost."
-            ))
-
-    processed_log = load_processed_log()
-    seen_hashes = set()
-
-    for i, uploaded_file in enumerate(uploaded_files):
-        status_text.markdown(
-            f'<p class="status-msg">Processing image {i + 1} of {total_files}: {uploaded_file.name}</p>',
-            unsafe_allow_html=True
-        )
-
-        file_bytes = uploaded_file.getvalue()
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-        if file_hash in processed_log or file_hash in seen_hashes:
-            results.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
-            skipped_count += 1
-            progress_bar.progress((i + 1) / total_files)
-            continue
-        seen_hashes.add(file_hash)
-
-        extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
-        temp_path = f"temp_{uuid.uuid4().hex}{extension}"
-        with open(temp_path, "wb") as f:
-            f.write(file_bytes)
-
-        try:
-            parsed_data = extract_data(temp_path)
-            write_parsed_data_to_excel(parsed_data, temp_path, output_xlsx_path)
-
-            processed_log.append(file_hash)
-            save_processed_log(processed_log)
-            processed_count += 1
-
-            if ENABLE_SHAREPOINT_SYNC:
-                try:
-                    sharepoint_client.upload_file(output_xlsx_path, remote_filename, subfolder)
-                except Exception:
-                    traceback.print_exc()
-                    results.append((
-                        "warning",
-                        f"'{uploaded_file.name}' was saved locally, but syncing to SharePoint failed "
-                        "just now. It will be retried after the next photo; if it keeps failing, "
-                        "download the file manually as a backup."
-                    ))
-
-            review_notes = parsed_data.get("Review Notes", [])
-            flagged_materials = parsed_data.get("Flagged Materials", [])
-            if review_notes:
-                shown = "; ".join(review_notes[:3])
-                extra = f" (+{len(review_notes) - 3} more)" if len(review_notes) > 3 else ""
-                if flagged_materials:
-                    results.append((
-                        "warning",
-                        f"'{uploaded_file.name}' was added to the Excel file, but its data row is "
-                        f"highlighted in RED for manual validation: {shown}{extra}"
-                    ))
-                else:
-                    results.append((
-                        "warning",
-                        f"'{uploaded_file.name}' was added to the Excel file. FYI only, nothing is "
-                        f"highlighted red: {shown}{extra}"
-                    ))
-
-        except Exception as e:
-            traceback.print_exc()
-            results.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-        progress_bar.progress((i + 1) / total_files)
-
-    results.append(("status", "Batch Complete."))
-    results.append(("success", f"Successfully added {processed_count} new file(s). Skipped {skipped_count} duplicate(s)."))
-
-    st.session_state.batch_results = results
-    st.session_state.uploader_key += 1
-    st.rerun()
-
-current_batch_path = st.session_state.last_output_path
-if current_batch_path and os.path.exists(current_batch_path):
-    st.markdown("<br>", unsafe_allow_html=True)
-    folder_note = f' in folder "{st.session_state.last_output_folder}"' if st.session_state.last_output_folder else ""
-    st.subheader(f'File Management — "{st.session_state.last_output_label}"{folder_note}')
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        xlsx_bytes = None
-        try:
-            with open(current_batch_path, "rb") as file:
-                xlsx_bytes = file.read()
-        except FileNotFoundError:
-            pass
-
-        if xlsx_bytes is not None:
-            st.download_button(
-                label=f"Download {os.path.basename(current_batch_path)}",
-                data=xlsx_bytes,
-                file_name=os.path.basename(current_batch_path),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
-
-    with col2:
-        if st.button("Delete This Batch File", type="primary", key="start_fresh"):
-            st.session_state.confirm_reset = True
-            st.rerun()
-
-    if st.session_state.confirm_reset:
-        st.warning(
-            f'This will permanently delete the local copy of "{os.path.basename(current_batch_path)}". It does not '
-            "touch the processed-photos duplicate log, and it does not delete any copy already "
-            "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
-        )
-        confirm_col1, confirm_col2 = st.columns(2)
-        with confirm_col1:
-            if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
-                if os.path.exists(current_batch_path):
-                    os.remove(current_batch_path)
-                st.session_state.last_output_path = None
-                st.session_state.last_output_label = None
-                st.session_state.last_output_folder = ""
-                st.session_state.confirm_reset = False
-                st.rerun()
-        with confirm_col2:
-            if st.button("Cancel", type="primary", key="cancel_delete"):
-                st.session_state.confirm_reset = False
-                st.rerun()
+# --- DOWNLOAD / DELETE ---
+render_file_management()
