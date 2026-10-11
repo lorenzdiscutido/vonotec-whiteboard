@@ -14,6 +14,9 @@ ENABLE_SHAREPOINT_SYNC = True
 # Local working copies: one subfolder per SharePoint folder
 LOCAL_BATCH_DIR = "local_batches"
 
+# Remembers which local batch files have been uploaded to SharePoint
+SYNC_STATUS_FILE = "sync_status.json"
+
 # Choices shown in the "Save into which folder?" dropdown
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
