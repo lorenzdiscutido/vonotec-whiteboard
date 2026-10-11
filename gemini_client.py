@@ -9,6 +9,7 @@ import google.generativeai as genai
 import streamlit as st
 
 from config import JSON_KEYS, MATERIAL_RULES, REFERENCE_DATA
+from defect_rules import DEFECT_UNITS
 
 # Errors from Gemini that are temporary (busy / rate limited) and worth retrying
 try:
@@ -39,18 +40,9 @@ VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODI
 HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 
 # ==========================================================================
-# DEFECTS, LOCATION MODIFIERS AND UNITS
+# DEFECT UNITS now come from config.py (the "Board Unit" column of
+# REFERENCE_DATA), through defect_rules.DEFECT_UNITS. Edit them there.
 # ==========================================================================
-
-DEFECT_UNITS = [
-    ("Sealant",   ["DS", "MS"],                 "CM"),
-    ("Concrete",  ["US", "BH"],                 "CM²"),
-    ("Concrete",  ["CC-", "CC+", "C-", "C+"],   "CM"),
-    ("Paint",     ["DP", "FP", "BP"],           "CM²"),
-    ("Paint",     ["NP"],                       ""),
-    ("Gasket",    ["DG"],                       "CM"),
-    ("With Film", ["GLASS-FRAME", "FRAME"],     "CM"),
-]
 
 OTHER_DEFECT_CODES = ["BG"]
 
@@ -185,7 +177,8 @@ _UNIT_TABLE = {
     for code in codes
 }
 
-_UNIT_SUFFIX = re.compile(r"\s*(?:(?:SQ.?|SQUARE)\s*)?CM(?:\s*(?:^\s *2|²|2))?\s*$")
+# A trailing centimetre unit in any common spelling: CM, CM2, CM^2, CM², SQ CM, SQ.CM, SQUARE CM
+_UNIT_SUFFIX = re.compile(r"\s*(?:(?:SQ\.?|SQUARE)\s*)?CM(?:\s*(?:\^\s*2|²|2))?\s*$")
 _NUMBER_ONLY = re.compile(r"^[\d.,\s xX×*/+-]+$")
 
 def _apply_unit(dimension, unit):
@@ -373,6 +366,18 @@ def find_problems(parsed_data):
                 ))
             else:
                 seen_dimension_lists[key] = mat
+
+        # Likely copied dimension: several defects in ONE material, all with the same dimension
+        # (units are ignored in the comparison: a copied '200' becomes '200 CM²' on some
+        # defects and '200 CM' on others, because each defect code has its own unit)
+        filled_dims = [str(s).strip() for s in dim if str(s).strip()]
+        sizes_without_unit = {_UNIT_SUFFIX.sub("", s).strip() for s in filled_dims}
+        if len(filled_dims) >= 2 and len(sizes_without_unit) == 1:
+            problems.append((
+                mat,
+                f"{mat}: every dimension is '{filled_dims[0]}' (a shared dimension may have been copied to each defect)",
+                "structural",
+            ))
 
         for text in list(dmg) + list(dim):
             if any(marker in str(text).upper() for marker in HEDGE_MARKERS):
