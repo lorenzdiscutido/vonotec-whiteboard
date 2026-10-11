@@ -6,6 +6,11 @@ The Excel files are the source of truth (people correct them there), so the
 charts always reflect the checked data. Each file is downloaded once and kept
 in memory until SharePoint says it changed, so clicking around the filters
 doesn't re-download anything.
+
+The dashboard re-checks SharePoint on its own every DASHBOARD_REFRESH_SECONDS
+(see settings.py). Only the dashboard section reloads, and only files that are
+new or changed are downloaded, so it is quick and doesn't disturb the rest of
+the page.
 (The sheet parsing itself lives in dashboard_data.py.)"""
 import os
 import tempfile
@@ -16,7 +21,7 @@ import sharepoint_client
 from dashboard_data import (
     parse_workbook, rows_to_dataframe, apply_filters, count_by, natural_key,
 )
-from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL
+from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
 
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
@@ -24,7 +29,14 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
 CHART_COLOR = "#2F5597"
-LIST_CACHE_SECONDS = 600  # folder/file lists are re-read at most this often, or on "Refresh data"
+# Folder/file lists are kept for just under one refresh interval, so every
+# automatic check really asks SharePoint instead of reusing the previous answer.
+LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
+
+# Files already downloaded in this run of the app, as (folder, name, modified).
+# Used to show the "Reading Excel files..." bar only when something is really
+# being downloaded, not on every quiet automatic check.
+_loaded_keys = set()
 
 
 # ---------------------------------------------------------------------------
@@ -84,11 +96,18 @@ def _load_scope(scope, subfolders):
     for folder in _folders_for_scope(scope, subfolders):
         files += _cached_file_list(folder)
 
+    def key_of(item):
+        return (item["subfolder"], item["name"], item["modified"])
+
+    # Only show a progress bar when at least one file is new or changed
+    to_download = [item for item in files if key_of(item) not in _loaded_keys]
+    progress = st.progress(0.0, text="Reading Excel files from SharePoint...") if to_download else None
+
     rows, skipped, files_read = [], [], 0
-    progress = st.progress(0.0, text="Reading Excel files from SharePoint...") if files else None
     for index, item in enumerate(files):
         try:
             file_rows, error = _cached_file_rows(item["subfolder"], item["name"], item["modified"])
+            _loaded_keys.add(key_of(item))
         except Exception as network_error:
             file_rows, error = [], f"it could not be downloaded ({network_error})"
 
@@ -98,7 +117,8 @@ def _load_scope(scope, subfolders):
         else:
             rows += file_rows
             files_read += 1
-        progress.progress((index + 1) / len(files), text=f"Reading Excel files... {index + 1} of {len(files)}")
+        if progress is not None:
+            progress.progress((index + 1) / len(files), text=f"Reading Excel files... {index + 1} of {len(files)}")
     if progress is not None:
         progress.empty()
     return rows, files_read, skipped
@@ -136,7 +156,11 @@ def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
 
 
+@st.fragment(run_every=DASHBOARD_REFRESH_SECONDS)
 def render_analytics_dashboard():
+    """A fragment: it re-runs by itself every DASHBOARD_REFRESH_SECONDS without
+    reloading the rest of the page, and also when someone changes a widget
+    inside it (the folder choice or a filter)."""
     st.subheader("Analytics Dashboard")
 
     if not ENABLE_SHAREPOINT_SYNC:
@@ -147,7 +171,7 @@ def render_analytics_dashboard():
     try:
         subfolders = _cached_subfolders()
     except Exception as error:
-        st.error(f"Could not load the SharePoint folders right now: {error}")
+        st.error(f"Could not load the SharePoint folders right now: {error}. It will try again automatically.")
         if st.button("Try again", type="primary", key="analytics_retry"):
             _refresh_lists()
             st.rerun()
@@ -166,11 +190,15 @@ def render_analytics_dashboard():
         if st.button("Refresh data", type="primary", key="analytics_refresh"):
             _refresh_lists()
             st.rerun()
+    st.caption(
+        f"Updates automatically: new or changed Excel files are picked up within "
+        f"{DASHBOARD_REFRESH_SECONDS} seconds."
+    )
 
     try:
         rows, files_read, skipped = _load_scope(scope, subfolders)
     except Exception as error:
-        st.error(f"Could not read the file list from SharePoint right now: {error}")
+        st.error(f"Could not read the file list from SharePoint right now: {error}. It will try again automatically.")
         return
 
     if skipped:
