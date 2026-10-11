@@ -8,6 +8,8 @@
     ui_sections.py      session state, folder picker, file management, pending syncs
     sync_tracker.py     remembers which batch files reached SharePoint
     ui_components.py    CSS and header
+    ui_dashboard.py     the Analytics Dashboard view (charts from the SharePoint Excel files)
+    dashboard_data.py   reads the batch Excel files into a table for the dashboard
 """
 import os
 import datetime
@@ -23,11 +25,32 @@ from ui_sections import (
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
 )
+from ui_dashboard import render_analytics_dashboard
+
+VIEW_EXTRACTION = "Whiteboard Extraction"
+VIEW_DASHBOARD = "Analytics Dashboard"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
 ui_components.load_local_css("style.css")
 ui_components.render_header()
+
+# --- VIEW SWITCH ---
+# Streamlit runs the code of every st.tabs() tab on each click, which would
+# make the dashboard read SharePoint while someone is extracting photos. A
+# radio that only runs the chosen view avoids that.
+with st.container(key="view_switch"):
+    view = st.radio(
+        "View", [VIEW_EXTRACTION, VIEW_DASHBOARD],
+        horizontal=True, label_visibility="collapsed", key="active_view",
+    )
+
+if view == VIEW_DASHBOARD:
+    with st.container(key="analytics"):
+        render_analytics_dashboard()
+    st.stop()  # nothing below belongs to the dashboard view
+
+ui_components.render_instructions()
 st.subheader("Upload Whiteboard Photos")
 
 init_session_state()
