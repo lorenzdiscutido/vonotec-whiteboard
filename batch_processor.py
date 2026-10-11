@@ -8,6 +8,7 @@ import traceback
 from dataclasses import dataclass, field
 
 import sharepoint_client
+import sync_tracker
 from extraction import extract_data
 from excel_writer import write_parsed_data_to_excel
 from file_utils import load_processed_log, save_processed_log
@@ -42,6 +43,7 @@ def _download_existing(remote_filename, output_path, subfolder, outcome):
     master file first so new entries are appended instead of overwriting it."""
     try:
         if sharepoint_client.download_file(remote_filename, output_path, subfolder):
+            sync_tracker.mark_synced(output_path)  # identical to SharePoint right now
             outcome.messages.append((
                 "status", "Found an existing master file in SharePoint and loaded it before continuing."
             ))
@@ -74,7 +76,7 @@ def _review_message(filename, parsed_data):
     )
 
 
-def _process_photo(uploaded_file, file_bytes, output_path, remote_filename, subfolder, outcome):
+def _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
     """Extracts one photo, writes it to Excel, then syncs. Returns True on success."""
     extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
     temp_path = f"temp_{uuid.uuid4().hex}{extension}"
@@ -85,18 +87,17 @@ def _process_photo(uploaded_file, file_bytes, output_path, remote_filename, subf
         parsed_data = extract_data(temp_path)
         write_parsed_data_to_excel(parsed_data, temp_path, output_path)
 
-        # Best-effort: the data is already saved locally, so a SharePoint
-        # hiccup never loses or blocks it.
+        # Best-effort: the data is already saved locally, so a SharePoint hiccup
+        # never loses or blocks it. A failed upload is recorded, and the file then
+        # shows up under "Pending Syncs" in the app until it is pushed.
         if ENABLE_SHAREPOINT_SYNC:
-            try:
-                sharepoint_client.upload_file(output_path, remote_filename, subfolder)
-            except Exception:
-                traceback.print_exc()
+            synced, _reason = sync_tracker.sync_file(output_path, subfolder)
+            if not synced:
                 outcome.messages.append((
                     "warning",
                     f"'{uploaded_file.name}' was saved locally, but syncing to SharePoint failed "
-                    "just now. It will be retried after the next photo; if it keeps failing, "
-                    "download the file manually as a backup."
+                    "just now. It is retried after the next photo, or you can push it yourself "
+                    "from 'Pending Syncs' at the bottom of the page."
                 ))
 
         message = _review_message(uploaded_file.name, parsed_data)
@@ -149,7 +150,7 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
             continue
         seen_hashes.add(file_hash)
 
-        if _process_photo(uploaded_file, file_bytes, output_path, remote_filename, subfolder, outcome):
+        if _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
             processed_log.append(file_hash)
             save_processed_log(processed_log)
             outcome.processed += 1
