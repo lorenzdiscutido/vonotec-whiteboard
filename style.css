@@ -46,6 +46,9 @@ h3 { color: #1E3A8A !important; }
 .st-key-analytics p, .st-key-analytics li, .st-key-analytics label, .st-key-analytics summary,
 .st-key-analytics h4, .st-key-analytics div[data-testid="stMetric"] * { color: #1e293b !important; }
 .st-key-analytics h4 { color: #1E3A8A !important; font-weight: 700 !important; margin-top: 1.25rem; }
+/* Streamlit fades ("whitens") content that is being reloaded. Keep the dashboard fully
+   visible while it quietly re-checks SharePoint; the new numbers just replace the old ones. */
+.st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #2F5597; border-radius: 8px; padding: 0.75rem 1rem; }
 /* The chart frame: same blue as CHART_BACKGROUND in ui_dashboard.py, with soft rounded corners.
    overflow:hidden clips the chart itself to those rounded corners. */
