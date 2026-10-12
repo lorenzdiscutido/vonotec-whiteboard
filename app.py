@@ -62,6 +62,19 @@ with st.container(key="view_switch"):
         horizontal=True, label_visibility="collapsed", key="active_view",
     )
 
+# Streamlit forgets the value of any widget that is not drawn in a run. While the
+# dashboard is open the extraction widgets are not drawn, so without this they would
+# reset (the photo source back to "Upload Local Photos", the folder choices, the batch
+# name...) when the person comes back. Writing a widget's value back into session state
+# on every run keeps it. This must run before those widgets are drawn.
+_KEEP_ALIVE_PREFIXES = (
+    "photo_source", "batch_name_input", "folder_choice_input",
+    "new_folder_name_input", "src_recursive", "src_lv_",
+)
+for _key in list(st.session_state.keys()):
+    if isinstance(_key, str) and _key.startswith(_KEEP_ALIVE_PREFIXES):
+        st.session_state[_key] = st.session_state[_key]
+
 if view == VIEW_DASHBOARD:
     # The controls (which files, Refresh, filters) go in the sidebar; the numbers
     # and charts fill the main area and refresh by themselves.
