@@ -1,12 +1,14 @@
 # ui_sections.py
 """Reusable Streamlit sections for the Whiteboard app.
 (Header and CSS stay in ui_components.py.)"""
+import io
 import os
 import html
 import hashlib
 import traceback
 
 import streamlit as st
+from PIL import Image, ImageOps
 
 import sharepoint_client
 import sync_tracker
@@ -71,6 +73,55 @@ def show_batch_results():
 
 def status_message(text):
     st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Photo previews
+# ---------------------------------------------------------------------------
+
+PREVIEW_MAX_PHOTOS = 12   # a big batch shows the first few, then "+ N more"
+PREVIEW_COLUMNS = 6       # thumbnails per row
+PREVIEW_PIXELS = 240      # longest side of a thumbnail
+
+
+@st.cache_data(show_spinner=False, max_entries=300)
+def _thumbnail_bytes(name, size, file_id, _data):
+    """A small JPEG of one uploaded photo, or None if it can't be read. Phone
+    photos are large, so only this small copy is sent to the browser. It is made
+    once per photo: the cache is keyed by name, size and id; the photo's own bytes
+    (_data, underscore = not part of the key) are only used the first time."""
+    try:
+        with Image.open(io.BytesIO(_data)) as img:
+            img.draft("RGB", (PREVIEW_PIXELS * 2, PREVIEW_PIXELS * 2))  # fast, rough decode for JPEGs
+            img = ImageOps.exif_transpose(img)  # phones store "rotated" photos with a flag
+            img.thumbnail((PREVIEW_PIXELS, PREVIEW_PIXELS))
+            out = io.BytesIO()
+            img.convert("RGB").save(out, format="JPEG", quality=80)
+            return out.getvalue()
+    except Exception:
+        return None
+
+
+def render_photo_previews(uploaded_files):
+    """A count and a grid of small previews of the selected photos, so people can
+    check they picked the right ones before extracting."""
+    if not uploaded_files:
+        return
+
+    total = len(uploaded_files)
+    st.caption(f"{total} photo(s) selected")
+    shown = list(uploaded_files)[:PREVIEW_MAX_PHOTOS]
+    for start in range(0, len(shown), PREVIEW_COLUMNS):
+        columns = st.columns(PREVIEW_COLUMNS)
+        for column, photo in zip(columns, shown[start:start + PREVIEW_COLUMNS]):
+            thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
+            with column:
+                if thumbnail:
+                    st.image(thumbnail)
+                else:
+                    st.caption("(no preview)")
+    if total > len(shown):
+        st.caption(f"+ {total - len(shown)} more photo(s) not shown here")
 
 
 # ---------------------------------------------------------------------------
