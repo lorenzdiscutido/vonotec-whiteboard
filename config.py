@@ -11,7 +11,8 @@ JSON_KEYS = [
     "Concrete Damage", "Concrete Dimension",
     "Paint Damage", "Paint Dimension",
     "Gasket Damage", "Gasket Dimension",
-    "With Film Damage", "With Film Dimension"
+    "With Film Damage", "With Film Dimension",
+    "Broken Glass Damage", "Broken Glass Dimension"
 ]
 
 # ==========================================================================
@@ -98,7 +99,7 @@ REFERENCE_DATA = [
 # STRICT MATERIAL VALIDATION DICTIONARY
 MATERIAL_RULES = {
     "Concrete": ["CC+", "CC-", "C+", "C-", "BH", "US"],
-    "Paint": ["DP", "FP", "BP", "B", "NP"],
+    "Paint": ["DP", "FP", "BP", "NP"],
     "Gasket": ["DG"],
     "Sealant": ["DS", "MS"],
     "Broken Glass": ["BG"],
