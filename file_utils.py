@@ -3,7 +3,7 @@ import os
 import re
 import json
 
-from settings import LOG_FILE
+from settings import LOG_FILE, PREFS_FILE
 
 
 def load_processed_log():
@@ -23,6 +23,34 @@ def save_processed_log(log_list):
     with open(tmp_path, "w") as f:
         json.dump(log_list, f)
     os.replace(tmp_path, LOG_FILE)
+
+
+def load_prefs():
+    """The remembered choices (last photo folder, last save folder...) as a dict.
+    Returns {} if nothing was saved yet or the file can't be read."""
+    if os.path.exists(PREFS_FILE):
+        try:
+            with open(PREFS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_prefs(updates):
+    """Adds `updates` (a dict) to the remembered choices and saves them safely
+    (temp file, then swap it in). Never raises: failing to remember a choice
+    must not stop a batch."""
+    prefs = load_prefs()
+    prefs.update(updates)
+    tmp_path = PREFS_FILE + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(prefs, f, indent=2)
+        os.replace(tmp_path, PREFS_FILE)
+    except OSError:
+        pass
 
 
 def sanitize_batch_filename(name):
