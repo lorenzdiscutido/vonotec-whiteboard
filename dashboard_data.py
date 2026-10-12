@@ -32,6 +32,14 @@ COLUMNS = [
 # Title rows hold a material name, matched ignoring capitals
 _MATERIAL_BY_LOWER = {name.lower(): name for name in MATERIAL_RULES}
 
+# "TOWER" followed by a separator (or straight by a digit), then the tower name:
+# a number (optionally with one letter) or a single letter. 'TOWERS 1' and
+# 'TOWER FRONT' deliberately don't match.
+_TOWER_PATTERN = re.compile(
+    r"(?<![A-Za-z])TOWER(?:[\s_\-]+|(?=\d))(\d+[A-Za-z]?|[A-Za-z])(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
 # First token of the Damage cell is the defect code, e.g. "DS CC" -> "DS"
 _TYPE_BY_CODE = {row[0]: row[1] for row in REFERENCE_DATA[1:]}
 
@@ -55,6 +63,17 @@ def _text(value):
 
 def _is_empty(value):
     return value is None or (isinstance(value, str) and not value.strip())
+
+
+def tower_from_text(text):
+    """Finds a tower in text such as a batch file name, e.g.
+    'CERCA NUVEO TOWER 1- FRONT- DROP 7.xlsx' -> '1'. Returns '' when the text
+    names no tower, or names more than one (it can't tell which is meant).
+    Works in any capitalization, and with a space, dash or underscore after the word
+    ('Tower 2', 'TOWER-2', 'tower_2', 'TOWER2'); a tower can be a number or a
+    letter, optionally with a letter after the number ('3', 'A', '2B')."""
+    found = {m.upper() for m in _TOWER_PATTERN.findall(str(text or ""))}
+    return found.pop() if len(found) == 1 else ""
 
 
 def natural_key(text):
@@ -81,6 +100,10 @@ def parse_workbook(path, folder_label, filename):
             raise ValueError("the sheet doesn't have the expected columns")
         has_unit_col = len(header) > 9 and header[9] == "Whiteboard Photo"
 
+        # Workers sometimes forget to write the tower on the board, but the batch
+        # name usually has it ("... TOWER 1 - FRONT - DROP 7"), so it fills the gap.
+        file_tower = tower_from_text(filename)
+
         rows = []
         details = [""] * 6        # Submitter, Date, Elevation, Drop, Floor, Tower of the current block
         material = ""
@@ -92,6 +115,9 @@ def parse_workbook(path, folder_label, filename):
             # A new block starts where the merged details cells hold a value
             if any(not _is_empty(c) for c in cells[:6]):
                 details = [_text(c) for c in cells[:6]]
+                # What is written on the board wins ("TOWER 1" is shortened to "1" so it
+                # matches the others); only a blank tower is filled in from the file name.
+                details[5] = tower_from_text(details[5]) or details[5] or file_tower
                 material = ""
 
             damage = cells[6]
