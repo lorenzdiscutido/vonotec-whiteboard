@@ -89,3 +89,19 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.
 [data-testid="stCaptionContainer"] p {
     color: #475569 !important;
 }
+
+/* "Save settings" box: its title is a plain <p class="panel-title"> that no rule styled,
+   so it fell back to the theme's white text. The box also gets a white card look
+   like the other panels. */
+.panel-title,
+.st-key-save_settings .panel-title {
+    color: #1E3A8A !important;
+    font-weight: 800 !important;
+    font-size: 1.05rem !important;
+    margin: 0 0 0.5rem 0 !important;
+}
+.st-key-save_settings {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+}
