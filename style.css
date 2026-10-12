@@ -103,39 +103,24 @@ div[data-testid="stExpander"] details {
 
 
 /* ------------------------------------------------------------------
-   Toggle switch fixes (Ultra-Resilient Target Method)
+   Toggle switch (Simple Padded Box Method)
    ------------------------------------------------------------------ */
 
-/* 1. OFF: light gray track with a darker border */
-div[data-testid="stToggle"] label div[data-baseweb="track"],
-div[data-testid="stToggle"] label > div:first-of-type {
-    background-color: #cbd5e1 !important;
-    border: 1px solid #94a3b8 !important;
-    transition: background-color 0.15s ease, border-color 0.15s ease !important;
+/* Create a visible, lightly tinted box around the entire toggle component */
+div[data-testid="stToggle"] {
+    background-color: #f1f5f9 !important; /* Soft gray background */
+    padding: 12px 16px !important;        /* Breathing room around the switch */
+    border-radius: 8px !important;        /* Smooth rounded corners */
+    border: 1px solid #cbd5e1 !important; /* Subtle border so it pops */
+    margin-bottom: 0.5rem !important;
 }
 
-/* 2. ON: corporate dark blue track and border */
-div[data-testid="stToggle"] label input:checked + div[data-baseweb="track"],
-div[data-testid="stToggle"] label input:checked ~ div,
-div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type {
-    background-color: #1E3A8A !important;
-    border-color: #1E3A8A !important;
-}
-
-/* 3. The thumb (sliding circle): white, bordered and softly shadowed */
-div[data-testid="stToggle"] label div[data-baseweb="track"] > div,
-div[data-testid="stToggle"] label > div:first-of-type > div {
-    background-color: #ffffff !important;
-    border: 1px solid #94a3b8 !important;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
-}
-
-/* 4. Toggle text (its label) */
-div[data-testid="stToggle"] label p,
-div[data-testid="stToggle"] label > div:last-of-type {
+/* Ensure the text label stays dark and readable */
+div[data-testid="stToggle"] label p {
     color: #1e293b !important;
     font-weight: 600 !important;
 }
+
 
 /* "Save settings" box */
 .panel-title,
