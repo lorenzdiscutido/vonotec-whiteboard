@@ -1,6 +1,10 @@
 # batch_processor.py
-"""Processes a batch of uploaded photos into one master Excel file.
-Returns messages instead of drawing them, so app.py decides how to show them."""
+"""Processes a batch of photos into one master Excel file.
+Returns messages instead of drawing them, so app.py decides how to show them.
+
+A "photo" is any object with a .name and a .getvalue() that returns the image
+bytes: a Streamlit UploadedFile, or app.py's RemoteFile (which downloads the
+photo from SharePoint at the moment getvalue() is called)."""
 import os
 import uuid
 import hashlib
@@ -116,7 +120,7 @@ def _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
 
 
 def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=False, on_progress=None):
-    """Processes every uploaded photo into output_path.
+    """Processes every photo into output_path.
 
     on_progress(index, total, filename, finished) is called before (finished=False)
     and after (finished=True) each photo, so the UI can update its progress bar."""
@@ -140,7 +144,18 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
     for i, uploaded_file in enumerate(uploaded_files):
         notify(i, uploaded_file.name, finished=False)
 
-        file_bytes = uploaded_file.getvalue()
+        # For photos coming from SharePoint this is where the download happens, one photo
+        # at a time. If it fails, that photo is reported and the batch carries on.
+        try:
+            file_bytes = uploaded_file.getvalue()
+        except Exception as e:
+            traceback.print_exc()
+            outcome.messages.append((
+                "error", f"Could not read '{uploaded_file.name}': {e}. It was skipped."
+            ))
+            notify(i, uploaded_file.name, finished=True)
+            continue
+
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         if file_hash in processed_log or file_hash in seen_hashes:
