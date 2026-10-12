@@ -91,7 +91,7 @@ def render_tip():
 def render_instructions():
     """The how-to text above the uploader (Whiteboard Extraction view only),
     folded away by default so it doesn't use up the top of the screen."""
-    with st.expander("How to use the Whiteboard Extractor", expanded=False):
+    with st.expander("How to use the whiteboard extractor", expanded=False):
         st.markdown(
             """
             <div class="instruction-text">
