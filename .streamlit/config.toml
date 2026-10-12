@@ -1,17 +1,22 @@
 [theme]
-# Light theme. Streamlit paints dropdowns, text boxes, the sidebar and tables with these
-# colors, so a light base is what makes them light without fighting it in style.css.
+# Light theme that matches the Figma design (colors from its :root variables).
 base = "light"
 
-# Light orange, to match the Vonotec logo (radio dots, focus outlines, progress bars)
-primaryColor = "#FF9933"
+# Vonotec blue: focus outlines, progress bars (buttons and switches are styled in style.css)
+primaryColor = "#2F5597"
 
-# The main background color for the app (same soft gray-blue the page used before)
+# Page background of the design
 backgroundColor = "#f4f7f9"
 
-# Light blue: the background of dropdowns, text boxes and other containers
-secondaryBackgroundColor = "#E8F0FB"
+# Dropdowns, text boxes and cards are white in the design
+secondaryBackgroundColor = "#ffffff"
 
-# Dark slate text, readable on the light backgrounds
+# Dark slate text
 textColor = "#1e293b"
+
+# The design's font, DM Sans, is loaded by style.css (it is not one of Streamlit's built-in fonts)
 font = "sans serif"
+
+[client]
+# Hides the developer menu items in the top bar (Streamlit's own toolbar)
+toolbarMode = "minimal"
