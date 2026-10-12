@@ -1,13 +1,17 @@
 [theme]
-# Changed to a light orange to match the Vonotec logo
-primaryColor = "#FF9933" 
+# Light theme. Streamlit paints dropdowns, text boxes, the sidebar and tables with these
+# colors, so a light base is what makes them light without fighting it in style.css.
+base = "light"
 
-# The main background color for the app (Vonotec Blue)
-backgroundColor = "#2F5597"
+# Light orange, to match the Vonotec logo (radio dots, focus outlines, progress bars)
+primaryColor = "#FF9933"
 
-# The background color for the sidebar and secondary containers
-secondaryBackgroundColor = "#1D3B6B"
+# The main background color for the app (same soft gray-blue the page used before)
+backgroundColor = "#f4f7f9"
 
-# Ensure text is white so it can be read on the dark blue background
-textColor = "#FFFFFF"
+# The background color for the sidebar, dropdowns, text boxes and other containers
+secondaryBackgroundColor = "#ffffff"
+
+# Dark slate text, readable on the light backgrounds
+textColor = "#1e293b"
 font = "sans serif"
