@@ -243,7 +243,7 @@ def render_file_management():
                 xlsx_bytes = None
             if xlsx_bytes is not None:
                 st.download_button(
-                    label=f"Download {os.path.basename(path)}",
+                    label="Download master log",
                     data=xlsx_bytes,
                     file_name=os.path.basename(path),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -278,7 +278,7 @@ def render_file_management():
 
 
 # ---------------------------------------------------------------------------
-# Pending Syncs: batch files that never reached SharePoint
+# Pending syncs: batch files that never reached SharePoint
 # ---------------------------------------------------------------------------
 
 def _push_pending(item):
@@ -309,7 +309,7 @@ def render_pending_syncs():
         return
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Pending Syncs")
+    st.subheader("Pending syncs")
     st.warning(
         f"{len(pending)} file(s) are not up to date in SharePoint. Pushing a file replaces the "
         "SharePoint copy with the one stored here. These files are kept only on the app's "
