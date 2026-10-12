@@ -31,6 +31,7 @@ div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMark
 .st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
 .st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
 h3 { color: #1E3A8A !important; }
+.stMainBlockContainer div[data-testid="stCaptionContainer"] { color: #475569 !important; }
 .sync-name { color: #1e293b !important; font-weight: 700; margin: 0.35rem 0 0 0 !important; }
 .sync-detail { color: #475569 !important; font-size: 0.9rem; margin: 0 0 0.9rem 0 !important; }
 
@@ -54,6 +55,14 @@ h3 { color: #1E3A8A !important; }
    visible while it quietly re-checks SharePoint; the new numbers just replace the old ones. */
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #2F5597; border-radius: 8px; padding: 0.75rem 1rem; }
-/* The chart frame: same blue as CHART_BACKGROUND in ui_dashboard.py, with soft rounded corners.
-   overflow:hidden clips the chart itself to those rounded corners. */
-.st-key-analytics div[data-testid="stVegaLiteChart"], .st-key-analytics div[data-testid="stArrowVegaLiteChart"] { background-color: #4A72B5; border-radius: 20px; padding: 1rem 1.25rem; overflow: hidden; box-shadow: 0 4px 14px rgba(15,23,42,0.12); }
+/* The chart card: a white card like the header and metric cards, with soft rounded corners.
+   Same white as CHART_BACKGROUND in ui_dashboard.py. overflow:hidden clips the chart to the rounded corners. */
+.st-key-analytics div[data-testid="stVegaLiteChart"], .st-key-analytics div[data-testid="stArrowVegaLiteChart"] { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1rem 1.25rem; overflow: hidden; box-shadow: 0 4px 14px rgba(15,23,42,0.08); }
+.st-key-analytics div[data-testid="stCaptionContainer"] { color: #475569 !important; }
+
+/* Sidebar (the dashboard's controls): light like the rest of the page, with dark text */
+section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e2e8f0; }
+section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-weight: 800; font-size: 1.05rem; margin: 0.75rem 0 0.5rem 0 !important; }
+section[data-testid="stSidebar"] label p, section[data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
+section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"], section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p { color: #475569 !important; }
+section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
