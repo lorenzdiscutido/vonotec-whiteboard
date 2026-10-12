@@ -121,6 +121,20 @@ div[data-testid="stToggle"] label p {
     font-weight: 700 !important;          /* Thicker font for readability */
 }
 
+/* The switch itself: the app theme is dark, so the default OFF track is nearly
+   white and disappears against the light box. Give it a visible track in both states. */
+div[data-testid="stToggle"] label > div:first-of-type {
+    background-color: #64748b !important;   /* OFF: slate gray track */
+    border: 1px solid #475569 !important;
+}
+div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type {
+    background-color: #2F5597 !important;   /* ON: Vonotec blue track */
+    border-color: #1E3A8A !important;
+}
+div[data-testid="stToggle"] label > div:first-of-type div {
+    background-color: #ffffff !important;   /* the round knob stays white */
+}
+
 
 /* "Save settings" box */
 .panel-title,
