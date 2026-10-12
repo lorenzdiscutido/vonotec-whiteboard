@@ -10,6 +10,7 @@
     ui_components.py    CSS and header
     ui_dashboard.py     the Analytics Dashboard view (charts from the SharePoint Excel files)
     dashboard_data.py   reads the batch Excel files into a table for the dashboard
+    dashboard_loader.py downloads those files in the background so the dashboard is ready
 """
 import os
 import datetime
@@ -26,6 +27,7 @@ from ui_sections import (
     render_action_buttons, render_file_management, render_pending_syncs,
 )
 from ui_dashboard import render_analytics_dashboard
+from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Whiteboard Extraction"
 VIEW_DASHBOARD = "Analytics Dashboard"
@@ -34,6 +36,12 @@ VIEW_DASHBOARD = "Analytics Dashboard"
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
 ui_components.load_local_css("style.css")
 ui_components.render_header()
+
+# --- DASHBOARD DATA ---
+# Start reading the Excel files for the dashboard in the background right away, in
+# whichever view the person opened, so the charts are ready when they click over.
+# It never blocks the page, and does nothing if one is already running or ran recently.
+start_warmup_if_due()
 
 # --- VIEW SWITCH ---
 # Streamlit runs the code of every st.tabs() tab on each click, which would
