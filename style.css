@@ -19,6 +19,12 @@ div[data-testid="stText"], div[data-testid="stText"] p { color: #1e293b !importa
 .status-msg { color: #1e293b !important; font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
 div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
 .st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
+
+/* Action buttons: sit side by side, anchored to the right edge */
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+.st-key-action_buttons div.stButton { width: auto !important; }
+
 div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
 div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
 .st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
@@ -132,6 +138,32 @@ div[data-testid="stExpander"] details {
 .st-key-source_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
 .st-key-source_switch label p { color: #1e293b !important; font-weight: 700 !important; }
 .st-key-source_switch label:has(input:checked) p { color: #ffffff !important; }
+
+
+/* ------------------------------------------------------------------
+   Form inputs (dropdowns and text boxes): light, with a clean border.
+   The app theme is dark blue, which would otherwise paint them solid dark.
+   The dropdown's pop-up list is drawn elsewhere on the page, so it is not
+   affected by these rules.
+   ------------------------------------------------------------------ */
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"],
+div[data-baseweb="base-input"] {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+}
+div[data-baseweb="select"] div,
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] input,
+div[data-baseweb="input"] input,
+div[data-baseweb="base-input"] input {
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b !important;
+}
+div[data-baseweb="select"] svg {
+    fill: #475569 !important;
+    color: #475569 !important;
+}
 
 
 /* ------------------------------------------------------------------
