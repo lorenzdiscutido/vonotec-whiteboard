@@ -66,3 +66,26 @@ section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-w
 section[data-testid="stSidebar"] label p, section[data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
 section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"], section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p { color: #475569 !important; }
 section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
+
+/* ------------------------------------------------------------------
+   Text color fixes for Streamlit's white defaults on the light page
+   ------------------------------------------------------------------ */
+
+/* Expander titles (e.g. "How to use the Whiteboard Extractor").
+   Streamlit puts the color on the inner text elements as well as on <summary>,
+   so those are listed too; the arrow icon follows the text color. */
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span {
+    color: #1E3A8A !important;
+    font-weight: 600 !important;
+}
+[data-testid="stExpander"] summary svg {
+    color: #1E3A8A !important;
+    fill: #1E3A8A !important;
+}
+
+/* Captions (e.g. "3 photo(s) selected", and the small notes under widgets) */
+[data-testid="stCaptionContainer"] p {
+    color: #475569 !important;
+}
