@@ -201,10 +201,11 @@ def remember_new_folder(subfolder):
 def render_action_buttons():
     """Returns (extract_clicked, clear_clicked)."""
     with st.container(key="action_buttons"):
-        col1, col2 = st.columns(2, gap="small")
-        with col1:
-            extract_clicked = st.button("Extract Data & Update Excel", type="primary")
+        # The first (empty) column is a spacer that pushes both buttons to the right edge
+        _spacer, col2, col3 = st.columns([0.6, 1.5, 1], gap="small")
         with col2:
+            extract_clicked = st.button("Extract Data & Update Excel", type="primary")
+        with col3:
             clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
     return extract_clicked, clear_clicked
 
