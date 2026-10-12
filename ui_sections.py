@@ -211,69 +211,70 @@ def render_action_buttons():
 
 
 def file_management_title_html(label, folder):
-    """The "File Management" heading: the words stay bold dark blue, while the batch
-    name and folder (which can be long) are lighter slate gray, so they are easy to
-    tell apart and scan. Both are escaped, since they come from what people typed."""
+    """The heading of the file card: a small label over "Generated workbook", then the
+    batch name and folder (which can be long) in lighter gray. Both are escaped,
+    since they come from what people typed."""
     folder_note = f' in folder "{html.escape(str(folder))}"' if folder else ""
     return (
-        '<h3 class="fm-title">File Management '
-        f'<span class="fm-detail">— "{html.escape(str(label))}"{folder_note}</span></h3>'
+        '<p class="eyebrow">File management</p>'
+        '<div class="card-title">Generated workbook</div>'
+        f'<div class="file-sub">"{html.escape(str(label))}"{folder_note}</div>'
     )
 
 
 def render_file_management():
-    """Download / delete controls for the file of the last batch."""
+    """Download / delete controls for the file of the last batch, in a card."""
     path = st.session_state.last_output_path
     if not (path and os.path.exists(path)):
         return
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        file_management_title_html(st.session_state.last_output_label, st.session_state.last_output_folder),
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        try:
-            with open(path, "rb") as f:
-                xlsx_bytes = f.read()
-        except FileNotFoundError:
-            xlsx_bytes = None
-        if xlsx_bytes is not None:
-            st.download_button(
-                label=f"Download {os.path.basename(path)}",
-                data=xlsx_bytes,
-                file_name=os.path.basename(path),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-            )
-    with col2:
-        if st.button("Delete This Batch File", type="primary", key="start_fresh"):
-            st.session_state.confirm_reset = True
-            st.rerun()
-
-    if st.session_state.confirm_reset:
-        st.warning(
-            f'This will permanently delete the local copy of "{os.path.basename(path)}". It does not '
-            "touch the processed-photos duplicate log, and it does not delete any copy already "
-            "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
+    with st.container(border=True, key="file_card"):
+        st.markdown(
+            file_management_title_html(st.session_state.last_output_label, st.session_state.last_output_folder),
+            unsafe_allow_html=True,
         )
-        yes_col, cancel_col = st.columns(2)
-        with yes_col:
-            if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
-                if os.path.exists(path):
-                    os.remove(path)
-                sync_tracker.forget(path)
-                st.session_state.last_output_path = None
-                st.session_state.last_output_label = None
-                st.session_state.last_output_folder = ""
-                st.session_state.confirm_reset = False
+
+        col1, col2 = st.columns(2)
+        with col1:
+            try:
+                with open(path, "rb") as f:
+                    xlsx_bytes = f.read()
+            except FileNotFoundError:
+                xlsx_bytes = None
+            if xlsx_bytes is not None:
+                st.download_button(
+                    label=f"Download {os.path.basename(path)}",
+                    data=xlsx_bytes,
+                    file_name=os.path.basename(path),
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                )
+        with col2:
+            if st.button("Delete This Batch File", type="primary", key="start_fresh"):
+                st.session_state.confirm_reset = True
                 st.rerun()
-        with cancel_col:
-            if st.button("Cancel", type="primary", key="cancel_delete"):
-                st.session_state.confirm_reset = False
-                st.rerun()
+
+        if st.session_state.confirm_reset:
+            st.warning(
+                f'This will permanently delete the local copy of "{os.path.basename(path)}". It does not '
+                "touch the processed-photos duplicate log, and it does not delete any copy already "
+                "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
+            )
+            yes_col, cancel_col = st.columns(2)
+            with yes_col:
+                if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
+                    if os.path.exists(path):
+                        os.remove(path)
+                    sync_tracker.forget(path)
+                    st.session_state.last_output_path = None
+                    st.session_state.last_output_label = None
+                    st.session_state.last_output_folder = ""
+                    st.session_state.confirm_reset = False
+                    st.rerun()
+            with cancel_col:
+                if st.button("Cancel", type="primary", key="cancel_delete"):
+                    st.session_state.confirm_reset = False
+                    st.rerun()
 
 
 # ---------------------------------------------------------------------------
