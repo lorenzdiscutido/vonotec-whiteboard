@@ -319,11 +319,25 @@ if clear_clicked:
 # --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
 with results_col:
     st.subheader("Batch Results")
-    st.caption("Messages, downloads and sync status appear here once you extract a batch.")
 
     # As soon as new photos are selected, drop the previous batch's messages
     if uploaded_files:
         st.session_state.batch_results = []
+
+    # Before the first batch there is nothing to show: say so inside a box that
+    # matches the "Save settings" panel, instead of leaving loose text.
+    last_file = st.session_state.last_output_path
+    nothing_to_show = (
+        not st.session_state.batch_results
+        and not extract_clicked
+        and not fetch_clicked
+        and not (last_file and os.path.exists(last_file))
+    )
+    if nothing_to_show:
+        with st.container(key="empty_batch_results"):
+            st.markdown('<p class="panel-title">No batch yet</p>', unsafe_allow_html=True)
+            st.caption("Messages, downloads and sync status appear here once you extract a batch.")
+
     show_batch_results()
 
     if extract_clicked:
