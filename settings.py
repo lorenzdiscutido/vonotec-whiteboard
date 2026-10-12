@@ -24,3 +24,9 @@ DASHBOARD_REFRESH_SECONDS = 15
 # Choices shown in the "Save into which folder?" dropdown
 MAIN_FOLDER_LABEL = "(Main folder, no subfolder)"
 NEW_FOLDER_LABEL = "+ Create a new folder..."
+
+# Where "Process from SharePoint" starts browsing for photos, as a path counted from the
+# top of the site's document library, e.g. "07 - Employee Folders (to be reviewed)".
+# "" starts at the very top of the library. People can open subfolders from there
+# but cannot go above this folder.
+PHOTO_BROWSE_ROOT = ""
