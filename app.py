@@ -6,7 +6,7 @@
     excel_writer.py      master Excel file (layout, units, repair formulas)
     batch_processor.py   the per-photo batch loop
     ui_sections.py       session state, folder picker, file management, pending syncs
-    ui_source_browser.py folder browser for "Process from SharePoint"
+    ui_source_browser.py cascading folder browser for "Process from SharePoint"
     sync_tracker.py      remembers which batch files reached SharePoint
     ui_components.py     CSS and header
     ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
@@ -24,7 +24,7 @@ import streamlit as st
 import sharepoint_client
 import ui_components
 from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
-from file_utils import sanitize_batch_filename
+from file_utils import sanitize_batch_filename, load_prefs, save_prefs
 from batch_processor import run_batch
 from ui_sections import (
     init_session_state, show_batch_results, render_photo_previews,
@@ -74,6 +74,15 @@ if view == VIEW_DASHBOARD:
 ui_components.render_instructions()
 init_session_state()
 
+# Remember where the person left off: on the first run of a session, the "Save into which
+# folder" dropdown starts on the folder used for the last batch (kept in user_prefs.json,
+# so it survives a page refresh). The photo-folder selectors read the same file themselves.
+if not st.session_state.get("prefs_loaded"):
+    remembered_folder = load_prefs().get("save_folder")
+    if isinstance(remembered_folder, str) and remembered_folder:
+        st.session_state.last_folder_choice = remembered_folder
+    st.session_state.prefs_loaded = True
+
 
 class RemoteFile:
     """A photo that lives in SharePoint, shaped like a Streamlit UploadedFile
@@ -117,6 +126,7 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
     st.session_state.last_output_label = batch_name_raw.strip()
     st.session_state.last_output_folder = subfolder
     st.session_state.last_folder_choice = subfolder if subfolder else MAIN_FOLDER_LABEL
+    save_prefs({"save_folder": st.session_state.last_folder_choice})
 
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -173,7 +183,11 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
         st.error(error)
         return
 
-    where = " / ".join(source_path) if source_path else "the top of the document library"
+    if not source_path:
+        st.error("Please choose the SharePoint folder to read photos from.")
+        return
+
+    where = " / ".join(source_path)
     try:
         with st.spinner("Looking for photos in SharePoint..."):
             images = sharepoint_client.list_images_at(source_path, recursive=include_subfolders)
@@ -185,6 +199,9 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
         extra = "" if include_subfolders else " Turn on 'Include photos from all folders inside this one' to also look in its subfolders."
         st.warning(f"No photos (.jpg, .jpeg or .png) were found in {where}.{extra}")
         return
+
+    # Remember this location so the selectors open on it next time
+    save_prefs({"photo_source_path": list(source_path), "include_subfolders": bool(include_subfolders)})
 
     files = [RemoteFile(item["display_name"], item["id"]) for item in images]
     intro = [("status", f"Found {len(files)} photo(s) in {where}"
@@ -217,9 +234,10 @@ with form_col:
     source_path, include_subfolders = [], False
     if remote_mode:
         st.caption(
-            "Browse to the SharePoint folder that holds the photos. They are read directly "
-            "from SharePoint, one at a time. The Excel file is saved to the folder chosen "
-            "under Save settings."
+            "Pick the SharePoint folder that holds the photos, one level at a time: each choice "
+            "opens a selector for the folders inside it. The photos are read directly from "
+            "SharePoint, one at a time. The Excel file is saved to the folder chosen under "
+            "Save settings. The last folder you used is remembered."
         )
         source_path, include_subfolders = render_source_browser()
     else:
