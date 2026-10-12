@@ -141,29 +141,67 @@ div[data-testid="stExpander"] details {
 
 
 /* ------------------------------------------------------------------
-   Form inputs (dropdowns and text boxes): light, with a clean border.
-   The app theme is dark blue, which would otherwise paint them solid dark.
-   The dropdown's pop-up list is drawn elsewhere on the page, so it is not
-   affected by these rules.
+   Form inputs (dropdowns and text boxes): white, dark text, soft gray border.
+   The app theme is dark blue and Streamlit paints these with it, so the rules
+   are deliberately heavy: they are prefixed with .stApp, aimed at every layer
+   of the widget (outer box, inner wrapper, the <input> itself), and use
+   !important. The dropdown's pop-up list is drawn elsewhere on the page, so
+   these rules do not touch it.
    ------------------------------------------------------------------ */
-div[data-baseweb="select"] > div,
-div[data-baseweb="input"],
-div[data-baseweb="base-input"] {
+.stApp div[data-baseweb="select"] > div,
+.stApp [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+.stApp [data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
+.stApp div[data-baseweb="base-input"],
+.stApp div[data-baseweb="input"],
+.stApp [data-testid="stTextInput"] div[data-baseweb="base-input"],
+.stApp [data-testid="stTextInput"] div[data-baseweb="input"] {
     background-color: #ffffff !important;
+    background: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
 }
-div[data-baseweb="select"] div,
-div[data-baseweb="select"] span,
-div[data-baseweb="select"] input,
-div[data-baseweb="input"] input,
-div[data-baseweb="base-input"] input {
+/* Layers inside the dropdown box must not paint dark on top of the white */
+.stApp div[data-baseweb="select"] > div > div {
+    background-color: transparent !important;
+}
+/* Text typed in a text box, and the selected value shown in a dropdown */
+.stApp [data-testid="stTextInput"] input,
+.stApp div[data-baseweb="base-input"] input,
+.stApp div[data-baseweb="select"] input,
+.stApp div[data-baseweb="select"] div,
+.stApp div[data-baseweb="select"] span {
     color: #1e293b !important;
     -webkit-text-fill-color: #1e293b !important;
+    caret-color: #1e293b !important;
 }
-div[data-baseweb="select"] svg {
+.stApp [data-testid="stTextInput"] input {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+}
+.stApp div[data-baseweb="select"] svg {
     fill: #475569 !important;
     color: #475569 !important;
 }
+/* Chosen items in a multi-select (the dashboard filters) stay Vonotec blue with white text */
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"] {
+    background-color: #2F5597 !important;
+}
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"],
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"] * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+
+/* ------------------------------------------------------------------
+   Data table under "View the data behind the charts" (drawn as HTML by
+   ui_dashboard._data_table_html): bold dark header, light rows.
+   ------------------------------------------------------------------ */
+.data-table-wrap { max-height: 420px; overflow: auto; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; }
+.data-table-wrap table.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; background-color: #ffffff; }
+.data-table-wrap table.data-table th { position: sticky; top: 0; background-color: #e2e8f0 !important; color: #1E3A8A !important; font-weight: 800 !important; text-align: left !important; padding: 8px 10px; border-bottom: 2px solid #94a3b8; white-space: nowrap; }
+.data-table-wrap table.data-table td { background-color: #ffffff !important; color: #1e293b !important; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.data-table-wrap table.data-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
 
 
 /* ------------------------------------------------------------------
