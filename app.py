@@ -26,14 +26,14 @@ from ui_sections import (
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
 )
-from ui_dashboard import render_analytics_dashboard
+from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Whiteboard Extraction"
 VIEW_DASHBOARD = "Analytics Dashboard"
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="centered")
+st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
 ui_components.load_local_css("style.css")
 ui_components.render_header()
 
@@ -54,31 +54,16 @@ with st.container(key="view_switch"):
     )
 
 if view == VIEW_DASHBOARD:
+    # The controls (which files, Refresh, filters) go in the sidebar; the numbers
+    # and charts fill the main area and refresh by themselves.
+    with st.sidebar:
+        render_dashboard_controls()
     with st.container(key="analytics"):
         render_analytics_dashboard()
     st.stop()  # nothing below belongs to the dashboard view
 
 ui_components.render_instructions()
-st.subheader("Upload Whiteboard Photos")
-
 init_session_state()
-
-# --- UPLOADER ---
-uploaded_files = st.file_uploader(
-    "Choose whiteboard images...",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True,
-    label_visibility="collapsed",
-    key=f"uploader_{st.session_state.uploader_key}",
-)
-
-# As soon as new photos are selected, drop the previous batch's messages
-if uploaded_files:
-    st.session_state.batch_results = []
-show_batch_results()
-
-if uploaded_files:
-    status_message(f"{len(uploaded_files)} image(s) selected.")
 
 
 def start_batch(batch_name_raw, folder_choice, new_folder_raw):
@@ -134,33 +119,57 @@ def start_batch(batch_name_raw, folder_choice, new_folder_raw):
     st.rerun()
 
 
-# --- BATCH FORM ---
-# Suggest a fresh default name each time a new round of photos is selected,
-# without overwriting what the person is typing in the meantime.
-if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
-    st.session_state.batch_name_round = st.session_state.uploader_key
-    st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
-    # Re-read the folder list each round, so folders other people created show up
-    st.session_state.sp_folders = None
+# Two columns, like the dashboard uses the full width: the form on the left, and
+# everything that comes out of it (messages, download, sync status) on the right,
+# so a long list of messages never pushes the form's buttons down the page.
+form_col, results_col = st.columns([3, 2], gap="large")
 
-folder_choice, new_folder_raw = render_folder_picker()
-batch_name_raw = st.text_input(
-    "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
-    key="batch_name_input",
-)
+# --- LEFT: UPLOADER AND BATCH FORM ---
+with form_col:
+    st.subheader("Upload Whiteboard Photos")
+    uploaded_files = st.file_uploader(
+        "Choose whiteboard images...",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        key=f"uploader_{st.session_state.uploader_key}",
+    )
+    if uploaded_files:
+        status_message(f"{len(uploaded_files)} image(s) selected.")
 
-extract_clicked, clear_clicked = render_action_buttons()
+    # Suggest a fresh default name each time a new round of photos is selected,
+    # without overwriting what the person is typing in the meantime.
+    if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
+        st.session_state.batch_name_round = st.session_state.uploader_key
+        st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
+        # Re-read the folder list each round, so folders other people created show up
+        st.session_state.sp_folders = None
+
+    folder_choice, new_folder_raw = render_folder_picker()
+    batch_name_raw = st.text_input(
+        "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
+        key="batch_name_input",
+    )
+
+    extract_clicked, clear_clicked = render_action_buttons()
 
 if clear_clicked:
     st.session_state.uploader_key += 1
     st.session_state.batch_results = []
     st.rerun()
 
-if extract_clicked:
-    start_batch(batch_name_raw, folder_choice, new_folder_raw)
+# --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
+with results_col:
+    st.subheader("Batch Results")
+    st.caption("Messages, downloads and sync status appear here once you extract a batch.")
 
-# --- DOWNLOAD / DELETE ---
-render_file_management()
+    # As soon as new photos are selected, drop the previous batch's messages
+    if uploaded_files:
+        st.session_state.batch_results = []
+    show_batch_results()
 
-# --- FILES THAT NEVER REACHED SHAREPOINT ---
-render_pending_syncs()
+    if extract_clicked:
+        start_batch(batch_name_raw, folder_choice, new_folder_raw)
+
+    render_file_management()
+    render_pending_syncs()
