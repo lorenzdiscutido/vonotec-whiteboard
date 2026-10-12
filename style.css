@@ -85,6 +85,21 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.
     fill: #1E3A8A !important;
 }
 
+/* Expander header: the theme fills it with dark blue, which hid the dark blue title.
+   Keep it transparent, with a very soft gray on hover as feedback. */
+div[data-testid="stExpander"] summary,
+div[data-testid="stExpander"] details summary {
+    background-color: transparent !important;
+}
+div[data-testid="stExpander"] summary:hover,
+div[data-testid="stExpander"] details summary:hover {
+    background-color: #f8fafc !important;
+}
+/* The block around the header can carry the same dark fill, so it is cleared too */
+div[data-testid="stExpander"] details {
+    background-color: transparent !important;
+}
+
 /* Captions (e.g. "3 photo(s) selected", and the small notes under widgets) */
 [data-testid="stCaptionContainer"] p {
     color: #475569 !important;
