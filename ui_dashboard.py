@@ -153,7 +153,7 @@ def _bar_chart(counts, column):
                     scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
                     axis=x_axis),
             y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
-            tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Defects")],
+            tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
         )
         # padding: breathing room between the chart and the rounded card, so nothing touches the edge
         .properties(
