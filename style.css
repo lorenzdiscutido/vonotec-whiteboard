@@ -103,36 +103,50 @@ div[data-testid="stExpander"] details {
 
 
 /* ------------------------------------------------------------------
-   Toggle switch (Darker Padded Box Method)
+   Toggle switches ("Include photos from all folders inside this one" and
+   "Exclude 'Unknown' locations"). They are found both by Streamlit's
+   data-testid and by the widget keys (.st-key-...), because the testid
+   differs between Streamlit versions.
    ------------------------------------------------------------------ */
 
-/* Create a darker, visible box around the entire toggle component */
-div[data-testid="stToggle"] {
-    background-color: #e2e8f0 !important; /* Darker slate gray background */
-    padding: 12px 16px !important;        /* Breathing room around the switch */
-    border-radius: 8px !important;        /* Smooth rounded corners */
-    border: 1px solid #94a3b8 !important; /* Stronger border for high contrast */
+/* A darker, visible box around the whole toggle */
+div[data-testid="stToggle"],
+.st-key-src_recursive,
+.st-key-analytics_hide_unknown {
+    background-color: #e2e8f0 !important;
+    padding: 12px 16px !important;
+    border-radius: 8px !important;
+    border: 1px solid #94a3b8 !important;
     margin-bottom: 0.5rem !important;
 }
 
-/* Ensure the text label stays bold and completely dark */
-div[data-testid="stToggle"] label p {
-    color: #0f172a !important;            /* Very dark blue/black text */
-    font-weight: 700 !important;          /* Thicker font for readability */
+/* Label text: bold and dark */
+div[data-testid="stToggle"] label p,
+.st-key-src_recursive label p,
+.st-key-analytics_hide_unknown label p {
+    color: #0f172a !important;
+    font-weight: 700 !important;
 }
 
-/* The switch itself: the app theme is dark, so the default OFF track is nearly
-   white and disappears against the light box. Give it a visible track in both states. */
-div[data-testid="stToggle"] label > div:first-of-type {
-    background-color: #64748b !important;   /* OFF: slate gray track */
+/* The switch track: the app theme is dark, so the default OFF track is nearly
+   white and disappears on the light box. Gray when off, Vonotec blue when on. */
+div[data-testid="stToggle"] label > div:first-of-type,
+.st-key-src_recursive label > div:first-of-type,
+.st-key-analytics_hide_unknown label > div:first-of-type {
+    background-color: #64748b !important;
     border: 1px solid #475569 !important;
 }
-div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type {
-    background-color: #2F5597 !important;   /* ON: Vonotec blue track */
+div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type,
+.st-key-src_recursive label:has(input:checked) > div:first-of-type,
+.st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type {
+    background-color: #2F5597 !important;
     border-color: #1E3A8A !important;
 }
-div[data-testid="stToggle"] label > div:first-of-type div {
-    background-color: #ffffff !important;   /* the round knob stays white */
+/* The round knob stays white */
+div[data-testid="stToggle"] label > div:first-of-type div,
+.st-key-src_recursive label > div:first-of-type div,
+.st-key-analytics_hide_unknown label > div:first-of-type div {
+    background-color: #ffffff !important;
 }
 
 
