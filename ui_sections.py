@@ -79,9 +79,9 @@ def status_message(text):
 # Photo previews
 # ---------------------------------------------------------------------------
 
-PREVIEW_MAX_PHOTOS = 12   # a big batch shows the first few, then "+ N more"
 PREVIEW_COLUMNS = 6       # thumbnails per row
 PREVIEW_PIXELS = 240      # longest side of a thumbnail
+PREVIEW_HEIGHT_PX = 350   # height of the scrollable preview box
 
 
 @st.cache_data(show_spinner=False, max_entries=300)
@@ -103,25 +103,23 @@ def _thumbnail_bytes(name, size, file_id, _data):
 
 
 def render_photo_previews(uploaded_files):
-    """A count and a grid of small previews of the selected photos, so people can
-    check they picked the right ones before extracting."""
+    """A count and a scrollable grid with a small preview of EVERY selected photo,
+    so people can check they picked the right ones before extracting."""
     if not uploaded_files:
         return
 
-    total = len(uploaded_files)
-    st.caption(f"{total} photo(s) selected")
-    shown = list(uploaded_files)[:PREVIEW_MAX_PHOTOS]
-    for start in range(0, len(shown), PREVIEW_COLUMNS):
-        columns = st.columns(PREVIEW_COLUMNS)
-        for column, photo in zip(columns, shown[start:start + PREVIEW_COLUMNS]):
-            thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
-            with column:
-                if thumbnail:
-                    st.image(thumbnail)
-                else:
-                    st.caption("(no preview)")
-    if total > len(shown):
-        st.caption(f"+ {total - len(shown)} more photo(s) not shown here")
+    photos = list(uploaded_files)
+    st.caption(f"{len(photos)} photo(s) selected")
+    with st.container(height=PREVIEW_HEIGHT_PX, border=False):
+        for start in range(0, len(photos), PREVIEW_COLUMNS):
+            columns = st.columns(PREVIEW_COLUMNS)
+            for column, photo in zip(columns, photos[start:start + PREVIEW_COLUMNS]):
+                thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
+                with column:
+                    if thumbnail:
+                        st.image(thumbnail)
+                    else:
+                        st.caption("(no preview)")
 
 
 # ---------------------------------------------------------------------------
