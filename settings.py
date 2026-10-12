@@ -30,3 +30,11 @@ NEW_FOLDER_LABEL = "+ Create a new folder..."
 # "" starts at the very top of the library. People can open subfolders from there
 # but cannot go above this folder.
 PHOTO_BROWSE_ROOT = ""
+
+# Only top-level folders of the document library whose names start with one of these
+# are shown when browsing for photos (e.g. "07 - Employee Folders ..."). Folders deeper
+# down are never filtered. An empty tuple () shows every top-level folder.
+ALLOWED_ROOT_PREFIXES = ("00", "01", "02", "04", "07")
+
+# Remembers the last photo folder and save folder used, so the app opens where you left off
+PREFS_FILE = "user_prefs.json"
