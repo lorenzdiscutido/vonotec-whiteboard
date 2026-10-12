@@ -99,7 +99,7 @@ div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
 .data-table-wrap table.data-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
 
 /* Sidebar (the dashboard's controls) */
-section[data-testid="stSidebar"] { border-right: 1px solid #e2e8f0; }
+section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e2e8f0; }
 section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-weight: 800; font-size: 1.05rem; margin: 0.75rem 0 0.5rem 0 !important; }
 section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
 
@@ -114,12 +114,16 @@ div[data-testid="stExpander"] details summary { background-color: transparent !i
 div[data-testid="stExpander"] summary:hover,
 div[data-testid="stExpander"] details summary:hover { background-color: #f8fafc !important; }
 
-/* Dropdowns and text boxes: with the light theme they are already white, so this only
-   adds the soft gray border and rounded corners, and keeps them white if a Streamlit
-   update changes the default. Chosen items in a multi-select stay Vonotec blue. */
+/* Dropdowns and text boxes: light blue with a soft blue border and rounded corners.
+   The light blue itself comes from secondaryBackgroundColor in .streamlit/config.toml
+   (Streamlit paints widgets with it); these rules back it up and also cover the sidebar,
+   where Streamlit would otherwise use the page color. Chosen items in a multi-select
+   stay Vonotec blue. */
 .stApp div[data-baseweb="select"] > div,
 .stApp div[data-baseweb="base-input"],
-.stApp div[data-baseweb="input"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; }
+.stApp div[data-baseweb="input"] { background-color: #E8F0FB !important; border: 1px solid #BFD2EE !important; border-radius: 8px !important; }
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+section[data-testid="stSidebar"] div[data-baseweb="base-input"] { background-color: #E8F0FB !important; }
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"] { background-color: #2F5597 !important; }
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"],
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"] * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
