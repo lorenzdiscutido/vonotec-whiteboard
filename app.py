@@ -305,8 +305,12 @@ with form_col:
                 )
 
         if remote_mode:
+            # Same layout as the Extract / Clear buttons: the first (empty) column is a
+            # spacer, and the CSS for "action_buttons" pushes the button to the right edge
             with st.container(key="action_buttons"):
-                fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
+                _spacer, fetch_col = st.columns([0.6, 1.5], gap="small")
+                with fetch_col:
+                    fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
             extract_clicked, clear_clicked = False, False
         else:
             extract_clicked, clear_clicked = render_action_buttons()
