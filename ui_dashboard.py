@@ -32,6 +32,7 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 # Chart look: Vonotec-blue bars on a white card. The card's own background is set in
 # style.css (.st-key-analytics ... stVegaLiteChart) - keep CHART_BACKGROUND the same.
 CHART_COLOR = "#2F5597"
+ACCENT_COLOR = "#F97316"       # orange: marks the "Unknown" bars, so missing data stands out
 CHART_BACKGROUND = "#FFFFFF"
 CHART_TEXT = "#1E293B"         # axis labels and titles
 CHART_GRID = "#E2E8F0"         # soft gridlines behind the bars
@@ -121,8 +122,14 @@ def _bar_chart(counts, column):
 
     chart = (
         alt.Chart(counts)
-        .mark_bar(color=CHART_COLOR, cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
         .encode(
+            # Blue for known values, orange for the "Unknown" bar
+            color=alt.condition(
+                f"datum['{column}'] == '{UNKNOWN}'",
+                alt.value(ACCENT_COLOR),
+                alt.value(CHART_COLOR),
+            ),
             # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
             x=alt.X(f"{column}:N", sort=list(counts[column]), title=column,
                     scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
@@ -161,6 +168,8 @@ def _chart_section(df, column, title, hide_unknown):
         st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
         return
     _bar_chart(counts, column)
+    if (counts[column] == UNKNOWN).any():
+        st.caption(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
     if hidden:
         st.caption(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
 
