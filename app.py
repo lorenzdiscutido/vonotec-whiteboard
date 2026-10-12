@@ -22,7 +22,7 @@ from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL
 from file_utils import sanitize_batch_filename
 from batch_processor import run_batch
 from ui_sections import (
-    init_session_state, show_batch_results, status_message,
+    init_session_state, show_batch_results, render_photo_previews,
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
 )
@@ -134,8 +134,7 @@ with form_col:
         label_visibility="collapsed",
         key=f"uploader_{st.session_state.uploader_key}",
     )
-    if uploaded_files:
-        status_message(f"{len(uploaded_files)} image(s) selected.")
+    render_photo_previews(uploaded_files)
 
     # Suggest a fresh default name each time a new round of photos is selected,
     # without overwriting what the person is typing in the meantime.
@@ -145,11 +144,18 @@ with form_col:
         # Re-read the folder list each round, so folders other people created show up
         st.session_state.sp_folders = None
 
-    folder_choice, new_folder_raw = render_folder_picker()
-    batch_name_raw = st.text_input(
-        "Name this batch (this becomes the Excel file name, locally and in SharePoint)",
-        key="batch_name_input",
-    )
+    # Where the file goes and what it is called: grouped in a box, side by side
+    with st.container(border=True, key="save_settings"):
+        st.markdown('<p class="panel-title">Save settings</p>', unsafe_allow_html=True)
+        folder_column, name_column = st.columns(2, gap="medium")
+        with folder_column:
+            folder_choice, new_folder_raw = render_folder_picker()
+        with name_column:
+            batch_name_raw = st.text_input(
+                "Batch name",
+                key="batch_name_input",
+                help="This becomes the Excel file name, both here and in SharePoint.",
+            )
 
     extract_clicked, clear_clicked = render_action_buttons()
 
