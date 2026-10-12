@@ -251,12 +251,29 @@ with form_col:
         render_photo_previews(uploaded_files)
 
     # Suggest a fresh default name each time a new round of photos is selected,
-    # without overwriting what the person is typing in the meantime.
-    if st.session_state.get("batch_name_round") != st.session_state.uploader_key:
+    # without overwriting what the person is typing in the meantime. It is also
+    # refilled when the Batch name box was dropped (for example after the person
+    # visited the Analytics Dashboard and came back), because Streamlit forgets
+    # the state of widgets that were not drawn in a run.
+    name_was_reset = (
+        st.session_state.get("batch_name_round") != st.session_state.uploader_key
+        or "batch_name_input" not in st.session_state
+    )
+    if name_was_reset:
         st.session_state.batch_name_round = st.session_state.uploader_key
         st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
         # Re-read the folder list each round, so folders other people created show up
         st.session_state.sp_folders = None
+
+    # "Process from SharePoint": the batch name defaults to the name of the chosen folder.
+    # It is filled in when a folder is chosen (or a new round starts, or the box was
+    # refilled above) and then left alone, so whatever the person types over it is kept
+    # until they pick a different folder.
+    if remote_mode and source_path:
+        folder_marker = (st.session_state.uploader_key, "/".join(source_path))
+        if name_was_reset or st.session_state.get("batch_name_folder_marker") != folder_marker:
+            st.session_state.batch_name_folder_marker = folder_marker
+            st.session_state.batch_name_input = source_path[-1]
 
     # Where the file goes and what it is called: grouped in a box, side by side
     with st.container(border=True, key="save_settings"):
@@ -268,7 +285,9 @@ with form_col:
             batch_name_raw = st.text_input(
                 "Batch name",
                 key="batch_name_input",
-                help="This becomes the Excel file name, both here and in SharePoint.",
+                help="This becomes the Excel file name, both here and in SharePoint. "
+                     "With 'Process from SharePoint' it starts as the chosen folder's name, "
+                     "and you can change it.",
             )
 
     if remote_mode:
