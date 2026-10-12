@@ -5,28 +5,24 @@ and Material, built by reading the batch Excel files straight from SharePoint.
 The Excel files are the source of truth (people correct them there), so the
 charts always reflect the checked data. Each file is downloaded once and kept
 in memory until SharePoint says it changed, so clicking around the filters
-doesn't re-download anything.
+doesn't re-download anything. app.py starts reading all the files in the
+background as soon as the app is opened, so the data is normally ready before
+anyone clicks over to this view (see dashboard_loader.py).
 
 The dashboard re-checks SharePoint on its own every DASHBOARD_REFRESH_SECONDS
 (see settings.py). Only the dashboard section reloads, and only files that are
 new or changed are downloaded, so it is quick and doesn't disturb the rest of
 the page.
 (The sheet parsing itself lives in dashboard_data.py.)"""
-import os
-import tempfile
-
 import streamlit as st
 
 import sharepoint_client
-from dashboard_data import (
-    parse_workbook, rows_to_dataframe, apply_filters, count_by, natural_key,
-)
+from dashboard_data import rows_to_dataframe, apply_filters, count_by, natural_key
+from dashboard_loader import get_file_rows, is_loaded
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
 
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
-# What the Folder column shows for files that sit directly in the landing folder
-MAIN_FOLDER_COLUMN = "(Main folder)"
 
 CHART_COLOR = "#FFAD5C"        # light orange, matching the Vonotec logo
 # Vonotec blue, set explicitly so it is the same in every Streamlit version.
@@ -37,11 +33,6 @@ CHART_GRID = "#7F9CD0"         # soft lighter-blue gridlines behind the bars
 # Folder/file lists are kept for just under one refresh interval, so every
 # automatic check really asks SharePoint instead of reusing the previous answer.
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
-
-# Files already downloaded in this run of the app, as (folder, name, modified).
-# Used to show the "Reading Excel files..." bar only when something is really
-# being downloaded, not on every quiet automatic check.
-_loaded_keys = set()
 
 
 # ---------------------------------------------------------------------------
@@ -58,25 +49,9 @@ def _cached_file_list(subfolder):
     return sharepoint_client.list_xlsx_files(subfolder)
 
 
-@st.cache_data(show_spinner=False, max_entries=1000)
-def _cached_file_rows(subfolder, filename, modified):
-    """Downloads one batch file and returns (rows, error_text). `modified` is
-    SharePoint's last-modified time: it isn't used below, but it is part of the
-    cache key, so a file that was edited is downloaded again while an unchanged
-    one never is. A network failure raises (and is therefore not cached)."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        local_path = os.path.join(tmp_dir, "batch.xlsx")
-        if not sharepoint_client.download_file(filename, local_path, subfolder):
-            return [], "it is no longer in SharePoint"
-        try:
-            return parse_workbook(local_path, subfolder or MAIN_FOLDER_COLUMN, filename), ""
-        except Exception as error:
-            return [], f"it could not be read ({error})"
-
-
 def _refresh_lists():
     """Forgets the folder and file lists so new files show up. Files that were
-    already downloaded stay cached; they are only re-downloaded if they changed."""
+    already downloaded stay in memory; they are only re-downloaded if they changed."""
     _cached_subfolders.clear()
     _cached_file_list.clear()
 
@@ -101,18 +76,15 @@ def _load_scope(scope, subfolders):
     for folder in _folders_for_scope(scope, subfolders):
         files += _cached_file_list(folder)
 
-    def key_of(item):
-        return (item["subfolder"], item["name"], item["modified"])
-
-    # Only show a progress bar when at least one file is new or changed
-    to_download = [item for item in files if key_of(item) not in _loaded_keys]
+    # Only show a progress bar when at least one file still has to be read
+    # (not on quiet checks, and not when the background warm-up got there first)
+    to_download = [i for i in files if not is_loaded(i["subfolder"], i["name"], i["modified"])]
     progress = st.progress(0.0, text="Reading Excel files from SharePoint...") if to_download else None
 
     rows, skipped, files_read = [], [], 0
     for index, item in enumerate(files):
         try:
-            file_rows, error = _cached_file_rows(item["subfolder"], item["name"], item["modified"])
-            _loaded_keys.add(key_of(item))
+            file_rows, error = get_file_rows(item["subfolder"], item["name"], item["modified"])
         except Exception as network_error:
             file_rows, error = [], f"it could not be downloaded ({network_error})"
 
