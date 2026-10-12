@@ -47,23 +47,33 @@ h3 { color: #1E3A8A !important; }
 .st-key-view_switch label p { color: #1e293b !important; font-weight: 700 !important; }
 .st-key-view_switch label:has(input:checked) p { color: #ffffff !important; }
 
-/* Analytics Dashboard */
+/* Analytics Dashboard: the page background is light, so text must be dark */
 .st-key-analytics p, .st-key-analytics li, .st-key-analytics label, .st-key-analytics summary,
 .st-key-analytics h4, .st-key-analytics div[data-testid="stMetric"] * { color: #1e293b !important; }
 .st-key-analytics h4 { color: #1E3A8A !important; font-weight: 700 !important; margin-top: 1.25rem; }
+/* Streamlit fades ("whitens") content that is being reloaded. Keep the dashboard fully
+   visible while it quietly re-checks SharePoint; the new numbers just replace the old ones. */
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #2F5597; border-radius: 8px; padding: 0.75rem 1rem; }
+/* The chart card: a white card like the header and metric cards, with soft rounded corners.
+   Same white as CHART_BACKGROUND in ui_dashboard.py. overflow:hidden clips the chart to the rounded corners. */
 .st-key-analytics div[data-testid="stVegaLiteChart"], .st-key-analytics div[data-testid="stArrowVegaLiteChart"] { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1rem 1.25rem; overflow: hidden; box-shadow: 0 4px 14px rgba(15,23,42,0.08); }
 .st-key-analytics div[data-testid="stCaptionContainer"] { color: #475569 !important; }
 
-/* Sidebar */
+/* Sidebar (the dashboard's controls): light like the rest of the page, with dark text */
 section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e2e8f0; }
 section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-weight: 800; font-size: 1.05rem; margin: 0.75rem 0 0.5rem 0 !important; }
 section[data-testid="stSidebar"] label p, section[data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
 section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"], section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p { color: #475569 !important; }
 section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
 
-/* Expander fixes */
+/* ------------------------------------------------------------------
+   Text color fixes for Streamlit's white defaults on the light page
+   ------------------------------------------------------------------ */
+
+/* Expander titles (e.g. "How to use the Whiteboard Extractor").
+   Streamlit puts the color on the inner text elements as well as on <summary>,
+   so those are listed too; the arrow icon follows the text color. */
 [data-testid="stExpander"] summary,
 [data-testid="stExpander"] summary p,
 [data-testid="stExpander"] summary span {
@@ -74,6 +84,9 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.
     color: #1E3A8A !important;
     fill: #1E3A8A !important;
 }
+
+/* Expander header: the theme fills it with dark blue, which hid the dark blue title.
+   Keep it transparent, with a very soft gray on hover as feedback. */
 div[data-testid="stExpander"] summary,
 div[data-testid="stExpander"] details summary {
     background-color: transparent !important;
@@ -82,44 +95,54 @@ div[data-testid="stExpander"] summary:hover,
 div[data-testid="stExpander"] details summary:hover {
     background-color: #f8fafc !important;
 }
+/* The block around the header can carry the same dark fill, so it is cleared too */
 div[data-testid="stExpander"] details {
     background-color: transparent !important;
 }
+
+/* Captions (e.g. "3 photo(s) selected", and the small notes under widgets) */
 [data-testid="stCaptionContainer"] p {
     color: #475569 !important;
 }
 
-/* ------------------------------------------------------------------
-   UPDATED: Toggle switch robust targeting
-   ------------------------------------------------------------------ */
+/* Photo source switch ("Upload Local Photos" / "Process from SharePoint"): same look as the view switch */
+.st-key-source_switch { margin-bottom: 1rem; }
+.st-key-source_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
+.st-key-source_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
+.st-key-source_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
+.st-key-source_switch label p { color: #1e293b !important; font-weight: 700 !important; }
+.st-key-source_switch label:has(input:checked) p { color: #ffffff !important; }
 
-/* 1. The Track (Off State) */
-div[data-testid="stToggle"] div[data-baseweb="track"] {
-    background-color: #cbd5e1 !important; 
+/* Toggle switch (e.g. "Exclude 'Unknown' locations"): the track is the first box inside
+   the label and the slider circle is the box inside the track. The state comes from the
+   hidden checkbox, read with :has(). */
+[data-testid="stToggle"] label > div:first-child,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child {
+    background-color: #cbd5e1 !important;      /* off */
     border: 1px solid #94a3b8 !important;
     transition: background-color 0.15s ease !important;
 }
-
-/* 2. The Track (On State) */
-div[data-testid="stToggle"] label:has(input:checked) div[data-baseweb="track"] {
-    background-color: #1E3A8A !important;
+[data-testid="stToggle"] label:has(input:checked) > div:first-child,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+    background-color: #1E3A8A !important;      /* on */
     border-color: #1E3A8A !important;
 }
-
-/* 3. The Slider Circle / Thumb */
-div[data-testid="stToggle"] div[data-baseweb="track"] > div {
+/* The slider circle: white with a border and soft shadow so it stands out on either track color */
+[data-testid="stToggle"] label > div:first-child > div,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child > div {
     background-color: #ffffff !important;
     border: 1px solid #94a3b8 !important;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
 }
-
-/* 4. Toggle Text */
+/* Toggle text (its label), in case it falls back to the theme's white */
 [data-testid="stToggle"] label p {
     color: #1e293b !important;
     font-weight: 600 !important;
 }
 
-/* "Save settings" box */
+/* "Save settings" box: its title is a plain <p class="panel-title"> that no rule styled,
+   so it fell back to the theme's white text. The box also gets a white card look
+   like the other panels. */
 .panel-title,
 .st-key-save_settings .panel-title {
     color: #1E3A8A !important;
