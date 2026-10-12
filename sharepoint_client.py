@@ -9,6 +9,9 @@ Files can be saved straight into the landing folder, or into a subfolder of
 it. Subfolders can be listed and created from here, so people can group
 their batches (for example one folder per project or per month).
 
+Whiteboard photos that coworkers put in those folders can also be listed
+(list_image_files) and read straight into memory (download_file_to_bytes).
+
 Required Streamlit secrets (set in Streamlit Cloud > Settings > Secrets):
     SHAREPOINT_TENANT_ID
     SHAREPOINT_CLIENT_ID
@@ -41,6 +44,9 @@ SIMPLE_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
 CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 
 XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Photo types the app can read (matched ignoring capitals)
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 # Writing to the same file again very soon after the previous write can get a
 # transient "423 Locked" while SharePoint finishes processing that previous
@@ -245,6 +251,127 @@ def list_xlsx_files(subfolder=""):
     return sorted(files, key=lambda f: f["name"].lower())
 
 
+def list_image_files(subfolder=""):
+    """Returns the photos (.jpg, .jpeg, .png) directly inside the landing folder
+    (subfolder="") or inside one subfolder of it, sorted A-Z by name.
+
+    Each item: {"name", "modified", "size", "subfolder"}. Sub-folders are not
+    searched, and only items with a "file" facet count (folders have a "folder"
+    facet instead). Returns an empty list if the folder doesn't exist."""
+    site_id = _get_site_id()
+    encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
+    select = "$select=name,size,lastModifiedDateTime,file&$top=200"
+    if encoded:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?{select}"
+    else:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children?{select}"
+
+    files = []
+    while url:
+        token = _get_access_token()
+        response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        data = response.json()
+        for item in data.get("value", []):
+            name = item.get("name", "")
+            if "file" not in item:
+                continue  # a folder
+            if not name.lower().endswith(IMAGE_EXTENSIONS):
+                continue
+            files.append({
+                "name": name,
+                "modified": item.get("lastModifiedDateTime", ""),
+                "size": item.get("size", 0),
+                "subfolder": subfolder,
+            })
+        url = data.get("@odata.nextLink")  # more pages, if there are many files
+    return sorted(files, key=lambda f: f["name"].lower())
+
+
+# ---------------------------------------------------------------------------
+# Browsing ANY folder of the document library (for photos that live outside the landing folder)
+# ---------------------------------------------------------------------------
+
+# Safety stop for "include subfolders": never walk more folders than this
+MAX_RECURSIVE_FOLDERS = 300
+
+
+def _children_url(segments, select):
+    """Graph URL for the children of the folder at `segments` (a list of folder
+    names counted from the top of the document library; [] = the top itself)."""
+    site_id = _get_site_id()
+    encoded = _encode_folder_path(segments)
+    if encoded:
+        return f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?{select}"
+    return f"{GRAPH_BASE}/sites/{site_id}/drive/root/children?{select}"
+
+
+def _iter_children(segments, select):
+    """Yields every child item of a folder, following all result pages.
+    Yields nothing if the folder doesn't exist."""
+    url = _children_url(segments, select)
+    while url:
+        token = _get_access_token()
+        response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        if response.status_code == 404:
+            return
+        response.raise_for_status()
+        data = response.json()
+        for item in data.get("value", []):
+            yield item
+        url = data.get("@odata.nextLink")
+
+
+def list_folders_at(segments):
+    """Names of the folders directly inside the folder at `segments`
+    (counted from the top of the document library), sorted A-Z."""
+    names = [
+        item["name"]
+        for item in _iter_children(list(segments), "$select=name,folder&$top=200")
+        if "folder" in item
+    ]
+    return sorted(names, key=str.lower)
+
+
+def list_images_at(segments, recursive=False):
+    """Photos (.jpg, .jpeg, .png) inside the folder at `segments`, optionally
+    including every folder below it.
+
+    Each item: {"id", "name", "display_name", "folder", "size", "modified"}.
+    "id" is SharePoint's id for the file (use download_item_to_bytes with it);
+    "display_name" is the file name with its subfolder path relative to the starting
+    folder, so two photos called IMG_001.jpg in different folders stay distinguishable.
+    At most MAX_RECURSIVE_FOLDERS folders are walked."""
+    base = list(segments)
+    select = "$select=id,name,size,lastModifiedDateTime,file,folder&$top=200"
+    queue = [base]
+    walked = 0
+    images = []
+    while queue:
+        current = queue.pop(0)
+        walked += 1
+        for item in _iter_children(current, select):
+            name = item.get("name", "")
+            if "folder" in item:
+                if recursive and walked + len(queue) < MAX_RECURSIVE_FOLDERS:
+                    queue.append(current + [name])
+                continue
+            if "file" not in item or not name.lower().endswith(IMAGE_EXTENSIONS):
+                continue
+            relative = current[len(base):]
+            images.append({
+                "id": item["id"],
+                "name": name,
+                "display_name": "/".join(relative + [name]),
+                "folder": "/".join(current),
+                "size": item.get("size", 0),
+                "modified": item.get("lastModifiedDateTime", ""),
+            })
+    return sorted(images, key=lambda i: i["display_name"].lower())
+
+
 # ---------------------------------------------------------------------------
 # Files: download and upload
 # ---------------------------------------------------------------------------
@@ -288,6 +415,61 @@ def download_file(remote_filename, local_path, subfolder=""):
                 time.sleep(2 + attempt * 2)
         except requests.exceptions.RequestException as e:
             # Connection/timeout-type issues: the likely "cold start" case.
+            last_error = e
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+
+    raise last_error
+
+
+def download_file_to_bytes(remote_filename, subfolder=""):
+    """Downloads one file from SharePoint straight into memory and returns its
+    raw bytes, so nothing is written to the local disk. subfolder is the folder
+    inside the landing folder ("" = the landing folder itself).
+
+    Returns None if the file no longer exists there. Raises an exception if the
+    download keeps failing after a few tries."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            token = _get_access_token()
+            site_id = _get_site_id()
+            item_path = _encode_item_path(_remote_folder(subfolder), remote_filename)
+            url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}:/content"
+
+            response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=120)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as e:
+            # HTTP errors and connection/timeout problems alike: try again a couple of times
+            last_error = e
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+
+    raise last_error
+
+
+def download_item_to_bytes(item_id):
+    """Downloads one file straight into memory using SharePoint's id for it (the
+    "id" from list_images_at), so it works for a file in any folder.
+
+    Returns None if the file no longer exists. Raises an exception if the
+    download keeps failing after a few tries."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            token = _get_access_token()
+            site_id = _get_site_id()
+            url = f"{GRAPH_BASE}/sites/{site_id}/drive/items/{quote(item_id, safe='')}/content"
+
+            response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=120)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as e:
             last_error = e
             if attempt < 2:
                 time.sleep(2 + attempt * 2)
