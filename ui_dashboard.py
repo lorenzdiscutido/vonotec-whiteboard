@@ -187,6 +187,16 @@ def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
 
 
+def _light_table(df):
+    """The data table with white rows and dark text. The table is drawn on a canvas, so CSS
+    cannot recolor it; without this it takes the dark blue of the app theme. The header row
+    keeps the theme's dark blue."""
+    try:
+        return df.style.set_properties(**{"background-color": "#ffffff", "color": "#1e293b"})
+    except Exception:  # Styler needs jinja2; fall back to the plain table
+        return df
+
+
 def render_dashboard_controls():
     """The dashboard's controls. Call it inside `with st.sidebar:`. Not a
     fragment: any change here reruns the whole page, so the charts follow."""
@@ -233,6 +243,7 @@ def render_dashboard_controls():
     if df.empty:
         return
 
+    st.divider()  # separates the global controls above from the filters below
     st.markdown('<p class="side-title">Filters</p>', unsafe_allow_html=True)
     st.caption("Leave a filter empty to include everything.")
     st.multiselect("Tower", _sorted_options(df["Tower"]), key=_filter_key("tower", scope))
@@ -322,4 +333,4 @@ def render_analytics_dashboard():
     _chart_section(df, "Floor", "Defects by Floor", hide_unknown)
 
     with st.expander("View the data behind the charts"):
-        st.dataframe(df, hide_index=True)
+        st.dataframe(_light_table(df), hide_index=True)
