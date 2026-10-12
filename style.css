@@ -105,6 +105,33 @@ div[data-testid="stExpander"] details {
     color: #475569 !important;
 }
 
+/* Toggle switch (e.g. "Exclude 'Unknown' locations"): the track is the first box inside
+   the label and the slider circle is the box inside the track. The state comes from the
+   hidden checkbox, read with :has(). */
+[data-testid="stToggle"] label > div:first-child,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child {
+    background-color: #cbd5e1 !important;      /* off */
+    border: 1px solid #94a3b8 !important;
+    transition: background-color 0.15s ease !important;
+}
+[data-testid="stToggle"] label:has(input:checked) > div:first-child,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+    background-color: #1E3A8A !important;      /* on */
+    border-color: #1E3A8A !important;
+}
+/* The slider circle: white with a border and soft shadow so it stands out on either track color */
+[data-testid="stToggle"] label > div:first-child > div,
+div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child > div {
+    background-color: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
+}
+/* Toggle text (its label), in case it falls back to the theme's white */
+[data-testid="stToggle"] label p {
+    color: #1e293b !important;
+    font-weight: 600 !important;
+}
+
 /* "Save settings" box: its title is a plain <p class="panel-title"> that no rule styled,
    so it fell back to the theme's white text. The box also gets a white card look
    like the other panels. */
