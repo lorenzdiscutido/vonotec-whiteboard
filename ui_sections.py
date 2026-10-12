@@ -31,17 +31,42 @@ def init_session_state():
             st.session_state[key] = list(default) if isinstance(default, list) else default
 
 
+# With more messages than this, the list goes into a scrollable box
+RESULTS_BOX_MIN_MESSAGES = 5
+RESULTS_BOX_HEIGHT_PX = 320
+# app.py always ends a batch with two messages ("Batch Complete." and the summary
+# line); they stay outside the box so the outcome is visible without scrolling.
+RESULTS_PINNED_MESSAGES = 2
+
+
+def _show_message(kind, text):
+    if kind == "warning":
+        st.warning(text)
+    elif kind == "error":
+        st.error(text)
+    elif kind == "success":
+        st.success(text)
+    else:
+        st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
+
+
 def show_batch_results():
-    """Shows the messages from the last batch (kept even after the uploader is cleared)."""
-    for kind, text in st.session_state.batch_results:
-        if kind == "warning":
-            st.warning(text)
-        elif kind == "error":
-            st.error(text)
-        elif kind == "success":
-            st.success(text)
-        else:
-            st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
+    """Shows the messages from the last batch (kept even after the uploader is cleared).
+    A long list is shown inside a scrollable box, so it doesn't push the form and the
+    Extract button far down the page."""
+    results = st.session_state.batch_results
+    if len(results) < RESULTS_BOX_MIN_MESSAGES:
+        for kind, text in results:
+            _show_message(kind, text)
+        return
+
+    scrolling = results[:-RESULTS_PINNED_MESSAGES]
+    pinned = results[-RESULTS_PINNED_MESSAGES:]
+    with st.container(height=RESULTS_BOX_HEIGHT_PX, border=True, key="batch_results_box"):
+        for kind, text in scrolling:
+            _show_message(kind, text)
+    for kind, text in pinned:
+        _show_message(kind, text)
 
 
 def status_message(text):
