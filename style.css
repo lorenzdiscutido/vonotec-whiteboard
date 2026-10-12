@@ -21,9 +21,6 @@ div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
 .st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
 div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
 div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
-.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
-.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-.st-key-action_buttons div.stButton { width: auto !important; }
 .st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
 .st-key-clear_photos div.stButton > button:first-child p { color: #FFFFFF !important; }
 .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #EA580C !important; }
@@ -37,11 +34,26 @@ h3 { color: #1E3A8A !important; }
 
 /* File uploader: a light drop zone with a dashed blue border, instead of a heavy dark block.
    (Streamlit has spelled this test id both ways over the years, so both are listed.) */
-div[data-testid="stFileUploaderDropzone"], div[data-testid="stFileUploadDropzone"] { background-color: #f8fafc !important; border: 2px dashed #1E3A8A !important; border-radius: 12px !important; }
-div[data-testid="stFileUploaderDropzone"] span, div[data-testid="stFileUploaderDropzone"] small, div[data-testid="stFileUploaderDropzone"] p, div[data-testid="stFileUploaderDropzone"] svg,
-div[data-testid="stFileUploadDropzone"] span, div[data-testid="stFileUploadDropzone"] small, div[data-testid="stFileUploadDropzone"] p, div[data-testid="stFileUploadDropzone"] svg { color: #475569 !important; fill: #475569 !important; }
-/* ...but keep the Browse/Upload button's own label white on its blue button */
-div[data-testid="stFileUploaderDropzone"] button, div[data-testid="stFileUploaderDropzone"] button *, div[data-testid="stFileUploadDropzone"] button, div[data-testid="stFileUploadDropzone"] button * { color: #ffffff !important; fill: #ffffff !important; }
+/* The app theme (.streamlit/config.toml) is dark blue, and Streamlit paints the drop zone with the theme's
+   "secondary background". These rules are deliberately heavy: every spelling of the test id, plus the
+   <section> element itself, all forced to a light box with a dashed blue border. */
+[data-testid="stFileUploader"] section,
+[data-testid="stFileUploader"] section > div,
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stFileUploadDropzone"] { background-color: #f8fafc !important; background: #f8fafc !important; }
+[data-testid="stFileUploader"] section,
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stFileUploadDropzone"] { border: 2px dashed #1E3A8A !important; border-radius: 12px !important; }
+[data-testid="stFileUploader"] section *,
+[data-testid="stFileUploaderDropzone"] *,
+[data-testid="stFileUploadDropzone"] * { color: #475569 !important; fill: #475569 !important; }
+/* ...but the Browse button keeps its own blue background and white label */
+[data-testid="stFileUploader"] section button,
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="stFileUploadDropzone"] button { background-color: #2F5597 !important; border: none !important; }
+[data-testid="stFileUploader"] section button *,
+[data-testid="stFileUploaderDropzone"] button *,
+[data-testid="stFileUploadDropzone"] button * { color: #ffffff !important; fill: #ffffff !important; }
 
 /* Empty state of the Batch Results column: a white panel like "Save settings" */
 .st-key-empty_batch_results { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
