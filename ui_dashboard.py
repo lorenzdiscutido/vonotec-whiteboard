@@ -37,6 +37,12 @@ CHART_BACKGROUND = "#FFFFFF"
 CHART_TEXT = "#1E293B"         # axis labels and titles
 CHART_GRID = "#E2E8F0"         # soft gridlines behind the bars
 
+# With more bars than this, the x-axis labels are tilted so they don't run into each other
+STRAIGHT_LABELS_MAX_BARS = 6
+
+# The data table is drawn as HTML (see _data_table_html); this many rows at most
+DATA_TABLE_MAX_ROWS = 1000
+
 # Keys of the sidebar widgets, read again by the main area
 SCOPE_KEY = "analytics_scope"
 HIDE_UNKNOWN_KEY = "analytics_hide_unknown"
@@ -120,6 +126,18 @@ def _bar_chart(counts, column):
     the table is already in."""
     import altair as alt  # installed together with Streamlit
 
+    # Few bars: labels stay straight. Many bars: tilt them, and let Vega drop a label
+    # only if it would still collide with its neighbour ("greedy").
+    tilted = len(counts) > STRAIGHT_LABELS_MAX_BARS
+    x_axis = alt.Axis(
+        labelAngle=-45 if tilted else 0,
+        labelAlign="right" if tilted else "center",
+        labelBaseline="top",
+        labelOverlap="greedy",
+        labelLimit=160,
+        labelPadding=6,
+    )
+
     chart = (
         alt.Chart(counts)
         .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
@@ -133,8 +151,7 @@ def _bar_chart(counts, column):
             # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
             x=alt.X(f"{column}:N", sort=list(counts[column]), title=column,
                     scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                    # With many bars the labels would run into each other, so tilt them
-                    axis=alt.Axis(labelAngle=-45 if len(counts) > 12 else 0, labelLimit=120)),
+                    axis=x_axis),
             y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Defects")],
         )
@@ -187,14 +204,17 @@ def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
 
 
-def _light_table(df):
-    """The data table with white rows and dark text. The table is drawn on a canvas, so CSS
-    cannot recolor it; without this it takes the dark blue of the app theme. The header row
-    keeps the theme's dark blue."""
-    try:
-        return df.style.set_properties(**{"background-color": "#ffffff", "color": "#1e293b"})
-    except Exception:  # Styler needs jinja2; fall back to the plain table
-        return df
+def _data_table_html(df):
+    """The data table as plain HTML: a bold dark header and light rows (see .data-table
+    in style.css). st.dataframe draws on a canvas that takes the app theme's dark blue
+    and cannot be recolored with CSS, so this is the way to get a light table."""
+    shown = df.head(DATA_TABLE_MAX_ROWS)
+    table = shown.to_html(
+        index=False, border=0, na_rep="", classes="data-table", escape=True,
+        float_format=lambda value: f"{value:g}",
+    )
+    table = "".join(line.strip() for line in table.splitlines())  # no indentation, so Markdown leaves it alone
+    return f'<div class="data-table-wrap">{table}</div>'
 
 
 def render_dashboard_controls():
@@ -333,4 +353,6 @@ def render_analytics_dashboard():
     _chart_section(df, "Floor", "Defects by Floor", hide_unknown)
 
     with st.expander("View the data behind the charts"):
-        st.dataframe(_light_table(df), hide_index=True)
+        st.markdown(_data_table_html(df), unsafe_allow_html=True)
+        if len(df) > DATA_TABLE_MAX_ROWS:
+            st.caption(f"Showing the first {DATA_TABLE_MAX_ROWS:,} of {len(df):,} defects.")
