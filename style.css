@@ -71,7 +71,9 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.
    Text color fixes for Streamlit's white defaults on the light page
    ------------------------------------------------------------------ */
 
-/* Expander titles */
+/* Expander titles (e.g. "How to use the Whiteboard Extractor").
+   Streamlit puts the color on the inner text elements as well as on <summary>,
+   so those are listed too; the arrow icon follows the text color. */
 [data-testid="stExpander"] summary,
 [data-testid="stExpander"] summary p,
 [data-testid="stExpander"] summary span {
@@ -83,7 +85,8 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.
     fill: #1E3A8A !important;
 }
 
-/* Expander header */
+/* Expander header: the theme fills it with dark blue, which hid the dark blue title.
+   Keep it transparent, with a very soft gray on hover as feedback. */
 div[data-testid="stExpander"] summary,
 div[data-testid="stExpander"] details summary {
     background-color: transparent !important;
@@ -92,16 +95,17 @@ div[data-testid="stExpander"] summary:hover,
 div[data-testid="stExpander"] details summary:hover {
     background-color: #f8fafc !important;
 }
+/* The block around the header can carry the same dark fill, so it is cleared too */
 div[data-testid="stExpander"] details {
     background-color: transparent !important;
 }
 
-/* Captions */
+/* Captions (e.g. "3 photo(s) selected", and the small notes under widgets) */
 [data-testid="stCaptionContainer"] p {
     color: #475569 !important;
 }
 
-/* Photo source switch ("Upload Local Photos" / "Process from SharePoint") */
+/* Photo source switch ("Upload Local Photos" / "Process from SharePoint"): same look as the view switch */
 .st-key-source_switch { margin-bottom: 1rem; }
 .st-key-source_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
 .st-key-source_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
@@ -109,40 +113,41 @@ div[data-testid="stExpander"] details {
 .st-key-source_switch label p { color: #1e293b !important; font-weight: 700 !important; }
 .st-key-source_switch label:has(input:checked) p { color: #ffffff !important; }
 
-/* ------------------------------------------------------------------
-   UPDATED: Toggle switch robust targeting
-   ------------------------------------------------------------------ */
+/* Toggle switch (e.g. "Exclude 'Unknown' locations").
+   The track is the element right after the hidden checkbox input. The second selector in
+   each rule (input[role="switch"]) catches the same input if the wrapper's test id changes. */
 
-/* 1. The Track (Off State) */
-div[data-testid="stToggle"] div[data-baseweb="track"],
-div[data-testid="stToggle"] label > div:first-of-type {
-    background-color: #cbd5e1 !important; 
+/* 1. OFF: light gray track with a darker border */
+div[data-testid="stToggle"] input[type="checkbox"] + div,
+input[role="switch"] + div {
+    background-color: #cbd5e1 !important;
     border: 1px solid #94a3b8 !important;
-    transition: background-color 0.15s ease !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease !important;
 }
 
-/* 2. The Track (On State) */
-div[data-testid="stToggle"] label:has(input:checked) div[data-baseweb="track"],
-div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type {
+/* 2. ON: corporate dark blue track and border */
+div[data-testid="stToggle"] input[type="checkbox"]:checked + div,
+input[role="switch"]:checked + div {
     background-color: #1E3A8A !important;
     border-color: #1E3A8A !important;
 }
 
-/* 3. The Slider Circle / Thumb */
-div[data-testid="stToggle"] div[data-baseweb="track"] > div,
-div[data-testid="stToggle"] label > div:first-of-type > div {
+/* 3. The thumb (sliding circle): white, bordered and softly shadowed so it shows on both track colors */
+div[data-testid="stToggle"] input[type="checkbox"] + div > div,
+input[role="switch"] + div > div {
     background-color: #ffffff !important;
     border: 1px solid #94a3b8 !important;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
 }
-
-/* 4. Toggle Text */
+/* Toggle text (its label), in case it falls back to the theme's white */
 [data-testid="stToggle"] label p {
     color: #1e293b !important;
     font-weight: 600 !important;
 }
 
-/* "Save settings" box */
+/* "Save settings" box: its title is a plain <p class="panel-title"> that no rule styled,
+   so it fell back to the theme's white text. The box also gets a white card look
+   like the other panels. */
 .panel-title,
 .st-key-save_settings .panel-title {
     color: #1E3A8A !important;
