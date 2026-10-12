@@ -79,9 +79,9 @@ def status_message(text):
 # Photo previews
 # ---------------------------------------------------------------------------
 
+PREVIEW_MAX_PHOTOS = 12   # a big batch shows the first few, then "+ N more"
 PREVIEW_COLUMNS = 6       # thumbnails per row
 PREVIEW_PIXELS = 240      # longest side of a thumbnail
-PREVIEW_HEIGHT_PX = 350   # height of the scrollable preview box
 
 
 @st.cache_data(show_spinner=False, max_entries=300)
@@ -103,23 +103,25 @@ def _thumbnail_bytes(name, size, file_id, _data):
 
 
 def render_photo_previews(uploaded_files):
-    """A count and a scrollable grid with a small preview of EVERY selected photo,
-    so people can check they picked the right ones before extracting."""
+    """A count and a grid of small previews of the selected photos, so people can
+    check they picked the right ones before extracting."""
     if not uploaded_files:
         return
 
-    photos = list(uploaded_files)
-    st.caption(f"{len(photos)} photo(s) selected")
-    with st.container(height=PREVIEW_HEIGHT_PX, border=False):
-        for start in range(0, len(photos), PREVIEW_COLUMNS):
-            columns = st.columns(PREVIEW_COLUMNS)
-            for column, photo in zip(columns, photos[start:start + PREVIEW_COLUMNS]):
-                thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
-                with column:
-                    if thumbnail:
-                        st.image(thumbnail)
-                    else:
-                        st.caption("(no preview)")
+    total = len(uploaded_files)
+    st.caption(f"{total} photo(s) selected")
+    shown = list(uploaded_files)[:PREVIEW_MAX_PHOTOS]
+    for start in range(0, len(shown), PREVIEW_COLUMNS):
+        columns = st.columns(PREVIEW_COLUMNS)
+        for column, photo in zip(columns, shown[start:start + PREVIEW_COLUMNS]):
+            thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
+            with column:
+                if thumbnail:
+                    st.image(thumbnail)
+                else:
+                    st.caption("(no preview)")
+    if total > len(shown):
+        st.caption(f"+ {total - len(shown)} more photo(s) not shown here")
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +209,17 @@ def render_action_buttons():
     return extract_clicked, clear_clicked
 
 
+def file_management_title_html(label, folder):
+    """The "File Management" heading: the words stay bold dark blue, while the batch
+    name and folder (which can be long) are lighter slate gray, so they are easy to
+    tell apart and scan. Both are escaped, since they come from what people typed."""
+    folder_note = f' in folder "{html.escape(str(folder))}"' if folder else ""
+    return (
+        '<h3 class="fm-title">File Management '
+        f'<span class="fm-detail">— "{html.escape(str(label))}"{folder_note}</span></h3>'
+    )
+
+
 def render_file_management():
     """Download / delete controls for the file of the last batch."""
     path = st.session_state.last_output_path
@@ -214,9 +227,10 @@ def render_file_management():
         return
 
     st.markdown("<br>", unsafe_allow_html=True)
-    folder = st.session_state.last_output_folder
-    folder_note = f' in folder "{folder}"' if folder else ""
-    st.subheader(f'File Management — "{st.session_state.last_output_label}"{folder_note}')
+    st.markdown(
+        file_management_title_html(st.session_state.last_output_label, st.session_state.last_output_folder),
+        unsafe_allow_html=True,
+    )
 
     col1, col2 = st.columns(2)
     with col1:
