@@ -31,8 +31,11 @@ RATE_WINDOW_SECONDS = 60
 _call_times = collections.deque()
 _rate_lock = threading.Lock()
 
-MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket", "With Film"]
+MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass"]
 SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
+
+# Defect codes that are written on the board WITHOUT a dimension
+NO_DIMENSION_CODES = {"NP", "BG"}
 
 # FIX: Exclude modifiers from VALID_CODES so the script doesn't split "DS CC" into "DS" and "CC"
 VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODIFIERS)
@@ -99,7 +102,7 @@ def _extraction_prompt():
         "3. 'Tower': This is the tower code usually written in blue marker (e.g., 'TOWER 1'). Do not include any name here. Explicitly ignore the words 'RAT' or 'RATS'. If a valid tower number is not clearly written, return an empty string so the system can infer it later. "
         "4. 'Drop': This is the specific number located strictly under the 'DROP' column header. "
         "5. 'Floor': This is the specific number located strictly under the 'FLR' column header. "
-        "6. Materials (Sealant, Concrete, Paint, Gasket, With Film): You MUST extract multiple damage entries as JSON ARRAYS. "
+        "6. Materials (Sealant, Concrete, Paint, Gasket, With Film, Broken Glass): You MUST extract multiple damage entries as JSON ARRAYS. "
         "- Each material gets two keys: '[Material] Damage' and '[Material] Dimension'. Both must be formatted as arrays of strings. "
         "- Example exact JSON output for Sealant:\n"
         "\"Sealant Damage\": [\"DS CC\", \"MS FG\"],\n"
@@ -117,7 +120,9 @@ def _extraction_prompt():
         "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. If they wrote 'Frame', extract it as 'FRAME'. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
-        "NO PAINT (NP) RULE: The defect code 'NP' under Paint has no dimension. Whenever you extract 'NP', you MUST output an empty string \"\" for its matching dimension to keep the 'Paint Damage' and 'Paint Dimension' arrays perfectly aligned. "
+        "NO-DIMENSION RULE: The defect codes 'NP' (under Paint) and 'BG' (under Broken Glass) have no dimension. "
+        "Whenever you extract 'NP' or 'BG', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
+        "Example: \"Broken Glass Damage\": [\"BG\"], \"Broken Glass Dimension\": [\"\"]. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
         f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
@@ -251,11 +256,11 @@ def _normalize_dimensions(parsed_data):
                 blanks = [
                     first_index + idx 
                     for idx, group in enumerate(groups) 
-                    if idx > 0 and group != "NP"
+                    if idx > 0 and group not in NO_DIMENSION_CODES
                 ]
                 
                 if size is None or size.strip() == "" or (size.strip() and not _HAS_DIGIT.search(size)):
-                    if groups[0] != "NP":
+                    if groups[0] not in NO_DIMENSION_CODES:
                         new_dimensions[first_index] = ""
                         blanks = [first_index] + blanks
 
@@ -272,7 +277,7 @@ def _normalize_dimensions(parsed_data):
             else:
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
                 
-                if entry == "NP":
+                if entry in NO_DIMENSION_CODES:
                     new_damages.append(entry)
                     new_dimensions.append("")
                 elif size is None or size.strip() == "" or no_number:
@@ -343,7 +348,7 @@ def find_problems(parsed_data):
             for idx, (d, size) in enumerate(zip(dmg, dim)):
                 if idx in manual_indices.get(mat, ()):
                     continue
-                if str(d).strip() == "NP":
+                if str(d).strip() in NO_DIMENSION_CODES:
                     continue
                 if str(d).strip() and not str(size).strip():
                     problems.append((mat, f"{mat}: '{d}' has no dimension", "structural"))
@@ -356,7 +361,9 @@ def find_problems(parsed_data):
             if tokens[0] not in allowed or any(c not in allowed for c in codes_in_entry):
                 problems.append((mat, f"{mat}: code '{d}' does not belong in the {mat} row", "structural"))
 
-        if len(dim) >= 2:
+        # Identical dimension lists across materials (only when at least one real
+        # dimension is written, so several blank no-dimension entries don't trigger it)
+        if len(dim) >= 2 and any(str(s).strip() for s in dim):
             key = tuple(dim)
             if key in seen_dimension_lists:
                 problems.append((
