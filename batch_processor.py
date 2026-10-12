@@ -93,7 +93,7 @@ def _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
 
         # Best-effort: the data is already saved locally, so a SharePoint hiccup
         # never loses or blocks it. A failed upload is recorded, and the file then
-        # shows up under "Pending Syncs" in the app until it is pushed.
+        # shows up under "Pending syncs" in the app until it is pushed.
         if ENABLE_SHAREPOINT_SYNC:
             synced, _reason = sync_tracker.sync_file(output_path, subfolder)
             if not synced:
@@ -101,7 +101,7 @@ def _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
                     "warning",
                     f"'{uploaded_file.name}' was saved locally, but syncing to SharePoint failed "
                     "just now. It is retried after the next photo, or you can push it yourself "
-                    "from 'Pending Syncs' at the bottom of the page."
+                    "from 'Pending syncs' at the bottom of the page."
                 ))
 
         message = _review_message(uploaded_file.name, parsed_data)
