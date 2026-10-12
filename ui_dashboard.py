@@ -22,6 +22,7 @@ widgets in the sidebar. The two share the widgets' values through st.session_sta
 import streamlit as st
 
 import sharepoint_client
+import ui_components
 from dashboard_data import rows_to_dataframe, apply_filters, count_by, natural_key, UNKNOWN
 from dashboard_loader import get_file_rows, is_loaded
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
@@ -34,11 +35,25 @@ ALL_FILES_LABEL = "Whiteboard Excel Files"
 CHART_COLOR = "#2F5597"
 ACCENT_COLOR = "#F97316"       # orange: marks the "Unknown" bars, so missing data stands out
 CHART_BACKGROUND = "#FFFFFF"
-CHART_TEXT = "#1E293B"         # axis labels and titles
-CHART_GRID = "#E2E8F0"         # soft gridlines behind the bars
+CHART_TEXT = "#64748B"         # axis labels
+CHART_GRID = "#EDF0F4"         # soft gridlines behind the bars
+CHART_FONT = "DM Sans"
 
 # With more bars than this, the x-axis labels are tilted so they don't run into each other
 STRAIGHT_LABELS_MAX_BARS = 6
+
+# One line under each chart title (the design's "Distribution across active levels" style)
+CHART_SUBTITLES = {
+    "Tower": "Distribution across towers",
+    "Material": "Top classifications",
+    "Floor": "Distribution across active levels",
+}
+
+# Column order of the data table: the useful ones first, the long text ones last
+TABLE_COLUMNS = [
+    "Tower", "Floor", "Material", "Defect Code", "Defect Type", "Dimension", "Unit",
+    "Date", "Submitter", "Elevation", "Drop", "Folder", "File",
+]
 
 # The data table is drawn as HTML (see _data_table_html); this many rows at most
 DATA_TABLE_MAX_ROWS = 1000
@@ -140,7 +155,7 @@ def _bar_chart(counts, column):
 
     chart = (
         alt.Chart(counts)
-        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
         .encode(
             # Blue for known values, orange for the "Unknown" bar
             color=alt.condition(
@@ -149,20 +164,21 @@ def _bar_chart(counts, column):
                 alt.value(CHART_COLOR),
             ),
             # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
-            x=alt.X(f"{column}:N", sort=list(counts[column]), title=column,
+            x=alt.X(f"{column}:N", sort=list(counts[column]), title=None,
                     scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
                     axis=x_axis),
-            y=alt.Y("Defects:Q", title="Number of defects", axis=alt.Axis(tickMinStep=1)),
+            y=alt.Y("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1)),
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
         )
         # padding: breathing room between the chart and the rounded card, so nothing touches the edge
         .properties(
-            height=280, width="container", background=CHART_BACKGROUND,
-            padding={"left": 16, "right": 32, "top": 20, "bottom": 16},
+            height=240, width="container", background=CHART_BACKGROUND,
+            padding={"left": 4, "right": 12, "top": 10, "bottom": 4},
         )
+        .configure(font=CHART_FONT)
         .configure_axis(
-            labelColor=CHART_TEXT, titleColor=CHART_TEXT,
-            gridColor=CHART_GRID, domainColor=CHART_TEXT, tickColor=CHART_TEXT,
+            labelColor=CHART_TEXT, labelFontSize=10,
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
         )
         .configure_view(stroke=None)
     )
@@ -170,9 +186,10 @@ def _bar_chart(counts, column):
 
 
 def _chart_section(df, column, title, hide_unknown):
-    """A title and bar chart of the defects per value of `column`. With
-    hide_unknown, the "Unknown" bar is left out (and a note says how many
-    defects that hides), so the real distribution isn't flattened by it."""
+    """A white card with a title, a one-line subtitle, the total, and the bar chart of
+    the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out
+    (and a note says how many defects that hides), so the real distribution isn't
+    flattened by it."""
     counts = count_by(df, column)
     hidden = 0
     if hide_unknown:
@@ -180,15 +197,23 @@ def _chart_section(df, column, title, hide_unknown):
         hidden = int(counts.loc[is_unknown, "Defects"].sum())
         counts = counts[~is_unknown]
 
-    st.markdown(f"#### {title}")
-    if counts.empty:
-        st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
-        return
-    _bar_chart(counts, column)
-    if (counts[column] == UNKNOWN).any():
-        st.caption(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
-    if hidden:
-        st.caption(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
+    total = int(counts["Defects"].sum()) if not counts.empty else 0
+    with st.container(border=True, key=f"chart_{column.lower()}"):
+        st.markdown(
+            '<div class="chart-title"><div>'
+            f'<div class="chart-name">{title}</div>'
+            f'<div class="chart-sub">{CHART_SUBTITLES.get(column, "")}</div>'
+            f'</div><span class="chart-total">{total:,} total</span></div>',
+            unsafe_allow_html=True,
+        )
+        if counts.empty:
+            st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
+            return
+        _bar_chart(counts, column)
+        if (counts[column] == UNKNOWN).any():
+            st.caption(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
+        if hidden:
+            st.caption(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +233,8 @@ def _data_table_html(df):
     """The data table as plain HTML: a bold dark header and light rows (see .data-table
     in style.css). st.dataframe draws on a canvas that takes the app theme's dark blue
     and cannot be recolored with CSS, so this is the way to get a light table."""
-    shown = df.head(DATA_TABLE_MAX_ROWS)
+    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [c for c in df.columns if c not in TABLE_COLUMNS]
+    shown = df[ordered].head(DATA_TABLE_MAX_ROWS)
     table = shown.to_html(
         index=False, border=0, na_rep="", classes="data-table", escape=True,
         float_format=lambda value: f"{value:g}",
@@ -282,7 +308,7 @@ def render_dashboard_controls():
 def render_analytics_dashboard():
     """A fragment: it re-runs by itself every DASHBOARD_REFRESH_SECONDS without
     reloading the rest of the page. It reads the sidebar's choices from st.session_state."""
-    st.subheader("Analytics Dashboard")
+    ui_components.section_heading("Portfolio overview", "Extraction analytics")
 
     if not ENABLE_SHAREPOINT_SYNC:
         st.info("The dashboard reads the Excel files stored in SharePoint, and SharePoint sync is switched off.")
@@ -347,10 +373,10 @@ def render_analytics_dashboard():
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
     tower_col, material_col = st.columns(2, gap="large")
     with tower_col:
-        _chart_section(df, "Tower", "Defects by Tower", hide_unknown)
+        _chart_section(df, "Tower", "Defects by tower", hide_unknown)
     with material_col:
-        _chart_section(df, "Material", "Defects by Material", hide_unknown)
-    _chart_section(df, "Floor", "Defects by Floor", hide_unknown)
+        _chart_section(df, "Material", "Defects by material", hide_unknown)
+    _chart_section(df, "Floor", "Defects by floor", hide_unknown)
 
     with st.expander("View the data behind the charts"):
         st.markdown(_data_table_html(df), unsafe_allow_html=True)
