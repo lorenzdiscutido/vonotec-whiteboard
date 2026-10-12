@@ -229,89 +229,88 @@ form_col, results_col = st.columns([3, 2], gap="large")
 
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
-    st.subheader("Whiteboard Photos")
+    with st.container(key="form_panel"):
+        ui_components.section_heading("Input source", "Whiteboard photos")
 
-    # A radio rather than st.tabs: only the chosen source's code runs on each click.
-    # Without SharePoint sync there is nothing to read from, so only uploading is offered.
-    if ENABLE_SHAREPOINT_SYNC:
-        with st.container(key="source_switch"):
-            source = st.radio(
-                "Photo source", [SOURCE_LOCAL, SOURCE_SHAREPOINT],
-                horizontal=True, label_visibility="collapsed", key="photo_source",
+        # A radio rather than st.tabs: only the chosen source's code runs on each click.
+        # Without SharePoint sync there is nothing to read from, so only uploading is offered.
+        if ENABLE_SHAREPOINT_SYNC:
+            with st.container(key="source_switch"):
+                source = st.radio(
+                    "Photo source", [SOURCE_LOCAL, SOURCE_SHAREPOINT],
+                    horizontal=True, label_visibility="collapsed", key="photo_source",
+                )
+        else:
+            source = SOURCE_LOCAL
+        remote_mode = source == SOURCE_SHAREPOINT
+
+        uploaded_files = []
+        source_path, include_subfolders = [], False
+        if remote_mode:
+            st.caption(
+                "Pick the SharePoint folder that holds the photos, one level at a time: each choice "
+                "opens a selector for the folders inside it. The photos are read directly from "
+                "SharePoint, one at a time. The Excel file is saved to the folder chosen under "
+                "Save settings. The last folder you used is remembered."
             )
-    else:
-        source = SOURCE_LOCAL
-    remote_mode = source == SOURCE_SHAREPOINT
-
-    uploaded_files = []
-    source_path, include_subfolders = [], False
-    if remote_mode:
-        st.caption(
-            "Pick the SharePoint folder that holds the photos, one level at a time: each choice "
-            "opens a selector for the folders inside it. The photos are read directly from "
-            "SharePoint, one at a time. The Excel file is saved to the folder chosen under "
-            "Save settings. The last folder you used is remembered."
-        )
-        source_path, include_subfolders = render_source_browser()
-    else:
-        uploaded_files = st.file_uploader(
-            "Choose whiteboard images...",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            label_visibility="collapsed",
-            key=f"uploader_{st.session_state.uploader_key}",
-        )
-        render_photo_previews(uploaded_files)
-
-    # Suggest a fresh default name each time a new round of photos is selected,
-    # without overwriting what the person is typing in the meantime. It is also
-    # refilled when the Batch name box was dropped (for example after the person
-    # visited the Analytics Dashboard and came back), because Streamlit forgets
-    # the state of widgets that were not drawn in a run.
-    name_was_reset = (
-        st.session_state.get("batch_name_round") != st.session_state.uploader_key
-        or "batch_name_input" not in st.session_state
-    )
-    if name_was_reset:
-        st.session_state.batch_name_round = st.session_state.uploader_key
-        st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
-        # Re-read the folder list each round, so folders other people created show up
-        st.session_state.sp_folders = None
-
-    # "Process from SharePoint": the batch name defaults to the name of the chosen folder.
-    # It is filled in when a folder is chosen (or a new round starts, or the box was
-    # refilled above) and then left alone, so whatever the person types over it is kept
-    # until they pick a different folder.
-    if remote_mode and source_path:
-        folder_marker = (st.session_state.uploader_key, "/".join(source_path))
-        if name_was_reset or st.session_state.get("batch_name_folder_marker") != folder_marker:
-            st.session_state.batch_name_folder_marker = folder_marker
-            st.session_state.batch_name_input = source_path[-1]
-
-    # Where the file goes and what it is called: grouped in a box, side by side
-    with st.container(border=True, key="save_settings"):
-        st.markdown('<p class="panel-title">Save settings</p>', unsafe_allow_html=True)
-        folder_column, name_column = st.columns(2, gap="medium")
-        with folder_column:
-            folder_choice, new_folder_raw = render_folder_picker()
-        with name_column:
-            batch_name_raw = st.text_input(
-                "Batch name",
-                key="batch_name_input",
-                help="This becomes the Excel file name, both here and in SharePoint. "
-                     "With 'Process from SharePoint' it starts as the chosen folder's name, "
-                     "and you can change it.",
+            source_path, include_subfolders = render_source_browser()
+        else:
+            uploaded_files = st.file_uploader(
+                "Choose whiteboard images...",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                label_visibility="collapsed",
+                key=f"uploader_{st.session_state.uploader_key}",
             )
+            render_photo_previews(uploaded_files)
 
-    if remote_mode:
-        with st.container(key="action_buttons"):
-            _spacer, fetch_col = st.columns([1, 1], gap="small")  # empty spacer column pushes the button right
-            with fetch_col:
+        # Suggest a fresh default name each time a new round of photos is selected,
+        # without overwriting what the person is typing in the meantime. It is also
+        # refilled when the Batch name box was dropped (for example after the person
+        # visited the Analytics Dashboard and came back), because Streamlit forgets
+        # the state of widgets that were not drawn in a run.
+        name_was_reset = (
+            st.session_state.get("batch_name_round") != st.session_state.uploader_key
+            or "batch_name_input" not in st.session_state
+        )
+        if name_was_reset:
+            st.session_state.batch_name_round = st.session_state.uploader_key
+            st.session_state.batch_name_input = f"Batch_{datetime.datetime.now().strftime('%Y-%m-%d_%H%M')}"
+            # Re-read the folder list each round, so folders other people created show up
+            st.session_state.sp_folders = None
+
+        # "Process from SharePoint": the batch name defaults to the name of the chosen folder.
+        # It is filled in when a folder is chosen (or a new round starts, or the box was
+        # refilled above) and then left alone, so whatever the person types over it is kept
+        # until they pick a different folder.
+        if remote_mode and source_path:
+            folder_marker = (st.session_state.uploader_key, "/".join(source_path))
+            if name_was_reset or st.session_state.get("batch_name_folder_marker") != folder_marker:
+                st.session_state.batch_name_folder_marker = folder_marker
+                st.session_state.batch_name_input = source_path[-1]
+
+        # Where the file goes and what it is called: grouped in a box, side by side
+        with st.container(border=True, key="save_settings"):
+            ui_components.card_heading("Output preferences", "Save settings")
+            folder_column, name_column = st.columns(2, gap="medium")
+            with folder_column:
+                folder_choice, new_folder_raw = render_folder_picker()
+            with name_column:
+                batch_name_raw = st.text_input(
+                    "Batch name",
+                    key="batch_name_input",
+                    help="This becomes the Excel file name, both here and in SharePoint. "
+                         "With 'Process from SharePoint' it starts as the chosen folder's name, "
+                         "and you can change it.",
+                )
+
+        if remote_mode:
+            with st.container(key="action_buttons"):
                 fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
-        extract_clicked, clear_clicked = False, False
-    else:
-        extract_clicked, clear_clicked = render_action_buttons()
-        fetch_clicked = False
+            extract_clicked, clear_clicked = False, False
+        else:
+            extract_clicked, clear_clicked = render_action_buttons()
+            fetch_clicked = False
 
 if clear_clicked:
     st.session_state.uploader_key += 1
@@ -320,32 +319,32 @@ if clear_clicked:
 
 # --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
 with results_col:
-    st.subheader("Batch Results")
+    with st.container(key="results_panel"):
+        # As soon as new photos are selected, drop the previous batch's messages
+        if uploaded_files:
+            st.session_state.batch_results = []
 
-    # As soon as new photos are selected, drop the previous batch's messages
-    if uploaded_files:
-        st.session_state.batch_results = []
+        badge = ("Complete", "complete") if st.session_state.batch_results else ("Ready", "ready")
+        ui_components.section_heading("Output", "Batch results", badge)
 
-    # Before the first batch there is nothing to show: say so inside a box that
-    # matches the "Save settings" panel, instead of leaving loose text.
-    last_file = st.session_state.last_output_path
-    nothing_to_show = (
-        not st.session_state.batch_results
-        and not extract_clicked
-        and not fetch_clicked
-        and not (last_file and os.path.exists(last_file))
-    )
-    if nothing_to_show:
-        with st.container(key="empty_batch_results"):
-            st.markdown('<p class="panel-title">No batch yet</p>', unsafe_allow_html=True)
-            st.caption("Messages, downloads and sync status appear here once you extract a batch.")
+        # Before the first batch there is nothing to show: say so in a card
+        last_file = st.session_state.last_output_path
+        nothing_to_show = (
+            not st.session_state.batch_results
+            and not extract_clicked
+            and not fetch_clicked
+            and not (last_file and os.path.exists(last_file))
+        )
+        if nothing_to_show:
+            ui_components.render_empty_results()
 
-    show_batch_results()
+        show_batch_results()
 
-    if extract_clicked:
-        start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
-    if fetch_clicked:
-        start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
+        if extract_clicked:
+            start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
+        if fetch_clicked:
+            start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
 
-    render_file_management()
-    render_pending_syncs()
+        render_file_management()
+        render_pending_syncs()
+        ui_components.render_tip()
