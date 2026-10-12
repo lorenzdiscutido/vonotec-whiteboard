@@ -65,7 +65,8 @@ h3 { color: #1e3a8a !important; }
 
 /* ---------- Switches: "Whiteboard Extraction / Analytics Dashboard" and the photo source ---------- */
 .st-key-view_switch { display: flex; justify-content: center; margin-bottom: 18px; }
-.st-key-source_switch { display: flex; justify-content: flex-start; margin: 18px 0 14px; }
+/* More room under the photo source switch, so the helper text below it doesn't feel cramped */
+.st-key-source_switch { display: flex; justify-content: flex-start; margin: 18px 0 1.25rem; }
 .st-key-view_switch > div, .st-key-source_switch > div { width: auto !important; flex: 0 0 auto; }
 .st-key-view_switch [data-testid="stRadio"], .st-key-source_switch [data-testid="stRadio"] { width: auto; }
 .st-key-view_switch div[role="radiogroup"], .st-key-source_switch div[role="radiogroup"] { display: inline-flex; flex-wrap: wrap; gap: 3px !important; padding: 4px; background: #f0f3f6; border-radius: 9px; }
@@ -174,11 +175,11 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 .chart-total { color: #2f5597; font-size: 12px; font-weight: 700; }
 
 /* Data table under "View the data behind the charts" (HTML from ui_dashboard._data_table_html):
-   navy header like the design, light rows */
+   navy header like the design, light rows. Cells have 8px 12px of padding so the text can breathe. */
 .data-table-wrap { max-height: 420px; overflow: auto; background-color: #ffffff; }
 .data-table-wrap table.data-table { width: 100%; border-collapse: collapse; font-size: .78rem; background-color: #ffffff; }
-.data-table-wrap table.data-table th { position: sticky; top: 0; background-color: #1e3a8a !important; color: #ffffff !important; font-weight: 600 !important; text-align: left !important; padding: 9px 14px; border-right: 1px solid rgba(255,255,255,.14); white-space: nowrap; }
-.data-table-wrap table.data-table td { background-color: #ffffff !important; color: #536176 !important; padding: 8px 14px; border-right: 1px solid #edf1f5; border-bottom: 1px solid #edf1f5; white-space: nowrap; }
+.data-table-wrap table.data-table th { position: sticky; top: 0; background-color: #1e3a8a !important; color: #ffffff !important; font-weight: 600 !important; text-align: left !important; padding: 8px 12px; border-right: 1px solid rgba(255,255,255,.14); white-space: nowrap; }
+.data-table-wrap table.data-table td { background-color: #ffffff !important; color: #536176 !important; padding: 8px 12px; border-right: 1px solid #edf1f5; border-bottom: 1px solid #edf1f5; white-space: nowrap; }
 .data-table-wrap table.data-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
 
 /* "Save settings" and other card titles keep the same label-over-title look */
