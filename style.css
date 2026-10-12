@@ -103,22 +103,22 @@ div[data-testid="stExpander"] details {
 
 
 /* ------------------------------------------------------------------
-   Toggle switch (Simple Padded Box Method)
+   Toggle switch (Darker Padded Box Method)
    ------------------------------------------------------------------ */
 
-/* Create a visible, lightly tinted box around the entire toggle component */
+/* Create a darker, visible box around the entire toggle component */
 div[data-testid="stToggle"] {
-    background-color: #f1f5f9 !important; /* Soft gray background */
+    background-color: #e2e8f0 !important; /* Darker slate gray background */
     padding: 12px 16px !important;        /* Breathing room around the switch */
     border-radius: 8px !important;        /* Smooth rounded corners */
-    border: 1px solid #cbd5e1 !important; /* Subtle border so it pops */
+    border: 1px solid #94a3b8 !important; /* Stronger border for high contrast */
     margin-bottom: 0.5rem !important;
 }
 
-/* Ensure the text label stays dark and readable */
+/* Ensure the text label stays bold and completely dark */
 div[data-testid="stToggle"] label p {
-    color: #1e293b !important;
-    font-weight: 600 !important;
+    color: #0f172a !important;            /* Very dark blue/black text */
+    font-weight: 700 !important;          /* Thicker font for readability */
 }
 
 
