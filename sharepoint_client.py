@@ -32,6 +32,7 @@ import requests
 import streamlit as st
 
 from config import SHAREPOINT_HOSTNAME, SHAREPOINT_SITE_NAME, SHAREPOINT_FOLDER_PATH
+from settings import ALLOWED_ROOT_PREFIXES
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
@@ -143,6 +144,15 @@ def _remote_folder(subfolder=""):
 # Subfolders: listing and creating
 # ---------------------------------------------------------------------------
 
+def _is_allowed_root_folder(name):
+    """True if a TOP-LEVEL folder of the document library may be shown: its name
+    must start with one of ALLOWED_ROOT_PREFIXES ("00", "01", "02", "04", "07").
+    An empty ALLOWED_ROOT_PREFIXES allows everything."""
+    if not ALLOWED_ROOT_PREFIXES:
+        return True
+    return name.startswith(tuple(ALLOWED_ROOT_PREFIXES))
+
+
 def sanitize_folder_name(name):
     """Turns what the person typed into a safe SharePoint folder name, or
     None if nothing usable was entered."""
@@ -174,6 +184,9 @@ def list_subfolders():
         # Children that have a "folder" facet are folders; the rest are files
         names += [item["name"] for item in data.get("value", []) if "folder" in item]
         url = data.get("@odata.nextLink")  # more pages, if there are many folders
+    if not _landing_segments():
+        # The landing folder is the top of the library: apply the top-level filter
+        names = [n for n in names if _is_allowed_root_folder(n)]
     return sorted(names, key=str.lower)
 
 
@@ -326,12 +339,16 @@ def _iter_children(segments, select):
 
 def list_folders_at(segments):
     """Names of the folders directly inside the folder at `segments`
-    (counted from the top of the document library), sorted A-Z."""
+    (counted from the top of the document library), sorted A-Z.
+    At the very top of the library only the folders allowed by
+    ALLOWED_ROOT_PREFIXES are returned; deeper folders are never filtered."""
     names = [
         item["name"]
         for item in _iter_children(list(segments), "$select=name,folder&$top=200")
         if "folder" in item
     ]
+    if not segments:
+        names = [n for n in names if _is_allowed_root_folder(n)]
     return sorted(names, key=str.lower)
 
 
@@ -355,7 +372,8 @@ def list_images_at(segments, recursive=False):
         for item in _iter_children(current, select):
             name = item.get("name", "")
             if "folder" in item:
-                if recursive and walked + len(queue) < MAX_RECURSIVE_FOLDERS:
+                top_level_ok = bool(current) or _is_allowed_root_folder(name)
+                if recursive and top_level_ok and walked + len(queue) < MAX_RECURSIVE_FOLDERS:
                     queue.append(current + [name])
                 continue
             if "file" not in item or not name.lower().endswith(IMAGE_EXTENSIONS):
