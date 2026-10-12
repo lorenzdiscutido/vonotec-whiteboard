@@ -3,57 +3,50 @@ div[data-testid="InputInstructions"] {
     display: none !important;
 }
 
-.stApp { background-color: #f4f7f9; }
+/* Top bar: Vonotec blue with white icons (the light theme would make it light gray) */
+header[data-testid="stHeader"] { background-color: #2F5597 !important; }
+header[data-testid="stHeader"] *,
+header[data-testid="stHeader"] svg { color: #ffffff !important; fill: #ffffff !important; }
+
+/* Header card with the logo */
 .header-container { background-color: #ffffff; padding: 20px 24px; border-radius: 14px; box-shadow: 0 4px 14px rgba(15,23,42,0.08); margin-bottom: 24px; }
 .header-flex { display: flex; align-items: center; gap: 20px; }
 .header-flex img { display: block; height: auto; margin: 0; }
 .header-flex > div { display: flex; flex-direction: column; justify-content: center; }
 .main-title { color: #1E3A8A !important; font-weight: 800 !important; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; }
 .sub-title { color: #475569 !important; margin: 4px 0 0 0 !important; padding: 0 !important; line-height: 1.3 !important; font-size: 1rem; }
+h3 { color: #1E3A8A !important; }
+
+/* Buttons: Vonotec blue */
 div.stButton > button:first-child, .stDownloadButton > button:first-child { background-color: #2F5597 !important; color: #ffffff !important; border: none !important; font-weight: 700 !important; padding: 0.75rem 2rem !important; border-radius: 8px !important; width: 100%; box-shadow: 0 2px 6px rgba(47,85,151,0.25); transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
 div.stButton > button:first-child p, .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; }
 div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover { background-color: #1E3A8A !important; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(30,58,138,0.3); }
-.instruction-text { color: #1e293b !important; background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2F5597; margin-bottom: 24px; }
-div[data-testid="stWidgetLabel"] p, div[data-testid="stWidgetLabel"] label, label[data-testid="stWidgetLabel"], .stTextInput label p, .stTextInput label { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
-div[data-testid="stText"], div[data-testid="stText"] p { color: #1e293b !important; font-weight: 600 !important; }
-.status-msg { color: #1e293b !important; font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
-div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
-.st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
-
-/* Action buttons: sit side by side, anchored to the right edge */
-.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
-.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-.st-key-action_buttons div.stButton { width: auto !important; }
-
-div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
-div[data-testid="stAlert"] p, div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] { color: #1e293b !important; }
 .st-key-clear_photos div.stButton > button:first-child { background-color: #F97316 !important; color: #FFFFFF !important; }
 .st-key-clear_photos div.stButton > button:first-child p { color: #FFFFFF !important; }
 .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #EA580C !important; }
 .st-key-start_fresh div.stButton > button:first-child, .st-key-confirm_delete div.stButton > button:first-child { background-color: #DC2626 !important; color: #FFFFFF !important; }
 .st-key-start_fresh div.stButton > button:first-child p, .st-key-confirm_delete div.stButton > button:first-child p { color: #FFFFFF !important; }
 .st-key-start_fresh div.stButton > button:first-child:hover, .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #B91C1C !important; }
-h3 { color: #1E3A8A !important; }
-.stMainBlockContainer div[data-testid="stCaptionContainer"] { color: #475569 !important; }
-.sync-name { color: #1e293b !important; font-weight: 700; margin: 0.35rem 0 0 0 !important; }
-.sync-detail { color: #475569 !important; font-size: 0.9rem; margin: 0 0 0.9rem 0 !important; }
 
-/* File uploader: a light drop zone with a dashed blue border, instead of a heavy dark block.
-   (Streamlit has spelled this test id both ways over the years, so both are listed.) */
-/* The app theme (.streamlit/config.toml) is dark blue, and Streamlit paints the drop zone with the theme's
-   "secondary background". These rules are deliberately heavy: every spelling of the test id, plus the
-   <section> element itself, all forced to a light box with a dashed blue border. */
+/* Action buttons: sit side by side, anchored to the right edge */
+.st-key-action_buttons { margin-top: 0.75rem; margin-bottom: 1rem; }
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+.st-key-action_buttons div.stButton { width: auto !important; }
+
+/* Text blocks and messages */
+.instruction-text { background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2F5597; margin-bottom: 24px; }
+.status-msg { font-weight: 600; margin: 1.25rem 0 1.25rem 0; }
+.sync-name { font-weight: 700; margin: 0.35rem 0 0 0 !important; }
+.sync-detail { color: #475569 !important; font-size: 0.9rem; margin: 0 0 0.9rem 0 !important; }
+div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 5px solid #2F5597 !important; }
+
+/* File uploader: a light drop zone with a dashed blue border and a blue Browse button.
+   (Streamlit has spelled the test id several ways over the years, so all are listed.) */
+div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
 [data-testid="stFileUploader"] section,
-[data-testid="stFileUploader"] section > div,
 [data-testid="stFileUploaderDropzone"],
-[data-testid="stFileUploadDropzone"] { background-color: #f8fafc !important; background: #f8fafc !important; }
-[data-testid="stFileUploader"] section,
-[data-testid="stFileUploaderDropzone"],
-[data-testid="stFileUploadDropzone"] { border: 2px dashed #1E3A8A !important; border-radius: 12px !important; }
-[data-testid="stFileUploader"] section *,
-[data-testid="stFileUploaderDropzone"] *,
-[data-testid="stFileUploadDropzone"] * { color: #475569 !important; fill: #475569 !important; }
-/* ...but the Browse button keeps its own blue background and white label */
+[data-testid="stFileUploadDropzone"] { background-color: #f8fafc !important; border: 2px dashed #1E3A8A !important; border-radius: 12px !important; }
 [data-testid="stFileUploader"] section button,
 [data-testid="stFileUploaderDropzone"] button,
 [data-testid="stFileUploadDropzone"] button { background-color: #2F5597 !important; border: none !important; }
@@ -73,17 +66,21 @@ h3 { color: #1E3A8A !important; }
 .st-key-batch_results_box { background-color: #ffffff; border: 1px solid #cbd5e1 !important; border-radius: 12px !important; padding: 0.25rem 0.5rem; margin-bottom: 1rem; }
 .st-key-batch_results_box .status-msg { margin: 0.5rem 0 !important; }
 
-/* View switch ("Whiteboard Extraction" / "Analytics Dashboard") */
-.st-key-view_switch { margin-bottom: 1rem; }
-.st-key-view_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
-.st-key-view_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
-.st-key-view_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
-.st-key-view_switch label p { color: #1e293b !important; font-weight: 700 !important; }
-.st-key-view_switch label:has(input:checked) p { color: #ffffff !important; }
+/* View switch ("Whiteboard Extraction" / "Analytics Dashboard") and photo source switch:
+   white pills, the chosen one filled Vonotec blue */
+.st-key-view_switch, .st-key-source_switch { margin-bottom: 1rem; }
+.st-key-view_switch div[data-testid="stRadio"] > div,
+.st-key-source_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
+.st-key-view_switch label,
+.st-key-source_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
+.st-key-view_switch label:has(input:checked),
+.st-key-source_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
+.st-key-view_switch label p,
+.st-key-source_switch label p { color: #1e293b !important; font-weight: 700 !important; }
+.st-key-view_switch label:has(input:checked) p,
+.st-key-source_switch label:has(input:checked) p { color: #ffffff !important; }
 
-/* Analytics Dashboard: the page background is light, so text must be dark */
-.st-key-analytics p, .st-key-analytics li, .st-key-analytics label, .st-key-analytics summary,
-.st-key-analytics h4, .st-key-analytics div[data-testid="stMetric"] * { color: #1e293b !important; }
+/* Analytics Dashboard */
 .st-key-analytics h4 { color: #1E3A8A !important; font-weight: 700 !important; margin-top: 1.25rem; }
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #2F5597; border-radius: 8px; padding: 0.5rem 0.75rem; gap: 0 !important; }
@@ -92,176 +89,61 @@ h3 { color: #1E3A8A !important; }
 .st-key-analytics div[data-testid="stMetricLabel"] p { font-size: 0.8rem; line-height: 1.2; }
 .st-key-analytics div[data-testid="stMetricValue"], .st-key-analytics div[data-testid="stMetricValue"] > div { font-size: 1.5rem; line-height: 1.2; }
 .st-key-analytics div[data-testid="stVegaLiteChart"], .st-key-analytics div[data-testid="stArrowVegaLiteChart"] { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1rem 1.25rem; overflow: hidden; box-shadow: 0 4px 14px rgba(15,23,42,0.08); }
-.st-key-analytics div[data-testid="stCaptionContainer"] { color: #475569 !important; }
 
-/* Sidebar (the dashboard's controls): light like the rest of the page, with dark text */
-section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e2e8f0; }
-section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-weight: 800; font-size: 1.05rem; margin: 0.75rem 0 0.5rem 0 !important; }
-section[data-testid="stSidebar"] label p, section[data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p { color: #1e293b !important; font-weight: 600 !important; opacity: 1 !important; }
-section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"], section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p { color: #475569 !important; }
-section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
-
-/* Expander titles */
-[data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary p,
-[data-testid="stExpander"] summary span {
-    color: #1E3A8A !important;
-    font-weight: 600 !important;
-}
-[data-testid="stExpander"] summary svg {
-    color: #1E3A8A !important;
-    fill: #1E3A8A !important;
-}
-
-/* Expander header */
-div[data-testid="stExpander"] summary,
-div[data-testid="stExpander"] details summary {
-    background-color: transparent !important;
-}
-div[data-testid="stExpander"] summary:hover,
-div[data-testid="stExpander"] details summary:hover {
-    background-color: #f8fafc !important;
-}
-div[data-testid="stExpander"] details {
-    background-color: transparent !important;
-}
-
-/* Captions */
-[data-testid="stCaptionContainer"] p {
-    color: #475569 !important;
-}
-
-/* Photo source switch */
-.st-key-source_switch { margin-bottom: 1rem; }
-.st-key-source_switch div[data-testid="stRadio"] > div { gap: 0.5rem !important; flex-wrap: wrap !important; }
-.st-key-source_switch label { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.4rem 1rem !important; cursor: pointer; }
-.st-key-source_switch label:has(input:checked) { background-color: #2F5597; border-color: #2F5597; }
-.st-key-source_switch label p { color: #1e293b !important; font-weight: 700 !important; }
-.st-key-source_switch label:has(input:checked) p { color: #ffffff !important; }
-
-
-/* ------------------------------------------------------------------
-   Form inputs (dropdowns and text boxes): white, dark text, soft gray border.
-   The app theme is dark blue and Streamlit paints these with it, so the rules
-   are deliberately heavy: they are prefixed with .stApp, aimed at every layer
-   of the widget (outer box, inner wrapper, the <input> itself), and use
-   !important. The dropdown's pop-up list is drawn elsewhere on the page, so
-   these rules do not touch it.
-   ------------------------------------------------------------------ */
-.stApp div[data-baseweb="select"] > div,
-.stApp [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-.stApp [data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
-.stApp div[data-baseweb="base-input"],
-.stApp div[data-baseweb="input"],
-.stApp [data-testid="stTextInput"] div[data-baseweb="base-input"],
-.stApp [data-testid="stTextInput"] div[data-baseweb="input"] {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-}
-/* Layers inside the dropdown box must not paint dark on top of the white */
-.stApp div[data-baseweb="select"] > div > div {
-    background-color: transparent !important;
-}
-/* Text typed in a text box, and the selected value shown in a dropdown */
-.stApp [data-testid="stTextInput"] input,
-.stApp div[data-baseweb="base-input"] input,
-.stApp div[data-baseweb="select"] input,
-.stApp div[data-baseweb="select"] div,
-.stApp div[data-baseweb="select"] span {
-    color: #1e293b !important;
-    -webkit-text-fill-color: #1e293b !important;
-    caret-color: #1e293b !important;
-}
-.stApp [data-testid="stTextInput"] input {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-}
-.stApp div[data-baseweb="select"] svg {
-    fill: #475569 !important;
-    color: #475569 !important;
-}
-/* Chosen items in a multi-select (the dashboard filters) stay Vonotec blue with white text */
-.stApp div[data-baseweb="select"] span[data-baseweb="tag"] {
-    background-color: #2F5597 !important;
-}
-.stApp div[data-baseweb="select"] span[data-baseweb="tag"],
-.stApp div[data-baseweb="select"] span[data-baseweb="tag"] * {
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-}
-
-
-/* ------------------------------------------------------------------
-   Data table under "View the data behind the charts" (drawn as HTML by
-   ui_dashboard._data_table_html): bold dark header, light rows.
-   ------------------------------------------------------------------ */
+/* Data table under "View the data behind the charts" (drawn as HTML by
+   ui_dashboard._data_table_html): bold dark header, light rows */
 .data-table-wrap { max-height: 420px; overflow: auto; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; }
 .data-table-wrap table.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; background-color: #ffffff; }
 .data-table-wrap table.data-table th { position: sticky; top: 0; background-color: #e2e8f0 !important; color: #1E3A8A !important; font-weight: 800 !important; text-align: left !important; padding: 8px 10px; border-bottom: 2px solid #94a3b8; white-space: nowrap; }
 .data-table-wrap table.data-table td { background-color: #ffffff !important; color: #1e293b !important; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
 .data-table-wrap table.data-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
 
+/* Sidebar (the dashboard's controls) */
+section[data-testid="stSidebar"] { border-right: 1px solid #e2e8f0; }
+section[data-testid="stSidebar"] .side-title { color: #1E3A8A !important; font-weight: 800; font-size: 1.05rem; margin: 0.75rem 0 0.5rem 0 !important; }
+section[data-testid="stSidebar"] div.stButton > button:first-child { padding: 0.6rem 1rem !important; }
 
-/* ------------------------------------------------------------------
-   Toggle switches ("Include photos from all folders inside this one" and
-   "Exclude 'Unknown' locations"). They are found both by Streamlit's
-   data-testid and by the widget keys (.st-key-...), because the testid
-   differs between Streamlit versions.
-   ------------------------------------------------------------------ */
+/* Expander titles */
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span { color: #1E3A8A !important; font-weight: 600 !important; }
+[data-testid="stExpander"] summary svg { color: #1E3A8A !important; fill: #1E3A8A !important; }
+div[data-testid="stExpander"] summary,
+div[data-testid="stExpander"] details,
+div[data-testid="stExpander"] details summary { background-color: transparent !important; }
+div[data-testid="stExpander"] summary:hover,
+div[data-testid="stExpander"] details summary:hover { background-color: #f8fafc !important; }
 
-/* A darker, visible box around the whole toggle */
+/* Dropdowns and text boxes: with the light theme they are already white, so this only
+   adds the soft gray border and rounded corners, and keeps them white if a Streamlit
+   update changes the default. Chosen items in a multi-select stay Vonotec blue. */
+.stApp div[data-baseweb="select"] > div,
+.stApp div[data-baseweb="base-input"],
+.stApp div[data-baseweb="input"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; }
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"] { background-color: #2F5597 !important; }
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"],
+.stApp div[data-baseweb="select"] span[data-baseweb="tag"] * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+
+/* Toggle switches ("Include photos from all folders inside this one" and
+   "Exclude 'Unknown' locations"): a gray box, a gray track when off, Vonotec blue when on.
+   Found both by data-testid and by widget key, because the testid differs between versions. */
 div[data-testid="stToggle"],
 .st-key-src_recursive,
-.st-key-analytics_hide_unknown {
-    background-color: #e2e8f0 !important;
-    padding: 12px 16px !important;
-    border-radius: 8px !important;
-    border: 1px solid #94a3b8 !important;
-    margin-bottom: 0.5rem !important;
-}
-
-/* Label text: bold and dark */
+.st-key-analytics_hide_unknown { background-color: #e2e8f0 !important; padding: 12px 16px !important; border-radius: 8px !important; border: 1px solid #94a3b8 !important; margin-bottom: 0.5rem !important; }
 div[data-testid="stToggle"] label p,
 .st-key-src_recursive label p,
-.st-key-analytics_hide_unknown label p {
-    color: #0f172a !important;
-    font-weight: 700 !important;
-}
-
-/* The switch track: the app theme is dark, so the default OFF track is nearly
-   white and disappears on the light box. Gray when off, Vonotec blue when on. */
+.st-key-analytics_hide_unknown label p { color: #0f172a !important; font-weight: 700 !important; }
 div[data-testid="stToggle"] label > div:first-of-type,
 .st-key-src_recursive label > div:first-of-type,
-.st-key-analytics_hide_unknown label > div:first-of-type {
-    background-color: #64748b !important;
-    border: 1px solid #475569 !important;
-}
+.st-key-analytics_hide_unknown label > div:first-of-type { background-color: #64748b !important; border: 1px solid #475569 !important; }
 div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type,
 .st-key-src_recursive label:has(input:checked) > div:first-of-type,
-.st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type {
-    background-color: #2F5597 !important;
-    border-color: #1E3A8A !important;
-}
-/* The round knob stays white */
+.st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type { background-color: #2F5597 !important; border-color: #1E3A8A !important; }
 div[data-testid="stToggle"] label > div:first-of-type div,
 .st-key-src_recursive label > div:first-of-type div,
-.st-key-analytics_hide_unknown label > div:first-of-type div {
-    background-color: #ffffff !important;
-}
-
+.st-key-analytics_hide_unknown label > div:first-of-type div { background-color: #ffffff !important; }
 
 /* "Save settings" box */
 .panel-title,
-.st-key-save_settings .panel-title {
-    color: #1E3A8A !important;
-    font-weight: 800 !important;
-    font-size: 1.05rem !important;
-    margin: 0 0 0.5rem 0 !important;
-}
-.st-key-save_settings {
-    background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 12px !important;
-}
+.st-key-save_settings .panel-title { color: #1E3A8A !important; font-weight: 800 !important; font-size: 1.05rem !important; margin: 0 0 0.5rem 0 !important; }
+.st-key-save_settings { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 12px !important; }
