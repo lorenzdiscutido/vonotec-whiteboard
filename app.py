@@ -1,24 +1,29 @@
 # app.py
 """Main flow of the Whiteboard AI web app. Everything else lives in:
-    settings.py         switches and constants
-    file_utils.py       processed-photo log, filename cleanup
-    extraction.py       Gemini reading + review pass
-    excel_writer.py     master Excel file (layout, units, repair formulas)
-    batch_processor.py  the per-photo batch loop
-    ui_sections.py      session state, folder picker, file management, pending syncs
-    sync_tracker.py     remembers which batch files reached SharePoint
-    ui_components.py    CSS and header
-    ui_dashboard.py     the Analytics Dashboard view (charts from the SharePoint Excel files)
-    dashboard_data.py   reads the batch Excel files into a table for the dashboard
-    dashboard_loader.py downloads those files in the background so the dashboard is ready
+    settings.py          switches and constants
+    file_utils.py        processed-photo log, filename cleanup
+    extraction.py        Gemini reading + review pass
+    excel_writer.py      master Excel file (layout, units, repair formulas)
+    batch_processor.py   the per-photo batch loop
+    ui_sections.py       session state, folder picker, file management, pending syncs
+    ui_source_browser.py folder browser for "Process from SharePoint"
+    sync_tracker.py      remembers which batch files reached SharePoint
+    ui_components.py     CSS and header
+    ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
+    dashboard_data.py    reads the batch Excel files into a table for the dashboard
+    dashboard_loader.py  downloads those files in the background so the dashboard is ready
+
+Photos can come from two places: uploaded from this computer, or already sitting in any
+SharePoint folder ("Process from SharePoint"). Both end up in the same batch loop.
 """
 import os
 import datetime
 
 import streamlit as st
 
+import sharepoint_client
 import ui_components
-from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL
+from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
 from file_utils import sanitize_batch_filename
 from batch_processor import run_batch
 from ui_sections import (
@@ -26,11 +31,15 @@ from ui_sections import (
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
 )
+from ui_source_browser import render_source_browser
 from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Whiteboard Extraction"
 VIEW_DASHBOARD = "Analytics Dashboard"
+
+SOURCE_LOCAL = "Upload Local Photos"
+SOURCE_SHAREPOINT = "Process from SharePoint"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
@@ -66,22 +75,40 @@ ui_components.render_instructions()
 init_session_state()
 
 
-def start_batch(batch_name_raw, folder_choice, new_folder_raw):
-    """Validates the form, runs the batch, then stores the messages and resets the uploader."""
-    if not uploaded_files:
-        st.error("Please select at least one photo before extracting.")
-        return
+class RemoteFile:
+    """A photo that lives in SharePoint, shaped like a Streamlit UploadedFile
+    (it has a .name and a .getvalue()). The download happens only when
+    getvalue() is called, so the batch loop fetches one photo at a time and
+    never holds the whole folder in memory. `name` is the file name with its
+    subfolder path, so photos with the same name in different folders are told apart."""
 
+    def __init__(self, name, item_id):
+        self.name = name
+        self.item_id = item_id
+
+    def getvalue(self):
+        data = sharepoint_client.download_item_to_bytes(self.item_id)
+        if data is None:
+            raise FileNotFoundError("it is no longer in SharePoint")
+        return data
+
+
+def _prepare_output(batch_name_raw, folder_choice, new_folder_raw):
+    """Checks the batch name and folder. Returns (filename, subfolder,
+    creating_new_folder, error_message); error_message is None when all is well."""
     filename = sanitize_batch_filename(batch_name_raw)
     if not filename:
-        st.error("Please enter a name for this batch before extracting.")
-        return
-
+        return None, "", False, "Please enter a name for this batch before extracting."
     subfolder, creating_new_folder, error = resolve_subfolder(folder_choice, new_folder_raw)
     if error:
-        st.error(error)
-        return
+        return None, "", False, error
+    return filename, subfolder, creating_new_folder, None
 
+
+def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro=None):
+    """Runs the batch for `files` (uploaded or from SharePoint), then stores the
+    messages and resets the uploader. `intro` is a list of (kind, text) messages
+    to show before the batch's own messages."""
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
     output_path = os.path.join(local_dir, filename)
@@ -103,20 +130,66 @@ def start_batch(batch_name_raw, folder_choice, new_folder_raw):
                 unsafe_allow_html=True,
             )
 
-    outcome = run_batch(uploaded_files, output_path, subfolder, creating_new_folder, on_progress)
+    outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress)
 
     if outcome.created_folder:
         remember_new_folder(subfolder)
 
-    results = outcome.messages
+    results = list(intro or []) + outcome.messages
     results.append(("status", "Batch Complete."))
     results.append((
         "success",
         f"Successfully added {outcome.processed} new file(s). Skipped {outcome.skipped} duplicate(s).",
     ))
     st.session_state.batch_results = results
-    st.session_state.uploader_key += 1  # clears the uploader
+    st.session_state.uploader_key += 1  # clears the uploader and suggests a fresh batch name
     st.rerun()
+
+
+def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
+    """Local photos: validates the form, then runs the batch."""
+    if not files:
+        st.error("Please select at least one photo before extracting.")
+        return
+
+    filename, subfolder, creating_new_folder, error = _prepare_output(
+        batch_name_raw, folder_choice, new_folder_raw
+    )
+    if error:
+        st.error(error)
+        return
+
+    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder)
+
+
+def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders):
+    """SharePoint photos: lists the photos in the folder opened in the browser
+    (and below it, if asked), then runs the batch over them. Each photo is
+    downloaded as the loop reaches it. The Excel file goes to the "Save settings" folder."""
+    filename, subfolder, creating_new_folder, error = _prepare_output(
+        batch_name_raw, folder_choice, new_folder_raw
+    )
+    if error:
+        st.error(error)
+        return
+
+    where = " / ".join(source_path) if source_path else "the top of the document library"
+    try:
+        with st.spinner("Looking for photos in SharePoint..."):
+            images = sharepoint_client.list_images_at(source_path, recursive=include_subfolders)
+    except Exception as e:
+        st.error(f"Could not read that SharePoint folder right now: {e}")
+        return
+
+    if not images:
+        extra = "" if include_subfolders else " Turn on 'Include photos from all folders inside this one' to also look in its subfolders."
+        st.warning(f"No photos (.jpg, .jpeg or .png) were found in {where}.{extra}")
+        return
+
+    files = [RemoteFile(item["display_name"], item["id"]) for item in images]
+    intro = [("status", f"Found {len(files)} photo(s) in {where}"
+                        f"{' and the folders below it' if include_subfolders else ''}.")]
+    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro)
 
 
 # Two columns, like the dashboard uses the full width: the form on the left, and
@@ -124,17 +197,40 @@ def start_batch(batch_name_raw, folder_choice, new_folder_raw):
 # so a long list of messages never pushes the form's buttons down the page.
 form_col, results_col = st.columns([3, 2], gap="large")
 
-# --- LEFT: UPLOADER AND BATCH FORM ---
+# --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
-    st.subheader("Upload Whiteboard Photos")
-    uploaded_files = st.file_uploader(
-        "Choose whiteboard images...",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-        key=f"uploader_{st.session_state.uploader_key}",
-    )
-    render_photo_previews(uploaded_files)
+    st.subheader("Whiteboard Photos")
+
+    # A radio rather than st.tabs: only the chosen source's code runs on each click.
+    # Without SharePoint sync there is nothing to read from, so only uploading is offered.
+    if ENABLE_SHAREPOINT_SYNC:
+        with st.container(key="source_switch"):
+            source = st.radio(
+                "Photo source", [SOURCE_LOCAL, SOURCE_SHAREPOINT],
+                horizontal=True, label_visibility="collapsed", key="photo_source",
+            )
+    else:
+        source = SOURCE_LOCAL
+    remote_mode = source == SOURCE_SHAREPOINT
+
+    uploaded_files = []
+    source_path, include_subfolders = [], False
+    if remote_mode:
+        st.caption(
+            "Browse to the SharePoint folder that holds the photos. They are read directly "
+            "from SharePoint, one at a time. The Excel file is saved to the folder chosen "
+            "under Save settings."
+        )
+        source_path, include_subfolders = render_source_browser()
+    else:
+        uploaded_files = st.file_uploader(
+            "Choose whiteboard images...",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            key=f"uploader_{st.session_state.uploader_key}",
+        )
+        render_photo_previews(uploaded_files)
 
     # Suggest a fresh default name each time a new round of photos is selected,
     # without overwriting what the person is typing in the meantime.
@@ -157,7 +253,13 @@ with form_col:
                 help="This becomes the Excel file name, both here and in SharePoint.",
             )
 
-    extract_clicked, clear_clicked = render_action_buttons()
+    if remote_mode:
+        with st.container(key="action_buttons"):
+            fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
+        extract_clicked, clear_clicked = False, False
+    else:
+        extract_clicked, clear_clicked = render_action_buttons()
+        fetch_clicked = False
 
 if clear_clicked:
     st.session_state.uploader_key += 1
@@ -175,7 +277,9 @@ with results_col:
     show_batch_results()
 
     if extract_clicked:
-        start_batch(batch_name_raw, folder_choice, new_folder_raw)
+        start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
+    if fetch_clicked:
+        start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
 
     render_file_management()
     render_pending_syncs()
