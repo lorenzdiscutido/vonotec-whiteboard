@@ -42,13 +42,21 @@ def render_header():
 
 
 def render_instructions():
-    """The how-to box shown above the uploader (Whiteboard Extraction view only)."""
-    st.markdown(
-        """
-        <div class="instruction-text">
-            Upload one or multiple whiteboard photos below. The AI will automatically extract the data
-            and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    """The how-to text above the uploader (Whiteboard Extraction view only),
+    folded away by default so it doesn't use up the top of the screen."""
+    with st.expander("How to use the Whiteboard Extractor", expanded=False):
+        st.markdown(
+            """
+            <div class="instruction-text">
+                Upload one or multiple whiteboard photos. The AI will automatically extract the data
+                and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
+                <ol>
+                    <li>Add your whiteboard photos (a preview of each appears below the uploader).</li>
+                    <li>Choose the SharePoint folder and give the batch a name. The name becomes the Excel file name.</li>
+                    <li>Click <b>Extract Data &amp; Update Excel</b>.</li>
+                    <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
+                </ol>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
