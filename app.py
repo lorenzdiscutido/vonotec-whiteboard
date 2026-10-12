@@ -305,7 +305,9 @@ with form_col:
 
     if remote_mode:
         with st.container(key="action_buttons"):
-            fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
+            _spacer, fetch_col = st.columns([1, 1], gap="small")  # empty spacer column pushes the button right
+            with fetch_col:
+                fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
         extract_clicked, clear_clicked = False, False
     else:
         extract_clicked, clear_clicked = render_action_buttons()
