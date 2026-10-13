@@ -103,18 +103,13 @@ def render_header(views):
 WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
-def render_stepper(current_step):
+def render_stepper(done, current):
     """A compact "1. Select photos > 2. Save destination > 3. Extract data" line.
-    current_step (1, 2, or 3): Determines state. Never shows steps as done out of sequence."""
+    `done` is the set of finished step numbers (1 to 3) and `current` the step the person
+    is on: finished steps are green with a check, the current one is blue, the rest are muted."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
-        if number < current_step:
-            state = "done"
-        elif number == current_step:
-            state = "current"
-        else:
-            state = "todo"
-        
+        state = "done" if number in done else ("current" if number == current else "todo")
         mark = "&#10003;" if state == "done" else str(number)
         parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
     st.markdown(
@@ -123,14 +118,17 @@ def render_stepper(current_step):
     )
 
 
-def section_heading(eyebrow, title, badge=None, description=None):
-    """A small orange label over a large title. On the right there is an optional
+def section_heading(eyebrow, title, badge=None, step=None, description=None):
+    """A small orange label over a large title. On the right there is either a
     status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete". An optional description goes in a line under the title."""
+    "complete", or a plain step label such as "Step 1 of 2". An optional
+    description goes in a line under the title."""
     right = ""
     if badge:
         text, kind = badge
         right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
+    elif step:
+        right = f'<span class="step-label">{html.escape(step)}</span>'
     desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
         '<div class="section-heading"><div>'
@@ -151,31 +149,27 @@ def subsection_heading(title, description=None):
     )
 
 
-def card_heading(eyebrow, title, icon=_ICON_FILE):
-    """The same label-over-title pair, smaller, for the top of a card. On the right:
-    an optional small icon."""
+def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
+    """The same label-over-title pair, smaller, for the top of a card. On the right: an
+    optional step label such as "Step 2 of 2", then an optional small icon."""
+    step_html = f'<span class="step-label">{html.escape(step)}</span>' if step else ""
     st.markdown(
         '<div class="card-heading"><div>'
         f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
         f'<div class="card-title">{html.escape(title)}</div>'
-        f'</div><div class="card-heading-right">{icon}</div></div>',
+        f'</div><div class="card-heading-right">{step_html}{icon}</div></div>',
         unsafe_allow_html=True,
     )
 
 
 def render_empty_results():
-    """Shown in the Batch results column until the first batch is run. Better utilizes the empty space."""
+    """Shown in the Batch results column until the first batch is run."""
     st.markdown(
         '<div class="sync-card">'
         f'<span class="sync-icon">{_ICON_LAYERS}</span>'
         '<div><strong>Ready to process a new batch</strong>'
-        '<p style="margin-bottom: 6px;">After extraction, you\'ll see:</p>'
-        '<ul style="margin-top: 0; padding-left: 18px; color: #475569; font-size: 12.5px; font-weight: 500;">'
-        '<li>File-level processing status</li>'
-        '<li>Records requiring review</li>'
-        '<li>Generated Excel workbook</li>'
-        '</ul>'
-        '</div></div>',
+        '<p>Messages, downloads and sync status appear here once you extract a batch.</p></div>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
