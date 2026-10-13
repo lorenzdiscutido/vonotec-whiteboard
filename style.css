@@ -27,7 +27,7 @@ header[data-testid="stHeader"] { background: transparent !important; }
 .header-tagline { color: #475569 !important; font-size: 12.5px !important; font-weight: 600 !important; white-space: nowrap; text-align: right; width: 100%; }
 
 /* ---------- Headings & Status Badge (Upgraded Font Thickness & Contrast) ---------- */
-.eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
+.eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .section-heading h2 { margin: 0 !important; padding: 0 !important; color: #0f172a !important; font-size: 23px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; line-height: 1.25 !important; }
 .step-label { color: #475569 !important; font-size: 12px !important; font-weight: 600 !important; }
@@ -35,7 +35,7 @@ header[data-testid="stHeader"] { background: transparent !important; }
 .file-sub { color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; overflow-wrap: anywhere; margin-bottom: 10px; }
 h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 
-.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 20px; color: #475569; background: #ffffff; font-size: 11px; font-weight: 700; }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 20px; color: #475569; background: #ffffff; font-size: 12px; font-weight: 700; }
 .status-badge > span { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
 .status-badge.processing { color: #2f5597; border-color: #cdd9ee; }
 .status-badge.processing > span { background: #2f5597; }
@@ -66,7 +66,7 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 .tip-card { margin-top: 0; padding: 15px; display: flex; gap: 11px; align-items: flex-start; border: 1px solid #f3e3cf; border-radius: 10px; background: #fffaf4; color: #74522b; }
 .tip-icon { flex: 0 0 auto; margin-top: 1px; color: #d97706; }
 .tip-card strong { font-size: 12px !important; font-weight: 700 !important; color: #74522b !important; }
-.tip-card p { margin: 3px 0 0 0; color: #785a37 !important; font-size: 11.5px !important; font-weight: 500 !important; line-height: 1.5; }
+.tip-card p { margin: 3px 0 0 0; color: #785a37 !important; font-size: 12px !important; font-weight: 500 !important; line-height: 1.5; }
 
 /* ---------- Segmented Pill Switchers (Icons + Words, ZERO Radio Circles!) ---------- */
 .st-key-source_mode_switcher, .st-key-photo_source { margin: 0 auto 1.5rem auto !important; width: 100% !important; display: flex !important; justify-content: center !important; }
@@ -153,7 +153,7 @@ div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
 [data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
 [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Drop whiteboard photos here"; color: #1e293b; font-size: 15.5px; font-weight: 700; line-height: 1.5; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { content: "or click to browse from your computer"; color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.5; }
-[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #64748b; font-size: 11px; font-weight: 500; }
+[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #64748b; font-size: 12px; font-weight: 500; }
 
 /* The native [ Upload ] button inside the dropzone: stretched invisibly over the whole box, so there is only ONE visible upload icon (our round one). Only the dropzone's own browse button is targeted, never the delete (x) or pagination buttons of the file chips. */
 [data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploadDropzone"] > button, [data-testid="stFileUploaderDropzone"] button[data-testid="stBaseButton-secondary"] { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; opacity: 0 !important; z-index: 1 !important; cursor: pointer !important; }
@@ -301,3 +301,19 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .source-subhead-title { color: #0f172a; font-size: 16.5px; font-weight: 600; line-height: 1.3; }
 .source-subhead-desc { margin-top: 3px; color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.4; }
 .st-key-source_mode_switcher, .st-key-photo_source { margin: 0 auto 1.1rem auto !important; }
+
+/* ---------- Typography scale (kept last so it wins): page title 24 bold, section title 20 bold, card/panel title 15.5 bold, body and inputs 14 medium, supporting text 12.5 medium, nothing below 12px ---------- */
+.brand-text { font-size: 24px !important; font-weight: 700 !important; }
+.section-heading h2 { font-size: 20px !important; font-weight: 700 !important; }
+h3 { font-size: 18px !important; font-weight: 700 !important; }
+.card-title, .panel-title, .chart-name, .source-title, .source-subhead-title, .st-key-dashboard_sidebar .side-title, .sync-card strong { color: #1e293b !important; font-size: 15.5px !important; font-weight: 700 !important; line-height: 1.35 !important; }
+[data-testid="stFileUploaderDropzoneInstructions"]::before { color: #1e293b !important; font-size: 15.5px !important; font-weight: 700 !important; }
+.instruction-text, .status-msg, .stApp [data-testid="stSelectbox"] [data-baseweb="select"] div, .stApp [data-testid="stSelectbox"] [data-baseweb="select"] span, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] div, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] span, .stApp [data-testid="stTextInput"] input, .stApp [data-baseweb="select"] input { color: #0f172a !important; font-size: 14px !important; font-weight: 500 !important; }
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { font-size: 14px !important; }
+div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-analytics_hide_unknown label p { font-size: 14px !important; font-weight: 500 !important; }
+.step-label, .file-sub, .sync-card p, .tip-card p, .chart-sub, .source-sub, .source-subhead-desc, .section-desc, .sync-detail, .source-path, .header-tagline, .st-key-analytics div[data-testid="stMetricLabel"] p, .st-key-form_panel p, .st-key-dashboard_sidebar p, [data-testid="stCaptionContainer"] p, [data-testid="stCaptionContainer"] { color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
+.tip-card p { color: #785a37 !important; }
+.tip-card strong, .chart-total, .chart-legend, .status-badge, .source-status, .source-field-label, .eyebrow { font-size: 12.5px !important; }
+[data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #334155 !important; font-size: 12.5px !important; font-weight: 600 !important; }
+[data-testid="stFileUploaderDropzoneInstructions"]::after { color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
+[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; }
