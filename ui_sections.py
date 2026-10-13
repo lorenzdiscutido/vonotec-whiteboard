@@ -14,6 +14,9 @@ import sharepoint_client
 import sync_tracker
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 
+# The one final action, whichever photo source is used
+PROCESS_BUTTON_LABEL = "Process photos"
+
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
     "batch_results": [],
@@ -243,7 +246,7 @@ def render_action_buttons():
         # The first (empty) column is a spacer that pushes both buttons to the right edge
         _spacer, col2, col3 = st.columns([0.6, 1.5, 1], gap="small")
         with col2:
-            extract_clicked = st.button("Extract Data & Update Excel", type="primary", key="extract_data")
+            extract_clicked = st.button(PROCESS_BUTTON_LABEL, type="primary", key="extract_data")
         with col3:
             clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
     return extract_clicked, clear_clicked
