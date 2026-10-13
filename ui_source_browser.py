@@ -97,7 +97,7 @@ def _header_html(connected):
 def _site_box_html():
     return (
         '<div class="source-field"><div class="source-field-label">SharePoint site</div>'
-        f'<div class="source-field-box">{html.escape(SHAREPOINT_SITE_NAME)}</div></div>'
+        f'<div class="source-field-box">{html.escape(SHAREPOINT_SITE_NAME.upper())}</div></div>'
     )
 
 
