@@ -162,6 +162,21 @@ def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
     )
 
 
+# Small icons for the "After extraction, you'll see" preview
+_ICON_PREVIEW_STATUS = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
+)
+_ICON_PREVIEW_REVIEW = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
+)
+_ICON_PREVIEW_FILE = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
+)
+
+
 def render_empty_results():
     """Shown in the Batch results column until the first batch is run."""
     st.markdown(
@@ -169,7 +184,17 @@ def render_empty_results():
         f'<span class="sync-icon">{_ICON_LAYERS}</span>'
         '<div><strong>Ready to process a new batch</strong>'
         '<p>Messages, downloads and sync status appear here once you extract a batch.</p></div>'
-        '</div>',
+        '</div>'
+        '<div class="preview-card">'
+        '<p class="preview-title">After extraction, you\'ll see</p>'
+        '<ul class="preview-list">'
+        f'<li><span class="preview-icon">{_ICON_PREVIEW_STATUS}</span>'
+        '<div><b>File-level status</b><span>Added, skipped or failed, one row per photo</span></div></li>'
+        f'<li><span class="preview-icon preview-icon-warn">{_ICON_PREVIEW_REVIEW}</span>'
+        '<div><b>Records needing review</b><span>Rows highlighted red in Excel, with the reason</span></div></li>'
+        f'<li><span class="preview-icon">{_ICON_PREVIEW_FILE}</span>'
+        '<div><b>Generated Excel workbook</b><span>Download it, or find it in SharePoint</span></div></li>'
+        '</ul></div>',
         unsafe_allow_html=True,
     )
 
