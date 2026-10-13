@@ -175,9 +175,6 @@ div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { b
 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #1e3a8a !important; font-weight: 600 !important; }
 [data-testid="stExpander"] summary svg { color: #1e3a8a !important; fill: #1e3a8a !important; }
 
-section[data-testid="stSidebar"] { background-color: #fbfcfd !important; border-right: 1px solid #e3e9ef; }
-section[data-testid="stSidebar"] .side-title { color: #24324a !important; font-weight: 600; font-size: 15px; margin: .75rem 0 .5rem 0 !important; }
-section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38px; }
 
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { display: grid !important; grid-template-columns: 36px 1fr; column-gap: 12px; align-items: center; padding: 12px 16px; background-color: #ffffff; border: 1px solid #e3e9ef; border-radius: 9px; box-shadow: 0 2px 10px rgba(30,58,138,.025); }
@@ -212,3 +209,15 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div, .stApp [data-testid="stTextInput"] [data-baseweb="input"] > div, .stApp [data-testid="stTextInput"] input { background-color: transparent !important; border: none !important; color: #1e293b !important; font-size: 13px !important; }
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:hover, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover, .stApp [data-testid="stTextInput"] [data-baseweb="input"]:hover { background-color: #e8eef5 !important; border-color: #94a3b8 !important; border-top-color: #94a3b8 !important; border-right-color: #94a3b8 !important; border-bottom-color: #94a3b8 !important; border-left-color: #94a3b8 !important; }
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stTextInput"] [data-baseweb="input"]:focus-within { background-color: #ffffff !important; border-color: #1e3a8a !important; border-top-color: #1e3a8a !important; border-right-color: #1e3a8a !important; border-bottom-color: #1e3a8a !important; border-left-color: #1e3a8a !important; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14) !important; }
+
+/* ---------- Dashboard view: one connected card, controls panel on the left, charts on the right ---------- */
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: hidden !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"], [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"] { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; height: 100% !important; min-width: 0 !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"]:nth-child(1), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"]:nth-child(1) { flex: 0 0 22% !important; width: 22% !important; min-width: 240px !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"]:nth-child(2), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"]:nth-child(2) { flex: 1 1 0 !important; width: auto !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"] > [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) div:has(.st-key-dashboard_sidebar), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) div:has(.st-key-dashboard_main) { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; height: 100% !important; }
+.st-key-dashboard_sidebar { background-color: #fbfcfd !important; border: none !important; border-right: 1px solid #e3e9ef !important; border-radius: 0 !important; padding: 25px 19px !important; height: 100% !important; flex: 1 1 auto !important; }
+.st-key-dashboard_main { background-color: #f7f9fb !important; border: none !important; border-radius: 0 !important; padding: 25px !important; height: 100% !important; flex: 1 1 auto !important; }
+.st-key-dashboard_sidebar .side-title { color: #24324a !important; font-weight: 600; font-size: 15px; margin: .75rem 0 .5rem 0 !important; }
+.st-key-dashboard_sidebar div.stButton > button:first-child { height: 38px; }
+section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stExpandSidebarButton"] { display: none !important; }
