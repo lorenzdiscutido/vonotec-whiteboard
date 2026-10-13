@@ -34,26 +34,26 @@ def _brand_html():
 
 
 def render_header(views):
-    """One white header bar with three parts: the brand on the left, the view switch
-    (a radio, drawn as two pills) in the middle and the tagline on the right.
+    """One white header card with three equal columns: the brand on the left, the view
+    switch (a radio, drawn as two pills) in the middle and the tagline on the right.
     `views` is the list of view names; returns the one that is chosen."""
-    with st.container(key="app_header"):
+    with st.container(key="top_app_header"):
         try:
-            col_brand, col_nav, col_tagline = st.columns([1.2, 1, 1.2], vertical_alignment="center")
+            col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
         except TypeError:  # older Streamlit without vertical_alignment
-            col_brand, col_nav, col_tagline = st.columns([1.2, 1, 1.2])
+            col_left, col_center, col_right = st.columns([1, 1, 1])
 
-        with col_brand:
+        with col_left:
             st.markdown(_brand_html(), unsafe_allow_html=True)
-        with col_nav:
-            with st.container(key="view_switch"):
-                view = st.radio(
-                    "View", views,
-                    horizontal=True, label_visibility="collapsed", key="active_view",
-                )
-        with col_tagline:
+        with col_center:
+            view = st.radio(
+                "View", views,
+                horizontal=True, label_visibility="collapsed", key="nav_view_switcher",
+            )
+        with col_right:
             st.markdown(
-                '<div class="header-tagline">Data Extraction and Master Log Automator</div>',
+                '<div style="text-align: right; color: #64748b; font-size: 12px; font-weight: 500; '
+                'white-space: nowrap;">Data Extraction and Master Log Automator</div>',
                 unsafe_allow_html=True,
             )
     return view
