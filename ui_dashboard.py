@@ -194,17 +194,31 @@ def _bar_chart(counts, column):
         st.altair_chart(chart, theme=None)
 
 
-def _chart_section(df, column, title, hide_unknown, notes_below=False):
-    """A white card with a title, a one-line subtitle, the total, and the bar chart of
-    the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out
-    (and a note says how many defects that hides), so the real distribution isn't
-    flattened by it."""
+def _chart_notes(df, column, hide_unknown):
+    """The short notes that explain a chart: what the orange "Unknown" bar is, and (with
+    hide_unknown) how many defects were left out. They are shown ABOVE the charts, so
+    the reader knows them before looking at the bars."""
     counts = count_by(df, column)
-    hidden = 0
+    notes = []
     if hide_unknown:
         is_unknown = counts[column] == UNKNOWN
         hidden = int(counts.loc[is_unknown, "Defects"].sum())
         counts = counts[~is_unknown]
+        if hidden and not counts.empty:
+            notes.append(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
+    if not counts.empty and (counts[column] == UNKNOWN).any():
+        notes.insert(0, f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
+    return notes
+
+
+def _chart_section(df, column, title, hide_unknown):
+    """A white card with a title, a one-line subtitle, the total, and the bar chart of
+    the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out,
+    so the real distribution isn't flattened by it. (The explanatory notes are drawn
+    above the card, see _chart_notes, so they never change the card's height.)"""
+    counts = count_by(df, column)
+    if hide_unknown:
+        counts = counts[counts[column] != UNKNOWN]
 
     total = int(counts["Defects"].sum()) if not counts.empty else 0
     with st.container(border=True, key=f"chart_{column.lower()}"):
@@ -217,19 +231,8 @@ def _chart_section(df, column, title, hide_unknown, notes_below=False):
         )
         if counts.empty:
             st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
-            return []
+            return
         _bar_chart(counts, column)
-        notes = []
-        if (counts[column] == UNKNOWN).any():
-            notes.append(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
-        if hidden:
-            notes.append(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
-        if not notes_below:
-            for note in notes:
-                st.caption(note)
-    # Side-by-side cards: the notes are drawn under the cards by the caller, so a note in
-    # one card cannot make that card taller than its neighbour.
-    return notes if notes_below else []
 
 
 # ---------------------------------------------------------------------------
@@ -387,11 +390,9 @@ def render_analytics_dashboard():
         return
 
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
-    tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
-    with tower_col:
-        tower_notes = _chart_section(df, "Tower", "Defects by tower", hide_unknown, notes_below=True)
-    with material_col:
-        material_notes = _chart_section(df, "Material", "Defects by material", hide_unknown, notes_below=True)
+    # The notes that explain the charts come first, each above its own card
+    tower_notes = _chart_notes(df, "Tower", hide_unknown)
+    material_notes = _chart_notes(df, "Material", hide_unknown)
     if tower_notes or material_notes:
         note_tower_col, note_material_col = st.columns([1, 1], gap="small")
         with note_tower_col:
@@ -400,6 +401,15 @@ def render_analytics_dashboard():
         with note_material_col:
             for note in material_notes:
                 st.caption(note)
+
+    tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
+    with tower_col:
+        _chart_section(df, "Tower", "Defects by tower", hide_unknown)
+    with material_col:
+        _chart_section(df, "Material", "Defects by material", hide_unknown)
+
+    for note in _chart_notes(df, "Floor", hide_unknown):
+        st.caption(note)
     _chart_section(df, "Floor", "Defects by floor", hide_unknown)
 
     with st.expander("View the data behind the charts"):
