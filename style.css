@@ -43,7 +43,7 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 .status-badge.complete > span { background: #16865b; }
 
 /* ---------- Unified Split-Pane Workspace Card (Zero Gap Between Left & Right Panels, Matching Figma .workspace) ---------- */
-[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: hidden !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: clip !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] { display: flex !important; flex-direction: column !important; align-self: stretch !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] > div, [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"], [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-form_panel), [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-results_panel) { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
 .st-key-form_panel, .st-key-results_panel { flex: 1 1 auto !important; height: 100% !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 30px !important; margin: 0 !important; display: flex !important; flex-direction: column !important; }
@@ -125,7 +125,7 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-confirm_delete div.stButton > button:first-child { background-color: #dc2626 !important; border-color: #dc2626 !important; }
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
-.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
 .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
 .st-key-action_buttons div.stButton { width: auto !important; }
 
@@ -317,3 +317,59 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 [data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #334155 !important; font-size: 12.5px !important; font-weight: 600 !important; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
 [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; }
+
+/* ---------- Workspace upgrade: stepper, Help link, sticky footer, compact batch results ---------- */
+.workflow-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 14px 2px; }
+.wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #94a3b8; }
+.wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 700; color: #94a3b8; background: #ffffff; }
+.wf-current { color: #1e3a8a; }
+.wf-current .wf-num { background: #1e3a8a; border-color: #1e3a8a; color: #ffffff; }
+.wf-done { color: #16865b; }
+.wf-done .wf-num { background: #16865b; border-color: #16865b; color: #ffffff; }
+.wf-arrow { color: #cbd5e1; font-size: 14px; }
+.header-right { display: flex; align-items: center; justify-content: flex-end; gap: 18px; width: 100%; }
+.help-pop { position: relative; flex: 0 0 auto; }
+.help-pop > summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: #1e3a8a; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 7px; user-select: none; }
+.help-pop > summary::-webkit-details-marker { display: none; }
+.help-pop > summary:hover, .help-pop[open] > summary { background: #eef3fb; }
+.help-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 1000; width: 360px; padding: 16px 18px; background: #ffffff; border: 1px solid #e3e9ef; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14); color: #0f172a; font-size: 14px; font-weight: 500; line-height: 1.55; text-align: left; white-space: normal; }
+.help-panel .help-title { color: #1e293b; font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+.help-panel p { margin: 0 0 8px 0; color: #0f172a !important; font-size: 14px !important; }
+.help-panel ol { margin: 0; padding-left: 20px; }
+.help-panel li { margin-bottom: 4px; }
+.st-key-form_panel [data-testid="stElementContainer"]:has(.st-key-action_buttons), .st-key-form_panel div:has(> .st-key-action_buttons) { position: sticky !important; bottom: 0; z-index: 20; background: #ffffff; }
+.st-key-action_buttons { margin: 0 !important; padding: 12px 0 8px 0 !important; border-top: 1px solid #e3e9ef; background: #ffffff; }
+.st-key-action_buttons button:disabled { opacity: 0.45 !important; cursor: not-allowed !important; transform: none !important; box-shadow: none !important; }
+.footer-hint { margin: 6px 0 0 0 !important; color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
+.rs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a; }
+.rs-total { color: #0f172a; }
+.rs-added { color: #16865b; }
+.rs-review { color: #c2570c; }
+.rs-skipped { color: #475569; }
+.rs-failed { color: #dc2626; }
+.rs-sep { color: #cbd5e1; }
+.rs-list { display: flex; flex-direction: column; gap: 6px; }
+.rs-row { background: #ffffff; border: 1px solid #e3e9ef; border-left-width: 3px; border-radius: 8px; padding: 0; }
+.rs-row-added { border-left-color: #16865b; }
+.rs-row-review { border-left-color: #f97316; background: #fffaf5; }
+.rs-row-skipped { border-left-color: #94a3b8; }
+.rs-row-failed { border-left-color: #dc2626; background: #fff7f7; }
+.rs-head { display: flex; align-items: center; gap: 9px; padding: 8px 10px; list-style: none; cursor: default; }
+details.rs-row > summary.rs-head { cursor: pointer; }
+details.rs-row > summary::-webkit-details-marker { display: none; }
+.rs-icon { display: inline-flex; flex: 0 0 auto; }
+.rs-icon.rs-added { color: #16865b; }
+.rs-icon.rs-review { color: #f97316; }
+.rs-icon.rs-skipped { color: #94a3b8; }
+.rs-icon.rs-failed { color: #dc2626; }
+.rs-name { flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a; font-size: 13px; font-weight: 700; }
+.rs-chip { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.rs-chip-added { background: #e8f6ef; color: #16865b; }
+.rs-chip-review { background: #fff0e3; color: #c2570c; }
+.rs-chip-skipped { background: #eef1f5; color: #475569; }
+.rs-chip-failed { background: #fde8e8; color: #dc2626; }
+.rs-reason { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475569; font-size: 12.5px; font-weight: 500; }
+.rs-details { padding: 2px 12px 10px 36px; color: #334155; font-size: 12.5px; font-weight: 500; line-height: 1.5; }
+.rs-details ul { margin: 4px 0 0 0; padding-left: 18px; }
+.rs-line { overflow-wrap: anywhere; margin-bottom: 2px; }
+.st-key-batch_files_box { padding: 2px 4px 2px 0 !important; scrollbar-width: thin; scrollbar-color: #c3cfe0 transparent; }
