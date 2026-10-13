@@ -243,7 +243,7 @@ def render_file_management():
                 xlsx_bytes = None
             if xlsx_bytes is not None:
                 st.download_button(
-                    label="Download workbook",
+                    label="Download master log",
                     data=xlsx_bytes,
                     file_name=os.path.basename(path),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
