@@ -54,8 +54,11 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 .st-key-form_panel p, .st-key-dashboard_sidebar p { color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.55; }
 
 /* ---------- Inner Cards ---------- */
-.st-key-save_settings, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
-.st-key-save_settings { padding: 14px 16px !important; margin-top: 12px !important; }
+.st-key-save_settings, .st-key-save_settings_muted, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
+.st-key-save_settings, .st-key-save_settings_muted { padding: 14px 16px !important; margin-top: 12px !important; }
+/* Step 1 not done yet: Save settings is muted but still editable */
+.st-key-save_settings_muted { opacity: 0.55; background: #f8fafc !important; transition: opacity .2s ease; }
+.st-key-save_settings_muted:hover, .st-key-save_settings_muted:focus-within { opacity: 0.85; }
 .st-key-file_card { padding: 14px 16px !important; margin-top: 18px !important; }
 [class*="st-key-chart_"] { border-radius: 9px !important; box-shadow: 0 2px 10px rgba(30,58,138,.025); padding: 8px 6px 4px; }
 
@@ -320,13 +323,13 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 
 /* ---------- Workspace upgrade: stepper, Help link, sticky footer, compact batch results ---------- */
 .workflow-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 14px 2px; }
-.wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #94a3b8; }
-.wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 700; color: #94a3b8; background: #ffffff; }
+.wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #64748b; }
+.wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #94a3b8; font-size: 12px; font-weight: 700; color: #64748b; background: #ffffff; }
 .wf-current { color: #1e3a8a; }
 .wf-current .wf-num { background: #1e3a8a; border-color: #1e3a8a; color: #ffffff; }
 .wf-done { color: #16865b; }
 .wf-done .wf-num { background: #16865b; border-color: #16865b; color: #ffffff; }
-.wf-arrow { color: #cbd5e1; font-size: 14px; }
+.wf-arrow { color: #94a3b8; font-size: 14px; }
 .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 18px; width: 100%; }
 .help-pop { position: relative; flex: 0 0 auto; }
 .help-pop > summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: #1e3a8a; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 7px; user-select: none; }
@@ -340,7 +343,7 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 .st-key-form_panel [data-testid="stElementContainer"]:has(.st-key-action_buttons), .st-key-form_panel div:has(> .st-key-action_buttons) { position: sticky !important; bottom: 0; z-index: 20; background: #ffffff; }
 .st-key-action_buttons { margin: 0 !important; padding: 12px 0 8px 0 !important; border-top: 1px solid #e3e9ef; background: #ffffff; }
 .st-key-action_buttons button:disabled { opacity: 0.45 !important; cursor: not-allowed !important; transform: none !important; box-shadow: none !important; }
-.footer-hint { margin: 6px 0 0 0 !important; color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
+.footer-hint { margin: 0 0 8px 0 !important; color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
 .rs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a; }
 .rs-total { color: #0f172a; }
 .rs-added { color: #16865b; }
