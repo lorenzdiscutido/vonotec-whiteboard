@@ -128,7 +128,7 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-confirm_delete div.stButton > button:first-child { background-color: #dc2626 !important; border-color: #dc2626 !important; }
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
-.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
 .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
 .st-key-action_buttons div.stButton { width: auto !important; }
 
@@ -273,7 +273,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .st-key-file_card [data-testid="stHorizontalBlock"] { gap: 10px !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
 .st-key-file_card [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
 .st-key-file_card div.stButton, .st-key-file_card .stDownloadButton { width: auto !important; }
-.st-key-extract_data button p::before, .st-key-fetch_folder button p::before { content: ""; display: inline-block; width: 16px; height: 16px; margin-right: 8px; vertical-align: -3px; background-repeat: no-repeat; background-position: center; background-size: contain; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3ZM5 15l.7 2.3L8 18.5l-2.3 1.2L5 22l-.7-2.3L2 18.5l2.3-1.2L5 15Zm14-3 .7 2.3 2.3 1.2-2.3 1.2L19 19l-.7-2.3-2.3-1.2 2.3-1.2L19 12Z'/%3E%3C/svg%3E"); }
+.st-key-extract_data button p::before, .st-key-fetch_folder button p::before, .st-key-extract_data_running button p::before, .st-key-fetch_folder_running button p::before { content: ""; display: inline-block; width: 16px; height: 16px; margin-right: 8px; vertical-align: -3px; background-repeat: no-repeat; background-position: center; background-size: contain; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3ZM5 15l.7 2.3L8 18.5l-2.3 1.2L5 22l-.7-2.3L2 18.5l2.3-1.2L5 15Zm14-3 .7 2.3 2.3 1.2-2.3 1.2L19 19l-.7-2.3-2.3-1.2 2.3-1.2L19 12Z'/%3E%3C/svg%3E"); }
 .chart-legend { display: inline-flex; align-items: center; margin: 8px 0 14px 0 !important; padding: 6px 12px; background: #ffffff; border: 1px solid #e3e9ef; border-radius: 999px; color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; line-height: 1.4; }
 
 /* ---------- Process from SharePoint: folder card ---------- */
@@ -391,3 +391,15 @@ details.rs-row > summary::-webkit-details-marker { display: none; }
 .preview-list li > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .preview-list b { color: #0f172a; font-size: 13px; font-weight: 700; }
 .preview-list span:not(.preview-icon) { color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+
+/* ---------- Action footer: primary action at the right edge, hint right above it ---------- */
+.st-key-action_buttons [data-testid="stElementContainer"]:has(.stButton) { display: flex !important; flex-direction: column !important; align-items: flex-end !important; }
+.st-key-action_buttons .footer-hint { text-align: right; }
+/* While a batch runs the button is disabled but stays readable */
+.st-key-action_buttons .st-key-extract_data_running button:disabled, .st-key-action_buttons .st-key-fetch_folder_running button:disabled { opacity: 0.8 !important; cursor: progress !important; }
+
+/* ---------- Tighter space between the source switch and the SharePoint card ---------- */
+.st-key-form_panel .st-key-source_mode_switcher { margin: 0 auto 0.25rem auto !important; }
+.st-key-form_panel .st-key-photo_source { margin-bottom: 0 !important; }
+.st-key-form_panel [data-testid="stElementContainer"]:has([data-testid="stRadio"]) { margin-bottom: 0 !important; }
+.st-key-source_card { margin: 0 0 8px 0 !important; }
