@@ -150,7 +150,7 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
             progress_bar.progress((index + 1) / total)
         else:
             status_text.markdown(
-                f'<p class="status-msg">Processing image {index + 1} of {total}: {name}</p>',
+                f'<p class="status-msg">Extracting {index + 1} of {total}: {name}</p>',
                 unsafe_allow_html=True,
             )
 
@@ -365,7 +365,12 @@ with results_col:
         if uploaded_files:
             st.session_state.batch_results = []
 
-        badge = ("Complete", "complete") if st.session_state.batch_results else ("Ready", "ready")
+        if extract_clicked or fetch_clicked:
+            badge = ("Extracting", "processing")  # the batch runs further down in this same pass
+        elif st.session_state.batch_results:
+            badge = ("Complete", "complete")
+        else:
+            badge = ("Ready", "ready")
         ui_components.section_heading("Output", "Batch results", badge)
 
         # Before the first batch there is nothing to show: say so in a card
