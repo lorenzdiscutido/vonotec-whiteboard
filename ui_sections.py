@@ -374,7 +374,17 @@ def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, 
     return photos_missing, destination_missing
 
 
-def _process_label(photo_count, remote):
+def _process_label(photo_count, remote, running=False, done=False):
+    """The Extract button's text: "Extracting 24 photos..." while a batch runs, "Extract again"
+    once one has finished, otherwise "Extract 24 photos" (or the generic text before any photo)."""
+    if running:
+        if remote:
+            return "Extracting SharePoint photos\u2026"
+        if photo_count:
+            return f"Extracting {photo_count} photo{'s' if photo_count != 1 else ''}\u2026"
+        return "Extracting\u2026"
+    if done:
+        return "Extract again"
     if remote:
         return f"{PROCESS_VERB} SharePoint photos"  # the count is only known once the folder is listed
     if photo_count:
@@ -382,24 +392,35 @@ def _process_label(photo_count, remote):
     return PROCESS_BUTTON_LABEL
 
 
-def render_action_buttons(photo_count=0, blocked_reason="", remote=False):
+def render_action_buttons(photo_count=0, blocked_reason="", remote=False, running=False, done=False):
     """The sticky action footer (style.css pins it to the bottom of the left panel): the
     Process button, whose text carries the context ("Process 16 photos"), then a lower-emphasis
     Clear button. The Process button is disabled while `blocked_reason` is not empty, and the
-    reason is shown next to it. Returns (process_clicked, clear_clicked)."""
+    reason is shown above it. While `running` is True both buttons are disabled and the Extract
+    button reads "Extracting..."; `done` turns its text into "Extract again".
+    The primary action sits at the right edge, with Clear to its left.
+    Returns (process_clicked, clear_clicked)."""
     with st.container(key="action_buttons"):
-        label = _process_label(photo_count, remote)
+        label = _process_label(photo_count, remote, running, done)
+        process_disabled = bool(blocked_reason) or running
+        # A different key while running lets style.css show the disabled button more clearly
         if blocked_reason:
             st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
         if remote:
-            process_clicked = st.button(label, type="primary", key="fetch_folder", disabled=bool(blocked_reason))
+            process_clicked = st.button(
+                label, type="primary", key="fetch_folder_running" if running else "fetch_folder",
+                disabled=process_disabled,
+            )
             clear_clicked = False
         else:
-            col1, col2 = st.columns(2, gap="small")
-            with col1:
-                process_clicked = st.button(label, type="primary", key="extract_data", disabled=bool(blocked_reason))
-            with col2:
-                clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
+            clear_col, process_col = st.columns(2, gap="small")
+            with clear_col:
+                clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos", disabled=running)
+            with process_col:
+                process_clicked = st.button(
+                    label, type="primary", key="extract_data_running" if running else "extract_data",
+                    disabled=process_disabled,
+                )
     return process_clicked, clear_clicked
 
 
