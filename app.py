@@ -31,7 +31,7 @@ from ui_sections import (
     init_session_state, show_batch_results, render_photo_previews,
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
-    hide_uploader_chrome_if_filled, PROCESS_BUTTON_LABEL,
+    hide_uploader_chrome_if_filled, process_blockers,
 )
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
@@ -80,7 +80,6 @@ if view == VIEW_DASHBOARD:
     render_dashboard_view()
     st.stop()  # nothing below belongs to the dashboard view
 
-ui_components.render_instructions()
 init_session_state()
 
 # Remember where the person left off: on the first run of a session, the "Save into which
@@ -161,7 +160,8 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
         outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress)
     except Exception as e:
         traceback.print_exc()
-        outcome = BatchOutcome(messages=[("error", f"The batch stopped unexpectedly: {e}")])
+        stopped = ("error", f"The batch stopped unexpectedly: {e}")
+        outcome = BatchOutcome(messages=[stopped], notices=[stopped])
 
     if outcome.created_folder:
         remember_new_folder(subfolder)
@@ -173,6 +173,8 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
         f"Successfully added {outcome.processed} new file(s). Skipped {outcome.skipped} duplicate(s).",
     ))
     st.session_state.batch_results = results
+    # The compact Batch results list is drawn from these rows and notices
+    st.session_state.batch_report = {"files": outcome.files, "notices": list(intro or []) + outcome.notices}
 
     # Reset the uploader: a new key means a fresh, empty st.file_uploader (and no previews),
     # and it also suggests a fresh batch name. The right panel keeps showing the results.
@@ -236,6 +238,10 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
 # Two columns, like the dashboard uses the full width: the form on the left, and
 # everything that comes out of it (messages, download, sync status) on the right,
 # so a long list of messages never pushes the form's buttons down the page.
+# The workflow stepper sits above both columns. It is filled in further down, once the
+# form's values are known (a placeholder lets it be drawn at the top after the fact).
+stepper_slot = st.empty()
+
 form_col, results_col = st.columns([3, 2], gap="large")
 
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
@@ -243,7 +249,7 @@ with form_col:
     with st.container(key="form_panel"):
         # Stable heading first: what this step is, then the choice, then the content for that choice.
         ui_components.section_heading(
-            "Input source", "Choose where to import photos from", step="Step 1 of 2",
+            "Input source", "Choose where to import photos from", step="Step 1 of 3",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
 
@@ -308,7 +314,7 @@ with form_col:
 
         # Where the file goes and what it is called: grouped in a box, side by side
         with st.container(border=True, key="save_settings"):
-            ui_components.card_heading("Output preferences", "Save settings", step="Step 2 of 2")
+            ui_components.card_heading("Output preferences", "Save settings", step="Step 2 of 3")
             folder_column, name_column = st.columns(2, gap="medium")
             with folder_column:
                 folder_choice, new_folder_raw = render_folder_picker()
@@ -321,16 +327,29 @@ with form_col:
                          "and you can change it.",
                 )
 
-        # The same final action whichever source was used
-        if remote_mode:
-            with st.container(key="action_buttons"):
-                _spacer, fetch_col = st.columns([2.5, 1.5], gap="small")  # empty spacer column pushes the button right
-                with fetch_col:
-                    fetch_clicked = st.button(PROCESS_BUTTON_LABEL, type="primary", key="fetch_folder")
-            extract_clicked, clear_clicked = False, False
-        else:
-            extract_clicked, clear_clicked = render_action_buttons()
-            fetch_clicked = False
+        # The sticky footer: the same final action whichever source was used. Its text carries
+        # the context ("Process 16 photos") and it stays disabled until everything is valid.
+        photos_missing, destination_missing = process_blockers(
+            len(uploaded_files or []), bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
+        )
+        process_clicked, clear_clicked = render_action_buttons(
+            photo_count=len(uploaded_files or []),
+            blocked_reason=photos_missing or destination_missing,
+            remote=remote_mode,
+        )
+        extract_clicked = process_clicked and not remote_mode
+        fetch_clicked = process_clicked and remote_mode
+
+# Fill the stepper now that the form's state is known: finished steps green, the one in
+# progress blue, the rest muted.
+_done = set()
+if not photos_missing:
+    _done.add(1)
+if not destination_missing:
+    _done.add(2)
+_current = 1 if 1 not in _done else (2 if 2 not in _done else 3)
+with stepper_slot.container():
+    ui_components.render_stepper(_done, _current)
 
 if clear_clicked:
     st.session_state.uploader_key += 1
