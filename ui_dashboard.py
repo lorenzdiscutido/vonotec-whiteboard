@@ -1,5 +1,6 @@
 """The "Analytics Dashboard" tab: charts of defect frequency by Tower, Floor
-and Material, built by reading the batch Excel files straight from SharePoint.
+and Material (with the exact value on each bar), and a table of the total dimension and
+total repair dimension per defect, built by reading the batch Excel files straight from SharePoint.
 
 The Excel files are the source of truth (people correct them there), so the
 charts always reflect the checked data. Each file is downloaded once and kept
@@ -24,7 +25,7 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
-from dashboard_data import rows_to_dataframe, apply_filters, count_by, natural_key, UNKNOWN
+from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
 from dashboard_loader import get_file_rows, is_loaded
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
 
@@ -53,7 +54,7 @@ CHART_SUBTITLES = {
 # Column order of the data table: the useful ones first, the long text ones last
 TABLE_COLUMNS = [
     "Tower", "Floor", "Material", "Defect Code", "Defect Type", "Dimension", "Unit",
-    "Date", "Submitter", "Elevation", "Drop", "Folder", "File",
+    "Repair Dimension", "Repair Unit", "Date", "Submitter", "Elevation", "Drop", "Folder", "File",
 ]
 
 # The data table is drawn as HTML (see _data_table_html); this many rows at most
@@ -141,10 +142,16 @@ def _load_scope(scope, subfolders):
 BAR_MAX_WIDTH = 48
 FEW_BARS_MAX = 8
 
+# The value written above each bar; with more bars than MANY_BARS_MIN it gets smaller so the numbers fit
+VALUE_LABEL_COLOR = "#1E293B"
+VALUE_LABEL_SIZE_FEW = 12
+VALUE_LABEL_SIZE_MANY = 9.5
+MANY_BARS_MIN = 20
+
 
 def _bar_chart(counts, column):
-    """A bar chart of counts (from dashboard_data.count_by), keeping the order
-    the table is already in."""
+    """A bar chart of counts (from dashboard_data.count_by), keeping the order the table is
+    already in. Every bar carries its exact value above it, so nobody has to hover to read it."""
     import altair as alt  # installed together with Streamlit
 
     # Few bars: labels stay straight. Many bars: tilt them, and let Vega drop a label
@@ -158,8 +165,12 @@ def _bar_chart(counts, column):
         labelLimit=160,
         labelPadding=6,
     )
+    # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
+    x = alt.X(f"{column}:N", sort=list(counts[column]), title=None,
+              scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25), axis=x_axis)
+    y = alt.Y("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1))
 
-    chart = (
+    bars = (
         alt.Chart(counts)
         # With only a few categories the bars would stretch into huge blocks, so cap their width
         .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, **({"size": BAR_MAX_WIDTH} if len(counts) <= FEW_BARS_MAX else {}))
@@ -170,17 +181,29 @@ def _bar_chart(counts, column):
                 alt.value(ACCENT_COLOR),
                 alt.value(CHART_COLOR),
             ),
-            # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
-            x=alt.X(f"{column}:N", sort=list(counts[column]), title=None,
-                    scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                    axis=x_axis),
-            y=alt.Y("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1)),
+            x=x,
+            y=y,
             tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
         )
-        # padding: breathing room between the chart and the rounded card, so nothing touches the edge
+    )
+    # The exact value, just above each bar (smaller when there are very many bars)
+    labels = (
+        alt.Chart(counts)
+        .mark_text(
+            align="center", baseline="bottom", dy=-4,
+            fontSize=VALUE_LABEL_SIZE_FEW if len(counts) <= MANY_BARS_MIN else VALUE_LABEL_SIZE_MANY,
+            fontWeight=600, color=VALUE_LABEL_COLOR,
+        )
+        .encode(x=x, y=y, text=alt.Text("Defects:Q", format=",d"))
+    )
+
+    chart = (
+        alt.layer(bars, labels)
+        # padding: breathing room between the chart and the rounded card, so nothing touches the
+        # edge; the top one is larger so the label above the tallest bar is not cut off
         .properties(
             height=220, width="container", background=CHART_BACKGROUND,
-            padding={"left": 4, "right": 12, "top": 10, "bottom": 4},
+            padding={"left": 4, "right": 12, "top": 22, "bottom": 4},
         )
         .configure(font=CHART_FONT)
         .configure_axis(
@@ -194,6 +217,117 @@ def _bar_chart(counts, column):
         st.altair_chart(chart, theme=None, use_container_width=True)  # theme=None keeps the colors above instead of the app theme's
     except TypeError:  # newer Streamlit without use_container_width: the chart already has width="container"
         st.altair_chart(chart, theme=None)
+
+
+# ---------------------------------------------------------------------------
+# Dimensions by defect: total dimension and total repair dimension per defect code
+# ---------------------------------------------------------------------------
+
+def _number_text(value, decimals=2, trim=False):
+    """12345.5 -> '12,345.50' (or '12,345.5' with trim). '' for a missing value."""
+    if value is None or value != value:
+        return ""
+    text = f"{value:,.{decimals}f}"
+    if trim and "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _dimension_cell(value, unit, maximum, css_class, decimals, trim):
+    """A total with its unit and a thin bar under it, as long as the total is compared with the
+    largest one of the same unit (different units are never compared with each other)."""
+    if value is None or value != value:
+        return '<span class="dim-na">&mdash;</span>'
+    width = max(value / maximum * 100, 2) if maximum else 0
+    return (
+        f'<div class="dim-value"><b>{_number_text(value, decimals, trim)}</b>'
+        f'<span class="dim-unit">{html.escape(unit)}</span></div>'
+        f'<div class="dim-track"><div class="dim-bar {css_class}" style="width:{width:.1f}%"></div></div>'
+    )
+
+
+def _largest_by_unit(records, value_key, unit_key):
+    largest = {}
+    for record in records:
+        value = record[value_key]
+        if value is not None and value == value:
+            largest[record[unit_key]] = max(largest.get(record[unit_key], 0), value)
+    return largest
+
+
+def _totals_text(records, value_key, unit_key, decimals, trim):
+    """'123.45 L.M. · 56.78 SQ.M.': the grand total of a column, one figure per unit."""
+    totals = {}
+    for record in records:
+        value = record[value_key]
+        if value is not None and value == value:
+            totals[record[unit_key]] = totals.get(record[unit_key], 0) + value
+    return " \u00b7 ".join(f"{_number_text(total, decimals, trim)} {unit}".strip() for unit, total in totals.items())
+
+
+def _dimension_table_html(records):
+    """The per-defect table as plain HTML (see .dim-table in style.css), written without
+    indentation so Markdown leaves it alone."""
+    board_largest = _largest_by_unit(records, "Total Dimension", "Board Unit")
+    repair_largest = _largest_by_unit(records, "Total Repair Dimension", "Repair Unit")
+    body = ""
+    for record in records:
+        body += (
+            "<tr>"
+            f'<td class="dim-code">{html.escape(str(record["Defect Code"]))}</td>'
+            f'<td>{html.escape(str(record["Defect Type"]))}</td>'
+            f'<td class="dim-count">{record["Defects"]:,}</td>'
+            '<td class="dim-cell">'
+            + _dimension_cell(record["Total Dimension"], record["Board Unit"],
+                              board_largest.get(record["Board Unit"]), "dim-bar-board", 2, True)
+            + '</td><td class="dim-cell">'
+            + _dimension_cell(record["Total Repair Dimension"], record["Repair Unit"],
+                              repair_largest.get(record["Repair Unit"]), "dim-bar-repair", 2, False)
+            + "</td></tr>"
+        )
+    return (
+        '<div class="dim-table-wrap"><table class="dim-table"><thead><tr>'
+        '<th>Defect</th><th>Defect type</th><th class="dim-count">Defects</th>'
+        '<th>Total dimension</th><th>Total repair dimension</th>'
+        f"</tr></thead><tbody>{body}</tbody></table></div>"
+    )
+
+
+def _dimension_section(df):
+    """A card with the total dimension and the total repair dimension of every defect code. A
+    table rather than a chart: the two totals are in different units (CM and L.M., CM\u00b2 and
+    SQ.M.), so one shared axis would compare things that cannot be compared. The thin bars only
+    compare totals that share a unit."""
+    summary = dimension_by_defect(df)
+    records = summary.to_dict("records")
+    repair_total = _totals_text(records, "Total Repair Dimension", "Repair Unit", 2, False)
+
+    with st.container(border=True, key="chart_dimensions"):
+        st.markdown(
+            '<div class="chart-title"><div>'
+            '<div class="chart-name">Dimensions by defect</div>'
+            '<div class="chart-sub">Total dimension and total repair dimension for each defect code</div>'
+            '</div><div style="text-align:right;">'
+            + (f'<span class="chart-total">Repair total: {html.escape(repair_total)}</span>' if repair_total else "")
+            + "</div></div>",
+            unsafe_allow_html=True,
+        )
+        if not records:
+            st.caption("Nothing to show yet.")
+            return
+        st.markdown(_dimension_table_html(records), unsafe_allow_html=True)
+
+        notes = []
+        missing = int(summary["Missing Dimension"].sum())
+        if missing:
+            notes.append(
+                f"{missing:,} defect(s) were written without a dimension, so they add nothing to the totals."
+            )
+        notes.append(
+            "Repair dimensions are read from the Excel files. For a file that was never opened in Excel, "
+            "they are worked out here with the same formulas."
+        )
+        st.caption(" ".join(notes))
 
 
 def _chart_notes(df, hide_unknown):
@@ -451,6 +585,7 @@ def render_analytics_dashboard():
         with material_col:
             _chart_section(df, "Material", "Defects by material", hide_unknown)
         _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+        _dimension_section(df)
 
     # Note about hidden unknown defects
     note = _chart_notes(df, hide_unknown)
