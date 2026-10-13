@@ -79,7 +79,7 @@ def status_message(text):
 # Photo previews
 # ---------------------------------------------------------------------------
 
-PREVIEW_MAX_PHOTOS = 12   # a big batch shows the first few, then "+ N more"
+PREVIEW_SCROLL_HEIGHT = 290  # px: more than one row of thumbnails scrolls inside a box this tall
 PREVIEW_COLUMNS = 6       # thumbnails per row
 PREVIEW_PIXELS = 240      # longest side of a thumbnail
 
@@ -108,20 +108,27 @@ def render_photo_previews(uploaded_files):
     if not uploaded_files:
         return
 
-    total = len(uploaded_files)
-    st.caption(f"{total} photo(s) selected")
-    shown = list(uploaded_files)[:PREVIEW_MAX_PHOTOS]
-    for start in range(0, len(shown), PREVIEW_COLUMNS):
-        columns = st.columns(PREVIEW_COLUMNS)
-        for column, photo in zip(columns, shown[start:start + PREVIEW_COLUMNS]):
-            thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
-            with column:
-                if thumbnail:
-                    st.image(thumbnail)
-                else:
-                    st.caption("(no preview)")
-    if total > len(shown):
-        st.caption(f"+ {total - len(shown)} more photo(s) not shown here")
+    photos = list(uploaded_files)
+    st.caption(f"{len(photos)} photo(s) selected")
+
+    def draw_grid():
+        for start in range(0, len(photos), PREVIEW_COLUMNS):
+            columns = st.columns(PREVIEW_COLUMNS)
+            for column, photo in zip(columns, photos[start:start + PREVIEW_COLUMNS]):
+                thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
+                with column:
+                    if thumbnail:
+                        st.image(thumbnail)
+                    else:
+                        st.caption("(no preview)")
+
+    # Every photo is shown. More than one row scrolls inside a fixed-height box,
+    # so a big batch doesn't make the page endlessly long.
+    if len(photos) > PREVIEW_COLUMNS:
+        with st.container(height=PREVIEW_SCROLL_HEIGHT, border=False, key="thumbnail_scroll_gallery"):
+            draw_grid()
+    else:
+        draw_grid()
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +211,7 @@ def render_action_buttons():
         # The first (empty) column is a spacer that pushes both buttons to the right edge
         _spacer, col2, col3 = st.columns([0.6, 1.5, 1], gap="small")
         with col2:
-            extract_clicked = st.button("Extract Data & Update Excel", type="primary")
+            extract_clicked = st.button("Extract Data & Update Excel", type="primary", key="extract_data")
         with col3:
             clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
     return extract_clicked, clear_clicked
@@ -250,7 +257,7 @@ def render_file_management():
                     type="primary",
                 )
         with col2:
-            if st.button("Delete This Batch File", type="primary", key="start_fresh"):
+            if st.button("Delete batch file", type="primary", key="start_fresh"):
                 st.session_state.confirm_reset = True
                 st.rerun()
 
