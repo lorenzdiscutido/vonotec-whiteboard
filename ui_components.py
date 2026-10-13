@@ -40,18 +40,21 @@ def render_header():
     )
 
 
-def section_heading(eyebrow, title, badge=None):
-    """A small orange label over a large title, with an optional status badge on the
-    right. badge is (text, kind) where kind is "ready", "processing" or "complete"."""
-    badge_html = ""
+def section_heading(eyebrow, title, badge=None, step=None):
+    """A small orange label over a large title. On the right there is either a status
+    badge, badge = (text, kind) with kind "ready", "processing" or "complete", or a plain
+    step label such as "Step 1 of 2"."""
+    right = ""
     if badge:
         text, kind = badge
-        badge_html = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
+        right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
+    elif step:
+        right = f'<span class="step-label">{html.escape(step)}</span>'
     st.markdown(
         '<div class="section-heading"><div>'
         f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
-        f'<div class="section-title">{html.escape(title)}</div>'
-        f'</div>{badge_html}</div>',
+        f'<h2>{html.escape(title)}</h2>'
+        f'</div>{right}</div>',
         unsafe_allow_html=True,
     )
 
