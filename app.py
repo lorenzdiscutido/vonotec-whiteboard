@@ -288,7 +288,7 @@ with form_col:
 
         # Where the file goes and what it is called: grouped in a box, side by side
         with st.container(border=True, key="save_settings"):
-            ui_components.card_heading("Output preferences", "Save settings")
+            ui_components.card_heading("Output preferences", "Save settings", step="Step 2 of 2")
             folder_column, name_column = st.columns(2, gap="medium")
             with folder_column:
                 folder_choice, new_folder_raw = render_folder_picker()
