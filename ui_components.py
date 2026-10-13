@@ -20,6 +20,28 @@ _ICON_FILE = (
 )
 
 
+# The "?" icon of the Help link in the header
+_ICON_HELP = (
+    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>'
+    '<path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9M12 17h.01"/></svg>'
+)
+
+# The how-to text that opens from the Help link. One unbroken string with no indentation or
+# blank lines, so Markdown keeps it as plain HTML.
+_HELP_HTML = (
+    '<div class="help-title">How to use the whiteboard extractor</div>'
+    '<p>Add whiteboard photos from your device or from a SharePoint folder. The AI extracts the data '
+    'and appends it to the Master Excel file.</p>'
+    '<ol>'
+    '<li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>'
+    '<li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>'
+    '<li>Click the <b>Process</b> button.</li>'
+    '<li>Follow the progress, results and download on the right. The <b>Dashboard</b> picks up the new data by itself.</li>'
+    '</ol>'
+)
+
+
 def load_local_css(file_name="style.css"):
     """Injects the external CSS file into the Streamlit app layout and strips non-breaking spaces."""
     css_path = Path(__file__).with_name(file_name)
@@ -68,11 +90,32 @@ def render_header(views):
             )
         with col_right:
             st.markdown(
-                '<div class="header-tagline" style="text-align: right; color: #64748b; font-size: 12px; '
-                'font-weight: 500; white-space: nowrap;">Data Extraction and Master Log Automator</div>',
+                '<div class="header-right">'
+                '<span class="header-tagline">Data Extraction and Master Log Automator</span>'
+                f'<details class="help-pop"><summary>{_ICON_HELP}Help</summary>'
+                f'<div class="help-panel">{_HELP_HTML}</div></details>'
+                '</div>',
                 unsafe_allow_html=True,
             )
     return view
+
+
+WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
+
+
+def render_stepper(done, current):
+    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line.
+    `done` is the set of finished step numbers (1 to 3) and `current` the step the person
+    is on: finished steps are green with a check, the current one is blue, the rest are muted."""
+    parts = []
+    for number, label in enumerate(WORKFLOW_STEPS, start=1):
+        state = "done" if number in done else ("current" if number == current else "todo")
+        mark = "&#10003;" if state == "done" else str(number)
+        parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
+    st.markdown(
+        '<div class="workflow-stepper">' + '<span class="wf-arrow">&rarr;</span>'.join(parts) + '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def section_heading(eyebrow, title, badge=None, step=None, description=None):
