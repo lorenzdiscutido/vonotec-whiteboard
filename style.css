@@ -64,29 +64,110 @@ h3 { color: #1e3a8a !important; }
 .tip-card strong { font-size: 11px; }
 .tip-card p { margin: 3px 0 0 0; color: #8b7359; font-size: 10px; line-height: 1.5; }
 
-/* ---------- Segmented switches: the top view switch and the photo source switch ---------- */
+/* ---------- Segmented switches: the top view switch and the photo source switch ----------
+   Each is an st.radio drawn as pills. The rules target the radio widget itself (it carries the class
+   st-key-<its key>, so they do not depend on the container around it) and also the generic stRadio
+   test id. The two icons per switch are plain background-image data URIs. */
 .st-key-source_mode_switcher { margin: 0 0 1.5rem; }
-.st-key-top_app_header [data-testid="stRadio"],
-.st-key-source_mode_switcher [data-testid="stRadio"] { display: flex !important; justify-content: center !important; width: 100% !important; }
-.st-key-top_app_header [data-testid="stRadio"] > div[role="radiogroup"],
-.st-key-source_mode_switcher [data-testid="stRadio"] > div[role="radiogroup"] { padding: 4px !important; display: inline-flex !important; flex-wrap: wrap; align-items: center !important; justify-content: center !important; gap: 4px !important; background: #f0f3f6 !important; border-radius: 9px !important; margin: 0 auto !important; width: auto !important; }
-/* hide the round radio mark */
-[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child { display: none !important; }
-/* each pill */
-[data-testid="stRadio"] div[role="radiogroup"] > label { position: relative !important; height: 38px !important; padding: 0 18px !important; margin: 0 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; border-radius: 7px !important; background: transparent !important; color: #64748b !important; font-size: 13px !important; font-weight: 600 !important; cursor: pointer !important; transition: all 0.18s ease !important; }
-[data-testid="stRadio"] div[role="radiogroup"] > label p { margin: 0 !important; color: inherit !important; font-size: 13px !important; font-weight: 600 !important; }
-/* only the chosen pill: white card, navy text, orange bar */
-[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) { background: #ffffff !important; color: #1e3a8a !important; box-shadow: 0 2px 7px rgba(30, 41, 59, 0.09) !important; }
-[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p { color: #1e3a8a !important; font-weight: 600 !important; }
-[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::after { content: "" !important; position: absolute !important; right: 14px !important; bottom: 3px !important; left: 14px !important; height: 2px !important; border-radius: 2px !important; background: #f97316 !important; }
+.stApp [data-testid="stRadio"] { display: flex !important; justify-content: center !important; width: 100% !important; }
 
-/* Pill icons (the Figma vectors). Each is a mask filled with the pill's text color, so it is
-   slate when the pill is not chosen and navy when it is. */
-[data-testid="stRadio"] div[role="radiogroup"] > label::before { content: ""; flex: 0 0 17px; width: 17px; height: 17px; display: inline-block; background-color: currentColor; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }
-.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E"); }
-.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E"); }
-.st-key-source_mode_switcher [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); }
-.st-key-source_mode_switcher [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E"); }
+/* Grey pill track */
+.stApp [data-testid="stRadio"] div[role="radiogroup"] {
+    padding: 4px !important;
+    display: inline-flex !important;
+    flex-wrap: wrap;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    background-color: #f0f3f6 !important;
+    border-radius: 9px !important;
+    margin: 0 auto !important;
+    width: auto !important;
+}
+
+/* Hide the native blue radio circle completely */
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child,
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child,
+.stApp [data-testid="stRadio"] input[type="radio"] {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Each pill (inactive) */
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"],
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label {
+    position: relative !important;
+    height: 38px !important;
+    padding: 0 18px !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    border-radius: 7px !important;
+    background-color: transparent !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+    transition: all 0.18s ease !important;
+}
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"] p,
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label p {
+    margin: 0 !important;
+    color: inherit !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+}
+
+/* Chosen pill: white card, shadow, navy text, orange bar underneath */
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked),
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
+    background-color: #ffffff !important;
+    color: #1e3a8a !important;
+    box-shadow: 0 2px 7px rgba(30, 41, 59, 0.09) !important;
+}
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p,
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) span,
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p {
+    color: #1e3a8a !important;
+    font-weight: 600 !important;
+}
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked)::after,
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::after {
+    content: "" !important;
+    position: absolute !important;
+    right: 14px !important;
+    bottom: 3px !important;
+    left: 14px !important;
+    height: 2px !important;
+    border-radius: 2px !important;
+    background-color: #f97316 !important;
+}
+
+/* Icon slot in front of each label */
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]::before,
+.stApp [data-testid="stRadio"] div[role="radiogroup"] > label::before {
+    content: "" !important;
+    flex: 0 0 17px;
+    width: 17px;
+    height: 17px;
+    display: inline-block;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+/* Icons: slate when the pill is not chosen, navy when it is */
+.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
+.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
 
 /* ---------- Buttons ---------- */
 div.stButton > button:first-child, .stDownloadButton > button:first-child { height: 42px; padding: 0 20px !important; background-color: #1e3a8a !important; color: #ffffff !important; border: 1px solid #1e3a8a !important; border-radius: 7px !important; font-weight: 700 !important; width: 100%; box-shadow: 0 4px 10px rgba(30,58,138,.16); transition: background-color .18s ease, transform .18s ease; }
