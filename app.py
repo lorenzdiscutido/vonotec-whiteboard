@@ -35,8 +35,8 @@ from ui_source_browser import render_source_browser
 from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
 
-VIEW_EXTRACTION = "Whiteboard Extraction"
-VIEW_DASHBOARD = "Analytics Dashboard"
+VIEW_EXTRACTION = "Extraction"
+VIEW_DASHBOARD = "Dashboard"
 
 SOURCE_LOCAL = "Upload Local Photos"
 SOURCE_SHAREPOINT = "Process from SharePoint"
@@ -44,23 +44,19 @@ SOURCE_SHAREPOINT = "Process from SharePoint"
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
 ui_components.load_local_css("style.css")
-ui_components.render_header()
+
+# --- HEADER AND VIEW SWITCH ---
+# One header bar: the brand on the left, the Extraction / Dashboard switch in the middle
+# and the tagline on the right. Only the chosen view's code runs on each click (a radio
+# rather than st.tabs, which would run every tab and make the dashboard read SharePoint
+# while someone is extracting photos).
+view = ui_components.render_header([VIEW_EXTRACTION, VIEW_DASHBOARD])
 
 # --- DASHBOARD DATA ---
 # Start reading the Excel files for the dashboard in the background right away, in
 # whichever view the person opened, so the charts are ready when they click over.
 # It never blocks the page, and does nothing if one is already running or ran recently.
 start_warmup_if_due()
-
-# --- VIEW SWITCH ---
-# Streamlit runs the code of every st.tabs() tab on each click, which would
-# make the dashboard read SharePoint while someone is extracting photos. A
-# radio that only runs the chosen view avoids that.
-with st.container(key="view_switch"):
-    view = st.radio(
-        "View", [VIEW_EXTRACTION, VIEW_DASHBOARD],
-        horizontal=True, label_visibility="collapsed", key="active_view",
-    )
 
 # Streamlit forgets the value of any widget that is not drawn in a run. While the
 # dashboard is open the extraction widgets are not drawn, so without this they would
