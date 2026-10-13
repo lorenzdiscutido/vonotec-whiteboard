@@ -76,6 +76,38 @@ def status_message(text):
 
 
 # ---------------------------------------------------------------------------
+# Uploader: hide the empty-state chrome once photos are chosen
+# ---------------------------------------------------------------------------
+
+# Injected only while at least one photo is selected. It hides the round upload icon
+# (::before), the "PNG or JPG ..." text (::after), the instruction text and the invisible
+# full-box browse button, so only the scrollable file chips are left and clicking or
+# scrolling inside the dashed box can never open the file browser. The chips' own
+# delete (x) and pagination buttons are not touched.
+_UPLOADER_FILLED_CSS = (
+    "<style>"
+    "[data-testid='stFileUploaderDropzone']::before, "
+    "[data-testid='stFileUploadDropzone']::before, "
+    "[data-testid='stFileUploaderDropzone']::after, "
+    "[data-testid='stFileUploadDropzone']::after, "
+    "[data-testid='stFileUploaderDropzoneInstructions'], "
+    "[data-testid='stFileUploaderDropzone'] > button, "
+    "[data-testid='stFileUploadDropzone'] > button, "
+    "[data-testid='stFileUploaderDropzone'] button[data-testid='stBaseButton-secondary'] "
+    "{ display: none !important; } "
+    "[data-testid='stFileUploaderDropzone'], [data-testid='stFileUploadDropzone'] "
+    "{ min-height: 0 !important; padding: 14px 16px !important; }"
+    "</style>"
+)
+
+
+def hide_uploader_chrome_if_filled(uploaded_files):
+    """Call right after st.file_uploader(...). Does nothing for an empty uploader."""
+    if uploaded_files:
+        st.markdown(_UPLOADER_FILLED_CSS, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
 # Photo previews
 # ---------------------------------------------------------------------------
 
