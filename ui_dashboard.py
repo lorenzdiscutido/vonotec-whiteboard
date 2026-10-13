@@ -9,15 +9,15 @@ doesn't re-download anything. app.py starts reading all the files in the
 background as soon as the app is opened, so the data is normally ready before
 anyone clicks over to this view (see dashboard_loader.py).
 
-The page has two parts, drawn by app.py:
-  render_dashboard_controls()   the sidebar: which files, Refresh, the filters
+The page has two parts, side by side in one card (see render_dashboard_view):
+  render_dashboard_controls()   the controls panel on the left: which files, Refresh, the filters
   render_analytics_dashboard()  the main area: the numbers and charts. It is a
                                 "fragment", so it re-checks SharePoint on its own
                                 every DASHBOARD_REFRESH_SECONDS (see settings.py)
                                 without reloading the rest of the page. Only new
                                 or changed files are downloaded, so that is quick.
 They are separate because Streamlit does not let an auto-refreshing fragment draw
-widgets in the sidebar. The two share the widgets' values through st.session_state.
+widgets outside itself. The two share the widgets' values through st.session_state.
 (The sheet parsing itself lives in dashboard_data.py.)"""
 import streamlit as st
 
@@ -244,7 +244,7 @@ def _data_table_html(df):
 
 
 def render_dashboard_controls():
-    """The dashboard's controls. Call it inside `with st.sidebar:`. Not a
+    """The dashboard's controls (the left panel). Not a
     fragment: any change here reruns the whole page, so the charts follow."""
     st.markdown('<p class="side-title">Analytics controls</p>', unsafe_allow_html=True)
 
@@ -382,3 +382,18 @@ def render_analytics_dashboard():
         st.markdown(_data_table_html(df), unsafe_allow_html=True)
         if len(df) > DATA_TABLE_MAX_ROWS:
             st.caption(f"Showing the first {DATA_TABLE_MAX_ROWS:,} of {len(df):,} defects.")
+
+
+def render_dashboard_view():
+    """The whole Dashboard view: the controls panel and the charts, side by side in
+    one connected card under the header. The CSS in style.css draws the card
+    around the two columns (it finds them through the two container keys)."""
+    col_controls, col_main = st.columns([0.22, 0.78], gap="small")
+    with col_controls:
+        with st.container(key="dashboard_sidebar"):
+            render_dashboard_controls()
+    with col_main:
+        with st.container(key="dashboard_main"):
+            # "analytics" stays its own container: the KPI card icons in style.css are keyed to it
+            with st.container(key="analytics"):
+                render_analytics_dashboard()
