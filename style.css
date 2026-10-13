@@ -30,9 +30,10 @@ header[data-testid="stHeader"] { background: transparent !important; }
 .header-tagline { color: #7c8a9d; font-size: 12px; }
 
 /* ---------- Headings ---------- */
-.eyebrow { margin: 0 0 4px 0 !important; color: #d85f0d !important; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.section-title { color: #17233b; font-size: 22px; letter-spacing: -.02em; line-height: 1.25; }
+.eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 10px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-heading h2 { margin: 0 !important; padding: 0 !important; color: #17233b !important; font-size: 22px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; line-height: 1.25 !important; }
+.step-label { color: #7c8a9d !important; font-size: 11px !important; font-weight: 600 !important; }
 .card-title { color: #24324a; font-size: 15px; font-weight: 500; margin-bottom: 4px; }
 .file-sub { color: #7c8a9d; font-size: 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
 h3 { color: #1e3a8a !important; }
@@ -65,7 +66,7 @@ h3 { color: #1e3a8a !important; }
 
 /* ---------- Switches: "Whiteboard Extraction / Analytics Dashboard" and the photo source ---------- */
 .st-key-view_switch { display: flex; justify-content: center; margin-bottom: 18px; }
-.st-key-source_switch { display: flex; justify-content: flex-start; margin: 18px 0 1.5rem; }
+.st-key-source_switch { display: flex; justify-content: flex-start; margin: 0 0 1.5rem; }
 .st-key-view_switch > div, .st-key-source_switch > div { width: auto !important; flex: 0 0 auto; }
 .st-key-view_switch [data-testid="stRadio"], .st-key-source_switch [data-testid="stRadio"] { width: auto; }
 .st-key-view_switch div[role="radiogroup"], .st-key-source_switch div[role="radiogroup"] { display: inline-flex; flex-wrap: wrap; gap: 3px !important; padding: 4px; background: #f0f3f6; border-radius: 9px; }
@@ -114,17 +115,31 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"] { background-color: #eaf0fb !important; }
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"], .stApp div[data-baseweb="select"] span[data-baseweb="tag"] * { color: #1e3a8a !important; }
 
-/* Photo uploader: dashed navy border on a pale blue fill, like the design's drop zone */
+/* Photo uploader: the Figma dropzone. A centered column with a round upload badge and three
+   lines of text. The text is drawn with CSS (Streamlit's own labels are hidden), and the
+   native Browse button is stretched invisibly over the whole box, so a click anywhere
+   inside the dashed border opens the file window. */
 div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
-[data-testid="stFileUploader"] section,
 [data-testid="stFileUploaderDropzone"],
-[data-testid="stFileUploadDropzone"] { min-height: 150px; justify-content: center; background-color: #f8fafd !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; }
-[data-testid="stFileUploader"] section button,
+[data-testid="stFileUploadDropzone"] { position: relative; min-height: 210px !important; margin-top: 10px !important; padding: 28px 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; background-color: #f8fafd !important; text-align: center !important; transition: 0.2s ease !important; cursor: pointer !important; }
+[data-testid="stFileUploaderDropzone"]:hover,
+[data-testid="stFileUploadDropzone"]:hover { border-color: #1e3a8a !important; background-color: #f2f6fd !important; transform: translateY(-1px); }
+/* hide Streamlit's cloud icon and its own text */
+[data-testid="stFileUploaderDropzone"] svg,
+[data-testid="stFileUploadDropzone"] svg { display: none !important; }
+[data-testid="stFileUploaderDropzoneInstructions"] { display: flex !important; flex-direction: column; align-items: center; gap: 6px; }
+[data-testid="stFileUploaderDropzoneInstructions"] > * { display: none !important; }
+/* the Browse button: invisible, covering the whole box */
 [data-testid="stFileUploaderDropzone"] button,
-[data-testid="stFileUploadDropzone"] button { background-color: #1e3a8a !important; border: none !important; }
-[data-testid="stFileUploader"] section button *,
-[data-testid="stFileUploaderDropzone"] button *,
-[data-testid="stFileUploadDropzone"] button * { color: #ffffff !important; fill: #ffffff !important; }
+[data-testid="stFileUploadDropzone"] button { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; opacity: 0 !important; cursor: pointer !important; z-index: 1; }
+/* 52px round upload badge */
+[data-testid="stFileUploaderDropzone"]::before,
+[data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
+/* three text lines, each in its own style */
+[data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Drop whiteboard photos here"; color: #24324a; font-size: 15px; font-weight: 700; line-height: 1.5; }
+[data-testid="stFileUploaderDropzoneInstructions"]::after { content: "or click to browse from your computer"; color: #68778c; font-size: 12px; line-height: 1.5; }
+[data-testid="stFileUploaderDropzone"]::after,
+[data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #94a0b0; font-size: 10px; }
 
 /* Toggle switches: no box, a gray track when off, Vonotec blue when on */
 div[data-testid="stToggle"], .st-key-src_recursive, .st-key-analytics_hide_unknown { margin: 6px 0 10px; }
