@@ -19,6 +19,8 @@ The page has two parts, side by side in one card (see render_dashboard_view):
 They are separate because Streamlit does not let an auto-refreshing fragment draw
 widgets outside itself. The two share the widgets' values through st.session_state.
 (The sheet parsing itself lives in dashboard_data.py.)"""
+import html
+
 import streamlit as st
 
 import sharepoint_client
@@ -392,17 +394,18 @@ def render_analytics_dashboard():
         return
 
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
-    # One line above the charts explains the orange bar (or what was hidden)
-    note = _chart_notes(df, hide_unknown)
-    if note:
-        st.caption(note)
-
     tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
     with tower_col:
         _chart_section(df, "Tower", "Defects by tower", hide_unknown)
     with material_col:
         _chart_section(df, "Material", "Defects by material", hide_unknown)
     _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+
+    # A small legend under the charts: what the orange bar is (or what was hidden)
+    note = _chart_notes(df, hide_unknown)
+    if note:
+        dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:6px;"></span>' if not hide_unknown else ""
+        st.markdown(f'<div class="chart-legend">{dot}{html.escape(note)}</div>', unsafe_allow_html=True)
 
     with st.expander("View the data behind the charts"):
         st.markdown(_data_table_html(df), unsafe_allow_html=True)
