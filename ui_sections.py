@@ -20,6 +20,7 @@ PROCESS_BUTTON_LABEL = "Process photos"
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
     "batch_results": [],
+    "batch_report": None,          # per-photo rows of the last batch (see show_batch_results)
     "confirm_reset": False,
     "last_output_path": None,
     "last_output_label": None,
@@ -36,12 +37,27 @@ def init_session_state():
             st.session_state[key] = list(default) if isinstance(default, list) else default
 
 
-# With more messages than this, the list goes into a scrollable box
+# With more messages than this, the old plain message list goes into a scrollable box
 RESULTS_BOX_MIN_MESSAGES = 5
 RESULTS_BOX_HEIGHT_PX = 320
 # app.py always ends a batch with two messages ("Batch Complete." and the summary
 # line); they stay outside the box so the outcome is visible without scrolling.
 RESULTS_PINNED_MESSAGES = 2
+
+# The compact result rows scroll inside a box once there are more than this many
+RESULT_ROWS_BOX_MIN = 8
+RESULT_ROWS_BOX_HEIGHT_PX = 380
+
+# Short icons for the result rows: green check, orange alert, gray skip, red cross
+_ROW_ICONS = {
+    "added": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>',
+    "review": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>',
+    "skipped": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>',
+    "failed": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>',
+}
+_ROW_LABELS = {"added": "Added", "review": "Needs review", "skipped": "Skipped", "failed": "Failed"}
+# Rows that need attention come first
+_ROW_ORDER = {"failed": 0, "review": 1, "skipped": 2, "added": 3}
 
 
 def _show_message(kind, text):
@@ -55,11 +71,95 @@ def _show_message(kind, text):
         st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
 
 
+def _short_name(name, limit=32):
+    """The file name without its folder path, shortened in the middle if it is long
+    (the extension stays visible)."""
+    base = os.path.basename(str(name).replace("\\", "/"))
+    if len(base) <= limit:
+        return base
+    stem, ext = os.path.splitext(base)
+    keep = max(limit - len(ext) - 1, 8)
+    return f"{stem[:keep]}\u2026{ext}"
+
+
+def _summary_html(files):
+    """"16 processed - 15 added - 1 needs review", with the counts coloured."""
+    count = {status: 0 for status in _ROW_LABELS}
+    for item in files:
+        count[item["status"]] = count.get(item["status"], 0) + 1
+    parts = [f'<span class="rs-total">{count["added"] + count["review"]} processed</span>']
+    if count["added"]:
+        parts.append(f'<span class="rs-added">{count["added"]} added</span>')
+    if count["review"]:
+        parts.append(f'<span class="rs-review">{count["review"]} needs review</span>')
+    if count["skipped"]:
+        parts.append(f'<span class="rs-skipped">{count["skipped"]} duplicate{"s" if count["skipped"] != 1 else ""} skipped</span>')
+    if count["failed"]:
+        parts.append(f'<span class="rs-failed">{count["failed"]} failed</span>')
+    return '<div class="rs-summary">' + '<span class="rs-sep">&middot;</span>'.join(parts) + '</div>'
+
+
+def _row_html(item):
+    """One compact row: icon, short file name, result chip, one-line reason. Rows with more
+    to say (everything except a plain "Added") open to show the full details."""
+    status = item["status"] if item["status"] in _ROW_LABELS else "added"
+    full_name = str(item["name"])
+    short = _short_name(full_name)
+    reason = str(item.get("reason") or "")
+    head = (
+        f'<span class="rs-icon rs-{status}">{_ROW_ICONS[status]}</span>'
+        f'<span class="rs-name" title="{html.escape(full_name)}">{html.escape(short)}</span>'
+        f'<span class="rs-chip rs-chip-{status}">{_ROW_LABELS[status]}</span>'
+        f'<span class="rs-reason">{html.escape(reason)}</span>'
+    )
+    details = [line for line in str(item.get("details") or "").splitlines() if line.strip()]
+    if status == "added" and not details and short == full_name:
+        return f'<div class="rs-row rs-row-{status}"><div class="rs-head">{head}</div></div>'
+    body = f'<div class="rs-line"><b>File:</b> {html.escape(full_name)}</div>'
+    if reason:
+        body += f'<div class="rs-line">{html.escape(reason)}</div>'
+    if details:
+        body += '<ul>' + ''.join(f'<li>{html.escape(line)}</li>' for line in details) + '</ul>'
+    return (
+        f'<details class="rs-row rs-row-{status}"><summary class="rs-head">{head}</summary>'
+        f'<div class="rs-details">{body}</div></details>'
+    )
+
+
+def _show_report(report):
+    """The compact version of a batch's results: a summary line, any general notices, then
+    one row per photo (the ones that need attention first)."""
+    files = report.get("files") or []
+    if files:
+        st.markdown(_summary_html(files), unsafe_allow_html=True)
+    for kind, text in report.get("notices") or []:
+        if kind in ("warning", "error"):
+            _show_message(kind, text)
+        else:
+            st.caption(text)
+    if not files:
+        return
+    rows = sorted(files, key=lambda item: _ROW_ORDER.get(item["status"], 9))
+    rows_html = '<div class="rs-list">' + ''.join(_row_html(item) for item in rows) + '</div>'
+    if len(rows) > RESULT_ROWS_BOX_MIN:
+        with st.container(height=RESULT_ROWS_BOX_HEIGHT_PX, border=False, key="batch_files_box"):
+            st.markdown(rows_html, unsafe_allow_html=True)
+    else:
+        st.markdown(rows_html, unsafe_allow_html=True)
+
+
 def show_batch_results():
-    """Shows the messages from the last batch (kept even after the uploader is cleared).
-    A long list is shown inside a scrollable box, so it doesn't push the form and the
-    Extract button far down the page."""
+    """Shows the last batch (kept even after the uploader is cleared): a compact summary
+    and one row per photo when the batch recorded them, otherwise the plain message list
+    (a long one goes inside a scrollable box)."""
     results = st.session_state.batch_results
+    if not results:
+        return
+    report = st.session_state.get("batch_report")
+    if report and (report.get("files") or report.get("notices")):
+        _show_report(report)
+        return
+
     if len(results) < RESULTS_BOX_MIN_MESSAGES:
         for kind, text in results:
             _show_message(kind, text)
@@ -83,9 +183,9 @@ def status_message(text):
 # ---------------------------------------------------------------------------
 
 # Injected only while at least one photo is selected. It hides the round upload icon
-# (::before), the "PNG or JPG ..." text (::after), the instruction text and the invisible
-# full-box browse button, so only the scrollable file chips are left and clicking or
-# scrolling inside the dashed box can never open the file browser. The chips' own
+# (::before), the "PNG or JPG ..." text (::after) and the instruction text, and turns the
+# native browse button (which style.css stretches invisibly over the whole empty box)
+# into a small "+ Add more" button, so more photos can still be added. The chips' own
 # delete (x) and pagination buttons are not touched.
 _UPLOADER_FILLED_CSS = (
     "<style>"
@@ -93,13 +193,17 @@ _UPLOADER_FILLED_CSS = (
     "[data-testid='stFileUploadDropzone']::before, "
     "[data-testid='stFileUploaderDropzone']::after, "
     "[data-testid='stFileUploadDropzone']::after, "
-    "[data-testid='stFileUploaderDropzoneInstructions'], "
-    "[data-testid='stFileUploaderDropzone'] > button, "
-    "[data-testid='stFileUploadDropzone'] > button, "
-    "[data-testid='stFileUploaderDropzone'] button[data-testid='stBaseButton-secondary'] "
+    "[data-testid='stFileUploaderDropzoneInstructions'] "
     "{ display: none !important; } "
     "[data-testid='stFileUploaderDropzone'], [data-testid='stFileUploadDropzone'] "
-    "{ min-height: 0 !important; padding: 14px 16px !important; }"
+    "{ min-height: 0 !important; padding: 12px 14px !important; flex-direction: column !important; align-items: flex-start !important; cursor: default !important; } "
+    "div[data-testid='stFileUploader'] [data-testid='stFileUploaderDropzone'] > button[data-testid='stBaseButton-secondary'], "
+    "div[data-testid='stFileUploader'] [data-testid='stFileUploaderDropzone'] > button "
+    "{ position: static !important; inset: auto !important; width: auto !important; height: 34px !important; padding: 0 16px !important; "
+    "opacity: 1 !important; font-size: 0 !important; background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 7px !important; box-shadow: none !important; } "
+    "div[data-testid='stFileUploader'] [data-testid='stFileUploaderDropzone'] > button * { display: none !important; } "
+    "div[data-testid='stFileUploader'] [data-testid='stFileUploaderDropzone'] > button::after "
+    "{ content: '+ Add more'; font-size: 13px; font-weight: 700; color: #1e3a8a; } "
     "</style>"
 )
 
@@ -137,6 +241,16 @@ def _thumbnail_bytes(name, size, file_id, _data):
         return None
 
 
+def _format_size(num_bytes):
+    """12 345 678 bytes -> "11.8 MB"."""
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
 def render_photo_previews(uploaded_files):
     """A count and a grid of small previews of the selected photos, so people can
     check they picked the right ones before extracting."""
@@ -144,7 +258,8 @@ def render_photo_previews(uploaded_files):
         return
 
     photos = list(uploaded_files)
-    st.caption(f"{len(photos)} photo(s) selected")
+    total_bytes = sum(getattr(photo, "size", 0) or 0 for photo in photos)
+    st.caption(f"{len(photos)} photo{'s' if len(photos) != 1 else ''} selected \u00b7 {_format_size(total_bytes)}")
 
     def draw_grid():
         for start in range(0, len(photos), PREVIEW_COLUMNS):
@@ -240,16 +355,52 @@ def remember_new_folder(subfolder):
 # Buttons and file management
 # ---------------------------------------------------------------------------
 
-def render_action_buttons():
-    """Returns (extract_clicked, clear_clicked)."""
+PROCESS_VERB = "Process"
+
+
+def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, batch_name_raw, remote):
+    """Returns (photos_missing, destination_missing): a short sentence for each thing that is
+    still missing, or "" when it is fine. The Process button stays disabled until both are ""."""
+    photos_missing = ""
+    if remote and not source_chosen:
+        photos_missing = "Choose the SharePoint folder to read photos from"
+    elif not remote and not photo_count:
+        photos_missing = "Add at least one photo"
+    destination_missing = ""
+    if folder_choice == NEW_FOLDER_LABEL and not (new_folder_raw or "").strip():
+        destination_missing = "Enter a name for the new folder"
+    elif not (batch_name_raw or "").strip():
+        destination_missing = "Enter a batch name"
+    return photos_missing, destination_missing
+
+
+def _process_label(photo_count, remote):
+    if remote:
+        return f"{PROCESS_VERB} SharePoint photos"  # the count is only known once the folder is listed
+    if photo_count:
+        return f"{PROCESS_VERB} {photo_count} photo{'s' if photo_count != 1 else ''}"
+    return PROCESS_BUTTON_LABEL
+
+
+def render_action_buttons(photo_count=0, blocked_reason="", remote=False):
+    """The sticky action footer (style.css pins it to the bottom of the left panel): the
+    Process button, whose text carries the context ("Process 16 photos"), then a lower-emphasis
+    Clear button. The Process button is disabled while `blocked_reason` is not empty, and the
+    reason is shown next to it. Returns (process_clicked, clear_clicked)."""
     with st.container(key="action_buttons"):
-        # The first (empty) column is a spacer that pushes both buttons to the right edge
-        _spacer, col2, col3 = st.columns([0.6, 1.5, 1], gap="small")
-        with col2:
-            extract_clicked = st.button(PROCESS_BUTTON_LABEL, type="primary", key="extract_data")
-        with col3:
-            clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
-    return extract_clicked, clear_clicked
+        label = _process_label(photo_count, remote)
+        if remote:
+            process_clicked = st.button(label, type="primary", key="fetch_folder", disabled=bool(blocked_reason))
+            clear_clicked = False
+        else:
+            col1, col2 = st.columns(2, gap="small")
+            with col1:
+                process_clicked = st.button(label, type="primary", key="extract_data", disabled=bool(blocked_reason))
+            with col2:
+                clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
+        if blocked_reason:
+            st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
+    return process_clicked, clear_clicked
 
 
 def file_management_title_html(label, folder):
