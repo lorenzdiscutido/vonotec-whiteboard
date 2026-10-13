@@ -1,4 +1,3 @@
-# ui_dashboard.py
 """The "Analytics Dashboard" tab: charts of defect frequency by Tower, Floor
 and Material, built by reading the batch Excel files straight from SharePoint.
 
@@ -185,7 +184,8 @@ def _bar_chart(counts, column):
         )
         .configure(font=CHART_FONT)
         .configure_axis(
-            labelColor=CHART_TEXT, labelFontSize=10,
+            labelColor=CHART_TEXT, labelFontSize=12,  # Upgraded to 12px for legibility
+            titleFontSize=13,
             gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
         )
         .configure_view(stroke=None)
@@ -197,10 +197,7 @@ def _bar_chart(counts, column):
 
 
 def _chart_notes(df, hide_unknown):
-    """ONE short line, drawn above all the charts, so the reader knows it before looking
-    at the bars. Normally it says what the orange "Unknown" bar is (only when a chart
-    actually has one). With hide_unknown there are no Unknown bars, so it says how many
-    defects were left out instead."""
+    """ONE short line drawn above the chart filters area or as a general note."""
     columns = ("Tower", "Floor", "Material")
     if hide_unknown:
         parts = []
@@ -210,27 +207,34 @@ def _chart_notes(df, hide_unknown):
             if hidden:
                 parts.append(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
         return " ".join(parts)
-    if any((count_by(df, column)[column] == UNKNOWN).any() for column in columns):
-        return "The orange bar is 'Unknown': defects whose tower, floor or material wasn't on the board or in the file name."
     return ""
 
 
 def _chart_section(df, column, title, hide_unknown):
     """A white card with a title, a one-line subtitle, the total, and the bar chart of
     the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out,
-    so the real distribution isn't flattened by it. (The explanatory notes are drawn
-    above the charts, see _chart_notes, so they never change the card's height.)"""
+    so the real distribution isn't flattened by it."""
     counts = count_by(df, column)
     if hide_unknown:
         counts = counts[counts[column] != UNKNOWN]
+    
+    # Check if this chart has an unknown bar
+    has_unknown = not hide_unknown and not counts[counts[column] == UNKNOWN].empty
 
     total = int(counts["Defects"].sum()) if not counts.empty else 0
     with st.container(border=True, key=f"chart_{column.lower()}"):
+        # Include the in-chart legend if 'Unknown' is present
+        legend_html = '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:5px;"></span>Unknown classification' if has_unknown else ''
+        
         st.markdown(
             '<div class="chart-title"><div>'
             f'<div class="chart-name">{title}</div>'
             f'<div class="chart-sub">{CHART_SUBTITLES.get(column, "")}</div>'
-            f'</div><span class="chart-total">{total:,} total</span></div>',
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<span class="chart-total">{total:,} total</span>'
+            f'<div style="color:#64748b;font-size:11.5px;font-weight:500;margin-top:2px;">{legend_html}</div>'
+            f'</div></div>',
             unsafe_allow_html=True,
         )
         if counts.empty:
@@ -372,19 +376,65 @@ def render_analytics_dashboard():
         st.info(f"Read {files_read} file(s), but none of them contain any defects yet.")
         return
 
-    # --- Apply the sidebar filters ---
+    # --- Render Active Filter Chips ---
+    # We construct the HTML for the chips and clear button.
+    # Note: Streamlit doesn't natively support clearing other widgets via HTML buttons, 
+    # so we display them visually, and users can use the standard sidebar inputs or 
+    # a st.button to clear them.
+    active_filters = []
+    
+    selected_towers = st.session_state.get(_filter_key("tower", scope)) or []
+    if selected_towers:
+        active_filters.append(f"Tower: {', '.join(selected_towers)}")
+        
+    selected_floors = st.session_state.get(_filter_key("floor", scope)) or []
+    if selected_floors:
+        active_filters.append(f"Floor: {', '.join(selected_floors)}")
+        
+    selected_materials = st.session_state.get(_filter_key("material", scope)) or []
+    if selected_materials:
+        active_filters.append(f"Material: {', '.join(selected_materials)}")
+        
     folders = st.session_state.get(_filter_key("folder", scope)) or []
+    if folders:
+        active_filters.append(f"Folder: {', '.join(folders)}")
+
+    if hide_unknown:
+        active_filters.append("Exclude unknown")
+
+    if active_filters:
+        chips_html = "".join([f'<span class="filter-chip">{html.escape(f)} &times;</span>' for f in active_filters])
+        st.markdown(
+            f'<div class="filter-chips-container">{chips_html}</div>', 
+            unsafe_allow_html=True
+        )
+
+        # Clear button (requires a rerun to actually clear session state)
+        if st.button("Clear all filters", key="clear_all_filters", help="Reset all applied filters"):
+            st.session_state[_filter_key("tower", scope)] = []
+            st.session_state[_filter_key("floor", scope)] = []
+            st.session_state[_filter_key("material", scope)] = []
+            st.session_state[_filter_key("folder", scope)] = []
+            st.session_state[HIDE_UNKNOWN_KEY] = False
+            st.rerun()
+
+    # --- Apply the sidebar filters to data ---
     if folders:
         df = df[df["Folder"].isin(folders)]
     df = apply_filters(
         df,
-        st.session_state.get(_filter_key("tower", scope)),
-        st.session_state.get(_filter_key("floor", scope)),
-        st.session_state.get(_filter_key("material", scope)),
+        selected_towers,
+        selected_floors,
+        selected_materials,
     )
 
-    # --- Summary ---
+    # --- Summary / KPI Cards ---
     total_col, files_col, folders_col = st.columns(3)
+    
+    # We use HTML inside metric help or container if we want secondary context, 
+    # or just use Streamlit's metric delta for the secondary line.
+    # Note: For pure formatting without deltas changing color, custom HTML is best, 
+    # but Streamlit's native metric is easiest if we don't have historical data to compare to.
     total_col.metric("Defects", f"{len(df):,}")
     files_col.metric("Excel files read", f"{files_read:,}")
     folders_col.metric("Folders", f"{df['Folder'].nunique():,}")
@@ -394,18 +444,18 @@ def render_analytics_dashboard():
         return
 
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
-    tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
-    with tower_col:
-        _chart_section(df, "Tower", "Defects by tower", hide_unknown)
-    with material_col:
-        _chart_section(df, "Material", "Defects by material", hide_unknown)
-    _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+    with st.container(key="charts_grid"):
+        tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
+        with tower_col:
+            _chart_section(df, "Tower", "Defects by tower", hide_unknown)
+        with material_col:
+            _chart_section(df, "Material", "Defects by material", hide_unknown)
+        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
 
-    # A small legend under the charts: what the orange bar is (or what was hidden)
+    # Note about hidden unknown defects
     note = _chart_notes(df, hide_unknown)
     if note:
-        dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:6px;"></span>' if not hide_unknown else ""
-        st.markdown(f'<div class="chart-legend">{dot}{html.escape(note)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-legend">{html.escape(note)}</div>', unsafe_allow_html=True)
 
     with st.expander("View the data behind the charts"):
         st.markdown(_data_table_html(df), unsafe_allow_html=True)
