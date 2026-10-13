@@ -1,35 +1,25 @@
-/* Whiteboard AI: styles that match the Figma design (DM Sans, navy/blue/orange palette,
-   white cards with soft borders). Colors come from the design's :root variables:
-   navy #1e3a8a, blue #2f5597, slate #475569, muted #7c8a9d, line #e3e9ef,
-   orange #f97316, red #dc2626, green #16865b. */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
 
-/* ---------- Font ---------- */
-.stApp,
-.stApp *:not([data-testid="stIconMaterial"]):not([class*="material"]):not(svg):not(svg *) {
-    font-family: "DM Sans", sans-serif !important;
-}
-
-/* ---------- Page ---------- */
+.stApp, .stApp *:not([data-testid="stIconMaterial"]):not([class*="material"]):not(svg):not(svg *) { font-family: "DM Sans", sans-serif !important; }
 .stApp { background-color: #f4f7f9; color: #1e293b; }
 .stMainBlockContainer, [data-testid="stMainBlockContainer"] { max-width: 1440px; padding: 1.4rem 22px 3rem !important; }
 div[data-testid="InputInstructions"] { display: none !important; }
 
-/* Top bar: transparent, with the toolbar hidden. The sidebar's open arrow stays. */
 header[data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none !important; }
-[data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] *,
-[data-testid="collapsedControl"], [data-testid="collapsedControl"] * { color: #1e3a8a !important; fill: #1e3a8a !important; }
+[data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] *, [data-testid="collapsedControl"], [data-testid="collapsedControl"] * { color: #1e3a8a !important; fill: #1e3a8a !important; }
 
-/* ---------- Header card: brand | view switch | tagline ---------- */
 .st-key-top_app_header { background: #ffffff !important; border: 1px solid rgba(226, 232, 240, 0.9) !important; border-radius: 14px !important; box-shadow: 0 3px 16px rgba(30, 58, 138, 0.05) !important; padding: 14px 26px !important; margin: 0 auto 18px auto !important; max-width: 1440px !important; }
-.st-key-top_app_header [data-testid="stHorizontalBlock"] { width: 100%; align-items: center !important; gap: 1rem !important; }
+.st-key-top_app_header [data-testid="stHorizontalBlock"] { width: 100% !important; align-items: center !important; justify-content: space-between !important; gap: 1rem !important; }
+.st-key-top_app_header [data-testid="stColumn"] { flex: 1 1 0% !important; min-width: 0 !important; }
+.st-key-top_app_header [data-testid="stColumn"]:nth-child(2), .st-key-top_app_header [data-testid="stColumn"]:nth-child(2) > div, .st-key-top_app_header [data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlock"], .st-key-top_app_header [data-testid="stColumn"]:nth-child(2) [data-testid="stElementContainer"] { width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important; }
+.st-key-top_app_header [data-testid="stColumn"]:nth-child(3), .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"] { width: 100% !important; display: flex !important; justify-content: flex-end !important; align-items: center !important; text-align: right !important; }
+
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .brand img { display: block; height: auto; margin: 0; }
 .brand-text { color: #1e3a8a; font-weight: 800; font-size: 22px; letter-spacing: .02em; }
 .product-name { padding-left: 12px; border-left: 1px solid #dce3eb; color: #475569; font-size: 12px; font-weight: 600; white-space: nowrap; }
 
-/* ---------- Headings ---------- */
 .eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 10px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .section-heading h2 { margin: 0 !important; padding: 0 !important; color: #17233b !important; font-size: 22px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; line-height: 1.25 !important; }
@@ -38,7 +28,6 @@ header[data-testid="stHeader"] { background: transparent !important; }
 .file-sub { color: #7c8a9d; font-size: 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
 h3 { color: #1e3a8a !important; }
 
-/* Status badge next to "Batch results" */
 .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid #dce4ec; border-radius: 20px; color: #607086; background: #ffffff; font-size: 10px; font-weight: 700; }
 .status-badge > span { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
 .status-badge.processing { color: #2f5597; border-color: #cdd9ee; }
@@ -46,7 +35,6 @@ h3 { color: #1e3a8a !important; }
 .status-badge.complete { color: #16865b; border-color: #bfe6d7; }
 .status-badge.complete > span { background: #16865b; }
 
-/* ---------- Cards ---------- */
 .st-key-form_panel, .st-key-results_panel { background: #ffffff; border: 1px solid #e3e9ef; border-radius: 12px; box-shadow: 0 4px 22px rgba(30,58,138,.045); padding: 30px; }
 .st-key-results_panel { background: #fbfcfe; }
 .st-key-save_settings, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
@@ -54,7 +42,6 @@ h3 { color: #1e3a8a !important; }
 .st-key-file_card { padding: 10px 6px; margin-top: 18px; }
 [class*="st-key-chart_"] { border-radius: 9px !important; box-shadow: 0 2px 10px rgba(30,58,138,.025); padding: 8px 6px 4px; }
 
-/* "Ready to process a new batch" card and the tip card */
 .sync-card { margin-top: 14px; padding: 17px; display: flex; gap: 13px; align-items: center; border: 1px solid #d8e2f1; border-radius: 10px; background: #f5f8fd; }
 .sync-icon { flex: 0 0 auto; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 8px; background: #e2eafb; color: #2f5597; }
 .sync-card strong { font-size: 13px; color: #263650; }
@@ -64,120 +51,34 @@ h3 { color: #1e3a8a !important; }
 .tip-card strong { font-size: 11px; }
 .tip-card p { margin: 3px 0 0 0; color: #8b7359; font-size: 10px; line-height: 1.5; }
 
-/* ---------- Segmented switches: the top view switch and the photo source switch ----------
-   Each is an st.radio drawn as pills. The rules target the radio widget itself (it carries the class
-   st-key-<its key>, so they do not depend on the container around it) and also the generic stRadio
-   test id. The two icons per switch are plain background-image data URIs. */
-.st-key-source_mode_switcher { margin: 0 0 1.5rem; }
-.stApp [data-testid="stRadio"] { display: flex !important; justify-content: center !important; width: 100% !important; }
+.st-key-source_mode_switcher, .st-key-photo_source { margin: 0 auto 1.5rem auto !important; width: 100% !important; display: flex !important; justify-content: center !important; }
+.st-key-form_panel [data-testid="stElementContainer"]:has([data-testid="stRadio"]) { width: 100% !important; display: flex !important; justify-content: center !important; }
+.stApp [data-testid="stRadio"] { display: flex !important; justify-content: center !important; align-items: center !important; width: 100% !important; }
+.stApp [data-testid="stRadio"] > div { display: flex !important; justify-content: center !important; width: 100% !important; }
+.stApp [data-testid="stRadio"] div[role="radiogroup"] { padding: 4px !important; display: inline-flex !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: center !important; gap: 4px !important; background-color: #f0f3f6 !important; border-radius: 9px !important; margin: 0 auto !important; width: auto !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child, .stApp [data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child, .stApp [data-testid="stRadio"] input[type="radio"] { display: none !important; width: 0 !important; height: 0 !important; opacity: 0 !important; margin: 0 !important; padding: 0 !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"], .stApp [data-testid="stRadio"] div[role="radiogroup"] > label { position: relative !important; height: 38px !important; padding: 0 18px !important; margin: 0 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; border-radius: 7px !important; background-color: transparent !important; color: #64748b !important; cursor: pointer !important; transition: all 0.18s ease !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"] p, .stApp [data-testid="stRadio"] div[role="radiogroup"] > label p { margin: 0 !important; color: #64748b !important; font-size: 13px !important; font-weight: 600 !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked), .stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) { background-color: #ffffff !important; color: #1e3a8a !important; box-shadow: 0 2px 7px rgba(30, 41, 59, 0.09) !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p, .stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) span, .stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p { color: #1e3a8a !important; font-weight: 600 !important; }
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked)::after, .stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::after { content: "" !important; position: absolute !important; right: 14px !important; bottom: 3px !important; left: 14px !important; height: 2px !important; border-radius: 2px !important; background-color: #f97316 !important; }
 
-/* Grey pill track */
-.stApp [data-testid="stRadio"] div[role="radiogroup"] {
-    padding: 4px !important;
-    display: inline-flex !important;
-    flex-wrap: wrap;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 4px !important;
-    background-color: #f0f3f6 !important;
-    border-radius: 9px !important;
-    margin: 0 auto !important;
-    width: auto !important;
-}
+.stApp [data-testid="stRadio"] label[data-baseweb="radio"]::before, .stApp [data-testid="stRadio"] div[role="radiogroup"] > label::before { content: "" !important; flex: 0 0 17px !important; width: 17px !important; height: 17px !important; display: inline-block !important; background-repeat: no-repeat !important; background-position: center !important; background-size: contain !important; }
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1)::before, .st-key-nav_view_switcher div[role="radiogroup"] > label:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1):has(input:checked)::before, .st-key-nav_view_switcher div[role="radiogroup"] > label:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2)::before, .st-key-nav_view_switcher div[role="radiogroup"] > label:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2):has(input:checked)::before, .st-key-nav_view_switcher div[role="radiogroup"] > label:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1)::before, .st-key-photo_source div[role="radiogroup"] > label:nth-of-type(1)::before, .st-key-source_mode_switcher div[role="radiogroup"] > label:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(1):has(input:checked)::before, .st-key-photo_source div[role="radiogroup"] > label:nth-of-type(1):has(input:checked)::before, .st-key-source_mode_switcher div[role="radiogroup"] > label:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2)::before, .st-key-photo_source div[role="radiogroup"] > label:nth-of-type(2)::before, .st-key-source_mode_switcher div[role="radiogroup"] > label:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:nth-of-type(2):has(input:checked)::before, .st-key-photo_source div[role="radiogroup"] > label:nth-of-type(2):has(input:checked)::before, .st-key-source_mode_switcher div[role="radiogroup"] > label:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
 
-/* Hide the native blue radio circle completely */
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child,
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child,
-.stApp [data-testid="stRadio"] input[type="radio"] {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    opacity: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-/* Each pill (inactive) */
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"],
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label {
-    position: relative !important;
-    height: 38px !important;
-    padding: 0 18px !important;
-    margin: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    border-radius: 7px !important;
-    background-color: transparent !important;
-    color: #64748b !important;
-    cursor: pointer !important;
-    transition: all 0.18s ease !important;
-}
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"] p,
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label p {
-    margin: 0 !important;
-    color: inherit !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-}
-
-/* Chosen pill: white card, shadow, navy text, orange bar underneath */
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked),
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
-    background-color: #ffffff !important;
-    color: #1e3a8a !important;
-    box-shadow: 0 2px 7px rgba(30, 41, 59, 0.09) !important;
-}
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p,
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) span,
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p {
-    color: #1e3a8a !important;
-    font-weight: 600 !important;
-}
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked)::after,
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::after {
-    content: "" !important;
-    position: absolute !important;
-    right: 14px !important;
-    bottom: 3px !important;
-    left: 14px !important;
-    height: 2px !important;
-    border-radius: 2px !important;
-    background-color: #f97316 !important;
-}
-
-/* Icon slot in front of each label */
-.stApp [data-testid="stRadio"] label[data-baseweb="radio"]::before,
-.stApp [data-testid="stRadio"] div[role="radiogroup"] > label::before {
-    content: "" !important;
-    flex: 0 0 17px;
-    width: 17px;
-    height: 17px;
-    display: inline-block;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-}
-/* Icons: slate when the pill is not chosen, navy when it is */
-.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-nav_view_switcher [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(1):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
-.stApp .st-key-photo_source [data-testid="stRadio"] label[data-baseweb="radio"]:nth-of-type(2):has(input:checked)::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E") !important; }
-
-/* ---------- Buttons ---------- */
 div.stButton > button:first-child, .stDownloadButton > button:first-child { height: 42px; padding: 0 20px !important; background-color: #1e3a8a !important; color: #ffffff !important; border: 1px solid #1e3a8a !important; border-radius: 7px !important; font-weight: 700 !important; width: 100%; box-shadow: 0 4px 10px rgba(30,58,138,.16); transition: background-color .18s ease, transform .18s ease; }
 div.stButton > button:first-child p, .stDownloadButton > button:first-child p { color: #ffffff !important; font-size: 12px !important; font-weight: 700 !important; }
 div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:hover { background-color: #2f5597 !important; transform: translateY(-1px); }
-/* "Clear All Photos": soft orange */
 .st-key-clear_photos div.stButton > button:first-child { background-color: #fff8f3 !important; border: 1px solid #fed7bd !important; box-shadow: none; }
 .st-key-clear_photos div.stButton > button:first-child p { color: #c7500c !important; }
 .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #ffeedf !important; }
-/* File card: Download is a blue outline, Delete a red outline */
 .st-key-file_card .stDownloadButton > button:first-child { background-color: #ffffff !important; border: 1px solid #cbd8ed !important; box-shadow: none; }
 .st-key-file_card .stDownloadButton > button:first-child p { color: #2f5597 !important; }
 .st-key-file_card .stDownloadButton > button:first-child:hover { background-color: #f2f6fd !important; }
@@ -186,65 +87,42 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-start_fresh div.stButton > button:first-child:hover { background-color: #fef2f2 !important; }
 .st-key-confirm_delete div.stButton > button:first-child { background-color: #dc2626 !important; border-color: #dc2626 !important; }
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
-/* Action buttons: side by side, anchored to the right edge */
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
 .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
 .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
 .st-key-action_buttons div.stButton { width: auto !important; }
 
-/* ---------- Form fields ---------- */
-/* Field labels (Figma .field label) */
 [data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #425069 !important; font-size: 11px !important; font-weight: 600 !important; margin-bottom: 6px !important; }
-/* 11px between stacked fields (e.g. "Name for the new folder" under the folder selector) */
 .stApp [data-testid="stSelectbox"], .stApp [data-testid="stMultiSelect"], .stApp [data-testid="stTextInput"] { margin-bottom: 11px; }
 .stApp [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] [data-testid="stSelectbox"]) { gap: 11px; }
-
 .stApp div[data-baseweb="select"] div, .stApp div[data-baseweb="select"] span { color: #26344c !important; font-size: 13px !important; }
 .stApp div[data-baseweb="select"] svg { fill: #8290a2 !important; }
-/* Chosen items of a multi-select */
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"] { background-color: #eaf0fb !important; }
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"], .stApp div[data-baseweb="select"] span[data-baseweb="tag"] * { color: #1e3a8a !important; }
 
-/* Card heading: eyebrow + title on the left, a small gray icon on the right */
 .card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .card-heading .eyebrow { margin-bottom: 4px !important; }
 .card-heading .card-title { margin-bottom: 0; }
 .card-heading svg { flex: 0 0 auto; margin-top: 2px; }
 
-/* Photo uploader: the Figma dropzone. A centered column with a round upload badge and three
-   lines of text. The text is drawn with CSS (Streamlit's own labels are hidden), and the
-   native Browse button is stretched invisibly over the whole box, so a click anywhere
-   inside the dashed border opens the file window. */
 div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
-[data-testid="stFileUploaderDropzone"],
-[data-testid="stFileUploadDropzone"] { position: relative; min-height: 210px !important; margin-top: 10px !important; padding: 28px 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; background-color: #f8fafd !important; text-align: center !important; transition: 0.2s ease !important; cursor: pointer !important; }
-[data-testid="stFileUploaderDropzone"]:hover,
-[data-testid="stFileUploadDropzone"]:hover { border-color: #1e3a8a !important; background-color: #f2f6fd !important; transform: translateY(-1px); }
-/* hide Streamlit's cloud icon and its own text */
-[data-testid="stFileUploaderDropzone"] svg,
-[data-testid="stFileUploadDropzone"] svg { display: none !important; }
+[data-testid="stFileUploaderDropzone"], [data-testid="stFileUploadDropzone"] { position: relative; min-height: 210px !important; margin-top: 10px !important; padding: 28px 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; background-color: #f8fafd !important; text-align: center !important; transition: 0.2s ease !important; cursor: pointer !important; }
+[data-testid="stFileUploaderDropzone"]:hover, [data-testid="stFileUploadDropzone"]:hover { border-color: #1e3a8a !important; background-color: #f2f6fd !important; transform: translateY(-1px); }
+[data-testid="stFileUploaderDropzone"] svg, [data-testid="stFileUploadDropzone"] svg { display: none !important; }
 [data-testid="stFileUploaderDropzoneInstructions"] { display: flex !important; flex-direction: column; align-items: center; gap: 6px; }
 [data-testid="stFileUploaderDropzoneInstructions"] > * { display: none !important; }
-/* the Browse button: invisible, covering the whole box */
-[data-testid="stFileUploaderDropzone"] button,
-[data-testid="stFileUploadDropzone"] button { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; opacity: 0 !important; cursor: pointer !important; z-index: 1; }
-/* 52px round upload badge */
-[data-testid="stFileUploaderDropzone"]::before,
-[data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
-/* three text lines, each in its own style */
+[data-testid="stFileUploaderDropzone"] button, [data-testid="stFileUploadDropzone"] button { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; opacity: 0 !important; cursor: pointer !important; z-index: 1; }
+[data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
 [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Drop whiteboard photos here"; color: #24324a; font-size: 15px; font-weight: 700; line-height: 1.5; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { content: "or click to browse from your computer"; color: #68778c; font-size: 12px; line-height: 1.5; }
-[data-testid="stFileUploaderDropzone"]::after,
-[data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #94a0b0; font-size: 10px; }
+[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #94a0b0; font-size: 10px; }
 
-/* Toggle switches: no box, a gray track when off, Vonotec blue when on */
 div[data-testid="stToggle"], .st-key-src_recursive, .st-key-analytics_hide_unknown { margin: 6px 0 10px; }
 div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-analytics_hide_unknown label p { color: #24324a !important; font-size: 12px !important; font-weight: 600 !important; }
 div[data-testid="stToggle"] label > div:first-of-type, .st-key-src_recursive label > div:first-of-type, .st-key-analytics_hide_unknown label > div:first-of-type { background-color: #cbd5e1 !important; border: 0 !important; }
 div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type, .st-key-src_recursive label:has(input:checked) > div:first-of-type, .st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type { background-color: #2f5597 !important; }
 div[data-testid="stToggle"] label > div:first-of-type div, .st-key-src_recursive label > div:first-of-type div, .st-key-analytics_hide_unknown label > div:first-of-type div { background-color: #ffffff !important; }
 
-/* ---------- Messages and small text ---------- */
 div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px solid #e3e9ef !important; border-left: 5px solid #2f5597 !important; border-radius: 8px !important; }
 .instruction-text { background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 5px solid #2f5597; margin-bottom: 12px; }
 .status-msg { font-weight: 600; margin: 1rem 0; }
@@ -253,21 +131,16 @@ div[data-testid="stAlert"] { background-color: #ffffff !important; border: 1px s
 .st-key-batch_results_box { background-color: #ffffff; border: 1px solid #e3e9ef !important; border-radius: 12px !important; padding: .25rem .5rem; margin-bottom: 1rem; }
 .st-key-batch_results_box .status-msg { margin: .5rem 0 !important; }
 
-/* Expanders (the how-to and "View the data behind the charts") */
 div[data-testid="stExpander"] { background-color: #ffffff; border: 1px solid #e3e9ef !important; border-radius: 9px; box-shadow: 0 2px 10px rgba(30,58,138,.025); }
 div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { background-color: transparent !important; }
 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #1e3a8a !important; font-weight: 600 !important; }
 [data-testid="stExpander"] summary svg { color: #1e3a8a !important; fill: #1e3a8a !important; }
 
-/* ---------- Sidebar (dashboard filters) ---------- */
 section[data-testid="stSidebar"] { background-color: #fbfcfd !important; border-right: 1px solid #e3e9ef; }
 section[data-testid="stSidebar"] .side-title { color: #24324a !important; font-weight: 600; font-size: 15px; margin: .75rem 0 .5rem 0 !important; }
 section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38px; }
 
-/* ---------- Analytics dashboard ---------- */
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
-
-/* Number cards: an icon tile on the left, label and big number on the right */
 .st-key-analytics div[data-testid="stMetric"] { display: grid !important; grid-template-columns: 36px 1fr; column-gap: 12px; align-items: center; padding: 12px 16px; background-color: #ffffff; border: 1px solid #e3e9ef; border-radius: 9px; box-shadow: 0 2px 10px rgba(30,58,138,.025); }
 .st-key-analytics div[data-testid="stMetric"]::before { content: ""; grid-row: 1 / span 2; width: 36px; height: 36px; border-radius: 7px; background-color: #eaf0fb; background-repeat: no-repeat; background-position: center; background-size: 18px; }
 .st-key-analytics div[data-testid="stMetric"] > div, .st-key-analytics div[data-testid="stMetricLabel"], .st-key-analytics div[data-testid="stMetricLabel"] > div, .st-key-analytics div[data-testid="stMetricLabel"] p, .st-key-analytics div[data-testid="stMetricValue"], .st-key-analytics div[data-testid="stMetricValue"] > div { margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
@@ -278,71 +151,23 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 .st-key-analytics div[data-testid="stColumn"]:nth-child(2) div[data-testid="stMetric"]::before { background-color: #fff0e6; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d85f0d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5h16v14H4V5Zm0 11 4.5-4.5 3.2 3.2 2.3-2.3 6 5.6M15.5 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z'/%3E%3C/svg%3E"); }
 .st-key-analytics div[data-testid="stColumn"]:nth-child(3) div[data-testid="stMetric"]::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E"); }
 
-/* Chart cards: title and total on one line, the chart under them */
 .chart-title { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 0; }
 .chart-name { color: #27344b; font-size: 14px; font-weight: 600; }
 .chart-sub { margin-top: 3px; color: #7c8a9d; font-size: 11px; }
 .chart-total { color: #2f5597; font-size: 12px; font-weight: 700; }
 
-/* Data table under "View the data behind the charts" (HTML from ui_dashboard._data_table_html):
-   navy header like the design, light rows */
 .data-table-wrap { max-height: 420px; overflow: auto; background-color: #ffffff; }
 .data-table-wrap table.data-table { width: 100%; border-collapse: collapse; font-size: .78rem; background-color: #ffffff; }
 .data-table-wrap table.data-table th { position: sticky; top: 0; background-color: #1e3a8a !important; color: #ffffff !important; font-weight: 600 !important; text-align: left !important; padding: 8px 12px !important; border-right: 1px solid rgba(255,255,255,.14); white-space: nowrap; }
 .data-table-wrap table.data-table td { background-color: #ffffff !important; color: #536176 !important; padding: 8px 12px !important; border-right: 1px solid #edf1f5; border-bottom: 1px solid #edf1f5; white-space: nowrap; }
 .data-table-wrap table.data-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
 
-/* "Save settings" and other card titles keep the same label-over-title look */
 .panel-title { color: #24324a !important; font-weight: 600 !important; font-size: 15px !important; margin: 0 0 .5rem 0 !important; }
 
-/* ---------- Smaller screens ---------- */
-@media (max-width: 900px) {
-  /* the tagline goes, so the centered switch is never squeezed */
-  .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) { display: none !important; }
-  .st-key-top_app_header { padding: 10px 16px !important; }
-}
-@media (max-width: 640px) {
-  /* Streamlit stacks the columns here: brand on top, switch under it */
-  .st-key-top_app_header [data-testid="stHorizontalBlock"] { gap: .6rem !important; }
-}
+@media (max-width: 900px) { .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) { display: none !important; } .st-key-top_app_header { padding: 10px 16px !important; } }
+@media (max-width: 640px) { .st-key-top_app_header [data-testid="stHorizontalBlock"] { gap: .6rem !important; } }
 
-/* ==========================================================================
-   INPUTS AND DROPDOWNS: a soft gray fill and a visible border, so they stand out on white cards.
-   Kept at the very bottom of the file. Earlier versions of these rules were removed.
-   ========================================================================== */
-
-/* Outer box for all Selectboxes, Multiselects, and Text Inputs */
-.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div,
-.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
-.stApp [data-testid="stTextInput"] [data-baseweb="input"],
-.stApp [data-testid="stTextInput"] [data-baseweb="base-input"] {
-    background-color: #f1f5f9 !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    min-height: 40px !important;
-}
-
-/* Inner divs and inputs must not paint a white rectangle over the gray box */
-.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
-.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div,
-.stApp [data-testid="stTextInput"] [data-baseweb="input"] > div,
-.stApp [data-testid="stTextInput"] input {
-    background-color: transparent !important;
-    border: none !important;
-}
-
-/* Hover and focus states */
-.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
-.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover,
-.stApp [data-testid="stTextInput"] [data-baseweb="input"]:hover {
-    background-color: #e8eef5 !important;
-    border-color: #94a3b8 !important;
-}
-
-.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within,
-.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within,
-.stApp [data-testid="stTextInput"] [data-baseweb="input"]:focus-within {
-    background-color: #ffffff !important;
-    border-color: #1e3a8a !important;
-    box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14) !important;
-}
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div, .stApp [data-testid="stTextInput"] [data-baseweb="input"], .stApp [data-testid="stTextInput"] [data-baseweb="base-input"] { background-color: #f1f5f9 !important; border: 1px solid #cbd5e1 !important; border-top: 1px solid #cbd5e1 !important; border-right: 1px solid #cbd5e1 !important; border-bottom: 1px solid #cbd5e1 !important; border-left: 1px solid #cbd5e1 !important; border-radius: 8px !important; min-height: 40px !important; }
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div, .stApp [data-testid="stTextInput"] [data-baseweb="input"] > div, .stApp [data-testid="stTextInput"] input { background-color: transparent !important; border: none !important; }
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:hover, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover, .stApp [data-testid="stTextInput"] [data-baseweb="input"]:hover { background-color: #e8eef5 !important; border-color: #94a3b8 !important; }
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stTextInput"] [data-baseweb="input"]:focus-within { background-color: #ffffff !important; border-color: #1e3a8a !important; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14) !important; }
