@@ -118,26 +118,6 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .stApp [data-testid="stSelectbox"], .stApp [data-testid="stMultiSelect"], .stApp [data-testid="stTextInput"] { margin-bottom: 11px; }
 .stApp [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] [data-testid="stSelectbox"]) { gap: 11px; }
 
-/* Selectboxes and multiselects (SharePoint folders, Save settings, sidebar filters) */
-.stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-.stApp div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
-.stApp div[data-baseweb="select"] > div { min-height: 38px !important; background-color: #ffffff !important; border: 1px solid #94a3b8 !important; border-radius: 7px !important; color: #26344c !important; font-size: 13px !important; box-shadow: 0 1px 2px rgba(15,23,42,0.03) !important; transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
-
-/* Text inputs (Batch name, Name for the new folder): the visible box is the outer
-   data-baseweb="input"; the inner wrapper and the <input> itself stay borderless so the
-   border is never doubled or clipped. */
-.stApp div[data-testid="stTextInput"] div[data-baseweb="input"],
-.stApp div[data-baseweb="input"] { min-height: 38px !important; background-color: #ffffff !important; border: 1px solid #94a3b8 !important; border-radius: 7px !important; box-shadow: 0 1px 2px rgba(15,23,42,0.03) !important; transition: border-color 0.15s ease, box-shadow 0.15s ease; overflow: hidden; }
-.stApp div[data-baseweb="base-input"] { background-color: transparent !important; border: none !important; box-shadow: none !important; min-height: 36px; }
-.stApp [data-testid="stTextInput"] input { background-color: transparent !important; color: #26344c !important; font-size: 13px !important; padding: 0 12px !important; border: none !important; box-shadow: none !important; }
-
-/* Hover */
-.stApp div[data-baseweb="select"] > div:hover,
-.stApp div[data-baseweb="input"]:hover { border-color: #5b7bb8 !important; }
-/* Focus: Figma's #7790c0 border and 3px #e9effa ring */
-.stApp div[data-baseweb="select"] > div:focus-within,
-.stApp div[data-baseweb="input"]:focus-within { border-color: #2f5597 !important; box-shadow: 0 0 0 3px #e9effa !important; outline: none !important; }
-
 .stApp div[data-baseweb="select"] div, .stApp div[data-baseweb="select"] span { color: #26344c !important; font-size: 13px !important; }
 .stApp div[data-baseweb="select"] svg { fill: #8290a2 !important; }
 /* Chosen items of a multi-select */
@@ -243,4 +223,57 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 @media (max-width: 640px) {
   /* Streamlit stacks the columns here: brand on top, switch under it */
   .st-key-top_app_header [data-testid="stHorizontalBlock"] { gap: .6rem !important; }
+}
+
+/* ==========================================================================
+   ALWAYS-VISIBLE RESTING BORDERS ON ALL INPUTS AND SELECT DROPDOWNS
+   Kept at the very bottom, with the .stApp prefix, so no earlier rule can win.
+   All four sides are written out because BaseWeb sets each side separately.
+   (Earlier versions of these rules were removed from the "Form fields" section.)
+   ========================================================================== */
+.stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+.stApp div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
+.stApp div[data-testid="stTextInput"] div[data-baseweb="input"] {
+  background-color: #f8fafc !important;
+  border: 1.5px solid #94a3b8 !important;
+  border-top: 1.5px solid #94a3b8 !important;
+  border-right: 1.5px solid #94a3b8 !important;
+  border-bottom: 1.5px solid #94a3b8 !important;
+  border-left: 1.5px solid #94a3b8 !important;
+  border-color: #94a3b8 !important;
+  border-style: solid !important;
+  border-width: 1.5px !important;
+  border-radius: 7px !important;
+  min-height: 40px !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+}
+/* The inner text-input wrapper and the <input> itself stay borderless and transparent,
+   so they neither double the border nor paint over it */
+.stApp div[data-testid="stTextInput"] div[data-baseweb="base-input"] { background-color: transparent !important; border: none !important; box-shadow: none !important; min-height: 36px !important; }
+.stApp div[data-testid="stTextInput"] input { background-color: transparent !important; color: #1e293b !important; font-size: 13px !important; font-weight: 500 !important; padding: 0 12px !important; border: none !important; box-shadow: none !important; }
+
+/* Hover: a darker slate border, before anything is clicked */
+.stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover,
+.stApp div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:hover,
+.stApp div[data-testid="stTextInput"] div[data-baseweb="input"]:hover {
+  background-color: #ffffff !important;
+  border-color: #64748b !important;
+  border-top-color: #64748b !important;
+  border-right-color: #64748b !important;
+  border-bottom-color: #64748b !important;
+  border-left-color: #64748b !important;
+}
+
+/* Focus: navy border and a soft blue glow */
+.stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within,
+.stApp div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within,
+.stApp div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+  background-color: #ffffff !important;
+  border-color: #1e3a8a !important;
+  border-top-color: #1e3a8a !important;
+  border-right-color: #1e3a8a !important;
+  border-bottom-color: #1e3a8a !important;
+  border-left-color: #1e3a8a !important;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14) !important;
 }
