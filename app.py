@@ -229,7 +229,7 @@ with form_col:
         # A radio rather than st.tabs: only the chosen source's code runs on each click.
         # Without SharePoint sync there is nothing to read from, so only uploading is offered.
         if ENABLE_SHAREPOINT_SYNC:
-            with st.container(key="source_switch"):
+            with st.container(key="source_mode_switcher"):
                 source = st.radio(
                     "Photo source", [SOURCE_LOCAL, SOURCE_SHAREPOINT],
                     horizontal=True, label_visibility="collapsed", key="photo_source",
