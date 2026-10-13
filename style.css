@@ -21,13 +21,14 @@ header[data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] *,
 [data-testid="collapsedControl"], [data-testid="collapsedControl"] * { color: #1e3a8a !important; fill: #1e3a8a !important; }
 
-/* ---------- Header card ---------- */
-.header-container { height: 76px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid rgba(226,232,240,.9); border-radius: 14px; box-shadow: 0 3px 16px rgba(30,58,138,.05); margin-bottom: 18px; }
-.header-flex { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.header-flex img { display: block; height: auto; margin: 0; }
+/* ---------- Header bar: brand | view switch | tagline ---------- */
+.st-key-app_header { min-height: 76px !important; max-width: 1440px !important; margin: 0 auto 18px !important; padding: 0 22px !important; background: #ffffff !important; border: 1px solid rgba(226, 232, 240, 0.9) !important; border-radius: 14px !important; box-shadow: 0 3px 16px rgba(30, 58, 138, 0.05) !important; display: flex !important; justify-content: center !important; }
+.st-key-app_header [data-testid="stHorizontalBlock"] { width: 100%; align-items: center !important; gap: 1rem !important; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand img { display: block; height: auto; margin: 0; }
 .brand-text { color: #1e3a8a; font-weight: 800; font-size: 22px; letter-spacing: .02em; }
 .product-name { padding-left: 12px; border-left: 1px solid #dce3eb; color: #475569; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.header-tagline { color: #7c8a9d; font-size: 12px; }
+.header-tagline { justify-self: end; text-align: right; color: #7c8a9d; font-size: 12px; font-weight: 500; white-space: nowrap; }
 
 /* ---------- Headings ---------- */
 .eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 10px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
@@ -65,7 +66,7 @@ h3 { color: #1e3a8a !important; }
 .tip-card p { margin: 3px 0 0 0; color: #8b7359; font-size: 10px; line-height: 1.5; }
 
 /* ---------- Switches: "Whiteboard Extraction / Analytics Dashboard" and the photo source ---------- */
-.st-key-view_switch { display: flex; justify-content: center; margin-bottom: 18px; }
+.st-key-view_switch { display: flex; justify-content: center; margin: 0; }
 .st-key-source_switch { display: flex; justify-content: flex-start; margin: 0 0 1.5rem; }
 .st-key-view_switch > div, .st-key-source_switch > div { width: auto !important; flex: 0 0 auto; }
 .st-key-view_switch [data-testid="stRadio"], .st-key-source_switch [data-testid="stRadio"] { width: auto; }
@@ -198,3 +199,23 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 
 /* "Save settings" and other card titles keep the same label-over-title look */
 .panel-title { color: #24324a !important; font-weight: 600 !important; font-size: 15px !important; margin: 0 0 .5rem 0 !important; }
+
+/* ---------- View switch pills: the Figma icons ---------- */
+.st-key-view_switch label[data-baseweb="radio"] { color: #64748b; gap: 7px; }
+.st-key-view_switch label[data-baseweb="radio"]:has(input:checked) { color: #1e3a8a; }
+.st-key-view_switch label[data-baseweb="radio"]::before { content: ""; flex: 0 0 17px; width: 17px; height: 17px; background-color: currentColor; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: 17px; mask-size: 17px; }
+.st-key-view_switch div[role="radiogroup"] > label:nth-of-type(1)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4'/%3E%3C/svg%3E"); }
+.st-key-view_switch div[role="radiogroup"] > label:nth-of-type(2)::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E"); }
+
+/* ---------- Smaller screens ---------- */
+@media (max-width: 900px) {
+  /* the tagline goes, so the centered switch is never squeezed */
+  .st-key-app_header .header-tagline { display: none !important; }
+  .st-key-app_header [data-testid="stColumn"]:nth-child(3) { display: none !important; }
+  .st-key-app_header { padding: 10px 16px !important; }
+}
+@media (max-width: 640px) {
+  /* Streamlit stacks the columns here: brand on top, switch under it */
+  .st-key-app_header [data-testid="stHorizontalBlock"] { gap: .6rem !important; }
+  .st-key-app_header .st-key-view_switch { justify-content: flex-start; }
+}
