@@ -75,21 +75,33 @@ def render_header(views):
     return view
 
 
-def section_heading(eyebrow, title, badge=None, step=None):
+def section_heading(eyebrow, title, badge=None, step=None, description=None):
     """A small orange label over a large title. On the right there is either a
     status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete", or a plain step label such as "Step 1 of 2"."""
+    "complete", or a plain step label such as "Step 1 of 2". An optional
+    description goes in a line under the title."""
     right = ""
     if badge:
         text, kind = badge
         right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
     elif step:
         right = f'<span class="step-label">{html.escape(step)}</span>'
+    desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
         '<div class="section-heading"><div>'
         f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
         f'<h2>{html.escape(title)}</h2>'
-        f'</div>{right}</div>',
+        f'</div>{right}</div>{desc_html}',
+        unsafe_allow_html=True,
+    )
+
+
+def subsection_heading(title, description=None):
+    """The smaller heading of the source-specific content under the source switch
+    (for example "Upload whiteboard photos")."""
+    desc_html = f'<div class="source-subhead-desc">{html.escape(description)}</div>' if description else ""
+    st.markdown(
+        f'<div class="source-subhead"><div class="source-subhead-title">{html.escape(title)}</div>{desc_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -137,12 +149,12 @@ def render_instructions():
         st.markdown(
             """
             <div class="instruction-text">
-                Upload one or multiple whiteboard photos. The AI will automatically extract the data
-                and append it to the Master Excel file. You can also drag and drop images directly into the uploader.
+                Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the data
+                and append it to the Master Excel file.
                 <ol>
-                    <li>Add your whiteboard photos (a preview of each appears below the uploader).</li>
-                    <li>Choose the SharePoint folder and give the batch a name. The name becomes the Excel file name.</li>
-                    <li>Click <b>Extract Data & Update Excel</b>.</li>
+                    <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
+                    <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
+                    <li>Click <b>Process photos</b>.</li>
                     <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
                 </ol>
             </div>
