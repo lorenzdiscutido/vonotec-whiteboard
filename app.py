@@ -6,7 +6,7 @@
     excel_writer.py      master Excel file (layout, units, repair formulas)
     batch_processor.py   the per-photo batch loop
     ui_sections.py       session state, folder picker, file management, pending syncs
-    ui_source_browser.py cascading folder browser for "Process from SharePoint"
+    ui_source_browser.py folder card for "Process from SharePoint"
     sync_tracker.py      remembers which batch files reached SharePoint
     ui_components.py     CSS and header
     ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
@@ -252,23 +252,13 @@ with form_col:
             source = SOURCE_LOCAL
         remote_mode = source == SOURCE_SHAREPOINT
 
-        # The heading sits under the source switch and follows the chosen source
-        if remote_mode:
-            ui_components.section_heading("Input source", "Choose a SharePoint folder", step="Step 1 of 2")
-        else:
-            ui_components.section_heading("Input source", "Upload whiteboards", step="Step 1 of 2")
-
         uploaded_files = []
         source_path, include_subfolders = [], False
         if remote_mode:
-            st.caption(
-                "Pick the SharePoint folder that holds the photos, one level at a time: each choice "
-                "opens a selector for the folders inside it. The photos are read directly from "
-                "SharePoint, one at a time. The Excel file is saved to the folder chosen under "
-                "Save settings. The last folder you used is remembered."
-            )
+            # The folder card has its own title, status, selectors and photo count
             source_path, include_subfolders = render_source_browser()
         else:
+            ui_components.section_heading("Input source", "Upload whiteboards", step="Step 1 of 2")
             uploaded_files = st.file_uploader(
                 "Choose whiteboard images...",
                 type=["jpg", "jpeg", "png"],
