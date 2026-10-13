@@ -142,18 +142,30 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .card-heading .card-title { margin-bottom: 0; }
 .card-heading svg { flex: 0 0 auto; margin-top: 2px; }
 
-/* ---------- Photo Uploader Dropzone ---------- */
+/* ---------- Photo Uploader Dropzone (empty state: round icon + text, whole box is the click target) ---------- */
 div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
 [data-testid="stFileUploaderDropzone"], [data-testid="stFileUploadDropzone"] { position: relative; min-height: 210px !important; margin-top: 10px !important; padding: 28px 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; background-color: #f8fafd !important; text-align: center !important; transition: 0.2s ease !important; cursor: pointer !important; }
 [data-testid="stFileUploaderDropzone"]:hover, [data-testid="stFileUploadDropzone"]:hover { border-color: #1e3a8a !important; background-color: #f2f6fd !important; transform: translateY(-1px); }
 [data-testid="stFileUploaderDropzoneInstructions"] svg { display: none !important; }
 [data-testid="stFileUploaderDropzoneInstructions"] { display: flex !important; flex-direction: column; align-items: center; gap: 6px; }
 [data-testid="stFileUploaderDropzoneInstructions"] > * { display: none !important; }
-[data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploadDropzone"] > button { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; opacity: 0 !important; cursor: pointer !important; z-index: 1; }
 [data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
 [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Drop whiteboard photos here"; color: #24324a; font-size: 15px; font-weight: 700; line-height: 1.5; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { content: "or click to browse from your computer"; color: #68778c; font-size: 12px; line-height: 1.5; }
 [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #94a0b0; font-size: 10px; }
+
+/* The native [ Upload ] button inside the dropzone: stretched invisibly over the whole box, so there is only ONE visible upload icon (our round one). Only the dropzone's own browse button is targeted, never the delete (x) or pagination buttons of the file chips. */
+[data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploadDropzone"] > button, [data-testid="stFileUploaderDropzone"] button[data-testid="stBaseButton-secondary"] { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; opacity: 0 !important; z-index: 1 !important; cursor: pointer !important; }
+
+/* Uploaded file chips and their scroll/pagination/delete controls stay clickable */
+[data-testid="stFileUploaderFile"], [data-testid="stFileUploaderPagination"], [data-testid="stFileUploaderDeleteBtn"], [data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button { position: relative !important; z-index: 5 !important; pointer-events: auto !important; }
+[data-testid="stFileUploaderFile"] svg, [data-testid="stFileUploaderPagination"] svg, [data-testid="stFileUploaderDeleteBtn"] svg { display: inline-block !important; }
+[data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button, [data-testid="stFileUploaderFile"] button { position: relative !important; inset: auto !important; width: auto !important; height: auto !important; opacity: 1 !important; }
+
+/* Once photos are uploaded (matches the Python-injected rule in ui_sections.py): hide the round icon, the helper texts and the browse overlay, so only the scrollable file chips remain and clicking inside the box never opens the file browser */
+[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]::before, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]::after, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzoneInstructions"], [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"] > button, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"] button[data-testid="stBaseButton-secondary"] { display: none !important; }
+[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"], [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"] { min-height: 0 !important; padding: 14px 16px !important; cursor: default !important; }
+[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]:hover, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]:hover { transform: none; background-color: #f8fafd !important; }
 
 /* ---------- Toggles, Alerts, Expanders, Sidebar & Analytics ---------- */
 div[data-testid="stToggle"], .st-key-src_recursive, .st-key-analytics_hide_unknown { margin: 6px 0 10px; }
@@ -174,7 +186,6 @@ div[data-testid="stExpander"] { background-color: #ffffff; border: 1px solid #e3
 div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { background-color: transparent !important; }
 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #1e3a8a !important; font-weight: 600 !important; }
 [data-testid="stExpander"] summary svg { color: #1e3a8a !important; fill: #1e3a8a !important; }
-
 
 .st-key-analytics [data-stale="true"], .st-key-analytics [data-stale="true"] * { opacity: 1 !important; transition: none !important; }
 .st-key-analytics div[data-testid="stMetric"] { display: grid !important; grid-template-columns: 36px 1fr; column-gap: 12px; align-items: center; padding: 12px 16px; background-color: #ffffff; border: 1px solid #e3e9ef; border-radius: 9px; box-shadow: 0 2px 10px rgba(30,58,138,.025); }
@@ -231,13 +242,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 [class*="st-key-chart_"] { width: 100% !important; max-width: 100% !important; height: 100% !important; flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 9px !important; box-shadow: 0 2px 10px rgba(30, 58, 138, 0.025) !important; padding: 14px 16px 12px !important; box-sizing: border-box !important; }
 [class*="st-key-chart_"] [data-testid="stVegaLiteChart"], [class*="st-key-chart_"] [data-testid="stArrowVegaLiteChart"] { width: 100% !important; }
 
-/* ---------- Round 3: uploader fixes, thumbnail gallery, panel stretch, buttons, legend ---------- */
-[data-testid="stFileUploaderFile"], [data-testid="stFileUploaderPagination"], [data-testid="stFileUploaderDeleteBtn"], [data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button { position: relative !important; z-index: 5 !important; pointer-events: auto !important; }
-[data-testid="stFileUploaderFile"] svg, [data-testid="stFileUploaderPagination"] svg, [data-testid="stFileUploaderDeleteBtn"] svg { display: inline-block !important; }
-[data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button { position: relative !important; inset: auto !important; width: auto !important; height: auto !important; opacity: 1 !important; }
-[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileName"]) [data-testid="stFileUploaderDropzone"]::before { content: "Drop or click to add more photos" !important; width: auto !important; height: auto !important; margin: 0 !important; border-radius: 0 !important; background: none !important; color: #68778c !important; font-size: 12px !important; font-weight: 600 !important; }
-[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileName"]) [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileName"]) [data-testid="stFileUploaderDropzoneInstructions"] { display: none !important; }
-[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileName"]) [data-testid="stFileUploaderDropzone"] { min-height: 0 !important; padding: 16px !important; }
+/* ---------- Thumbnail gallery, panel stretch, buttons, legend ---------- */
 .st-key-thumbnail_scroll_gallery { padding: 4px 6px 4px 2px !important; scrollbar-width: thin; scrollbar-color: #c3cfe0 transparent; }
 .st-key-thumbnail_scroll_gallery::-webkit-scrollbar, .st-key-thumbnail_scroll_gallery *::-webkit-scrollbar { width: 8px; }
 .st-key-thumbnail_scroll_gallery::-webkit-scrollbar-thumb, .st-key-thumbnail_scroll_gallery *::-webkit-scrollbar-thumb { background: #c3cfe0; border-radius: 8px; }
