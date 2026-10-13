@@ -403,3 +403,21 @@ details.rs-row > summary::-webkit-details-marker { display: none; }
 .st-key-form_panel .st-key-photo_source { margin-bottom: 0 !important; }
 .st-key-form_panel [data-testid="stElementContainer"]:has([data-testid="stRadio"]) { margin-bottom: 0 !important; }
 .st-key-source_card { margin: 0 0 8px 0 !important; }
+
+/* ---------- Dashboard: "Dimensions by defect" table with thin comparison bars ---------- */
+.dim-table-wrap { max-height: 440px; overflow: auto; margin-top: 10px; background-color: #ffffff; }
+.dim-table-wrap table.dim-table { width: 100%; border-collapse: collapse; font-size: 12.5px; background-color: #ffffff; }
+.dim-table-wrap table.dim-table th { position: sticky; top: 0; z-index: 1; background-color: #1e3a8a !important; color: #ffffff !important; font-weight: 700 !important; text-align: left !important; padding: 9px 12px !important; white-space: nowrap; }
+.dim-table-wrap table.dim-table td { background-color: #ffffff !important; color: #334155 !important; font-weight: 500 !important; padding: 9px 12px !important; border-bottom: 1px solid #edf1f5; vertical-align: middle; }
+.dim-table-wrap table.dim-table tbody tr:nth-child(even) td { background-color: #f8fafc !important; }
+.dim-table-wrap table.dim-table .dim-code { color: #0f172a !important; font-weight: 700 !important; white-space: nowrap; }
+.dim-table-wrap table.dim-table .dim-count { text-align: right !important; font-variant-numeric: tabular-nums; }
+.dim-table-wrap table.dim-table .dim-cell { min-width: 170px; }
+.dim-value { display: flex; align-items: baseline; gap: 5px; }
+.dim-value b { color: #0f172a; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dim-unit { color: #64748b; font-size: 12px; font-weight: 600; }
+.dim-track { height: 5px; margin-top: 5px; background-color: #edf1f5; border-radius: 999px; overflow: hidden; }
+.dim-bar { height: 100%; border-radius: 999px; }
+.dim-bar-board { background-color: #2f5597; }
+.dim-bar-repair { background-color: #7c9cd6; }
+.dim-na { color: #94a3b8; font-weight: 600; }
