@@ -1,3 +1,4 @@
+# app.py
 """Main flow of the Whiteboard AI web app. Everything else lives in:
     settings.py          switches and constants
     file_utils.py        processed-photo log, filename cleanup
@@ -247,9 +248,8 @@ form_col, results_col = st.columns([3, 2], gap="large")
 with form_col:
     with st.container(key="form_panel"):
         # Stable heading first: what this step is, then the choice, then the content for that choice.
-        # (Redundant Step 1 of 3 label removed in favor of top stepper)
         ui_components.section_heading(
-            "Input source", "Choose where to import photos from", 
+            "Input source", "Choose where to import photos from", step="Step 1 of 3",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
 
@@ -267,19 +267,10 @@ with form_col:
 
         uploaded_files = []
         source_path, include_subfolders = [], False
-        
-        # State tracking for progressive disclosure
-        source_chosen = False
-        photo_count = 0
-        
         if remote_mode:
             # The folder card has its own title ("Choose a SharePoint folder"), status,
             # selectors and photo count
             source_path, include_subfolders = render_source_browser()
-            source_chosen = bool(source_path)
-            # Count will be fully known after start_remote_batch runs, 
-            # but ui_sections assumes 0 indicates "count not resolved yet" for remote
-            photo_count = 0
         else:
             ui_components.subsection_heading(
                 "Upload whiteboard photos", "Drop photos here or browse your device. JPG and PNG are supported.",
@@ -295,8 +286,6 @@ with form_col:
             # browse overlay, so only the scrollable file chips remain in the dashed box.
             hide_uploader_chrome_if_filled(uploaded_files)
             render_photo_previews(uploaded_files)
-            source_chosen = bool(uploaded_files)
-            photo_count = len(uploaded_files or [])
 
         # Suggest a fresh default name each time a new round of photos is selected,
         # without overwriting what the person is typing in the meantime. It is also
@@ -325,17 +314,14 @@ with form_col:
 
         # Where the file goes and what it is called: grouped in a box, side by side
         with st.container(border=True, key="save_settings"):
-            # (Redundant Step 2 of 3 label removed in favor of top stepper)
-            ui_components.card_heading("Output preferences", "Save settings")
+            ui_components.card_heading("Output preferences", "Save settings", step="Step 2 of 3")
             folder_column, name_column = st.columns(2, gap="medium")
             with folder_column:
-                # Pass state so the folder picker disables itself if no source is selected
-                folder_choice, new_folder_raw = render_folder_picker(source_chosen=source_chosen, photo_count=photo_count)
+                folder_choice, new_folder_raw = render_folder_picker()
             with name_column:
                 batch_name_raw = st.text_input(
                     "Batch name",
                     key="batch_name_input",
-                    disabled=not (source_chosen or photo_count),
                     help="This becomes the Excel file name, both here and in SharePoint. "
                          "With 'Import from SharePoint' it starts as the chosen folder's name, "
                          "and you can change it.",
@@ -344,27 +330,26 @@ with form_col:
         # The sticky footer: the same final action whichever source was used. Its text carries
         # the context ("Process 16 photos") and it stays disabled until everything is valid.
         photos_missing, destination_missing = process_blockers(
-            photo_count, source_chosen, folder_choice, new_folder_raw, batch_name_raw, remote_mode,
+            len(uploaded_files or []), bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
         )
         process_clicked, clear_clicked = render_action_buttons(
-            photo_count=photo_count,
+            photo_count=len(uploaded_files or []),
             blocked_reason=photos_missing or destination_missing,
             remote=remote_mode,
         )
         extract_clicked = process_clicked and not remote_mode
         fetch_clicked = process_clicked and remote_mode
 
-# Fill the stepper now that the form's state is known. 
-# Step 1 = Missing Photos. Step 2 = Missing Dest. Step 3 = Valid/Ready.
-if photos_missing:
-    current_step = 1
-elif destination_missing:
-    current_step = 2
-else:
-    current_step = 3
-
+# Fill the stepper now that the form's state is known: finished steps green, the one in
+# progress blue, the rest muted.
+_done = set()
+if not photos_missing:
+    _done.add(1)
+if not destination_missing:
+    _done.add(2)
+_current = 1 if 1 not in _done else (2 if 2 not in _done else 3)
 with stepper_slot.container():
-    ui_components.render_stepper(current_step)
+    ui_components.render_stepper(_done, _current)
 
 if clear_clicked:
     st.session_state.uploader_key += 1
@@ -401,7 +386,4 @@ with results_col:
 
         render_file_management()
         render_pending_syncs()
-        
-        # Only show the extraction tip if results are empty to keep the panel clean
-        if nothing_to_show:
-            ui_components.render_tip()
+        ui_components.render_tip()
