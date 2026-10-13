@@ -373,3 +373,7 @@ details.rs-row > summary::-webkit-details-marker { display: none; }
 .rs-details ul { margin: 4px 0 0 0; padding-left: 18px; }
 .rs-line { overflow-wrap: anywhere; margin-bottom: 2px; }
 .st-key-batch_files_box { padding: 2px 4px 2px 0 !important; scrollbar-width: thin; scrollbar-color: #c3cfe0 transparent; }
+
+/* ---------- Active Filter Chips ---------- */
+.filter-chips-container { display: flex; flex-wrap: wrap; gap: 8px; margin: -5px 0 15px 0; align-items: center; }
+.filter-chip { display: inline-flex; align-items: center; padding: 4px 10px; background-color: #eaf0fb; border: 1px solid #cbd8ed; border-radius: 16px; color: #1e3a8a; font-size: 12px; font-weight: 600; cursor: pointer; }
