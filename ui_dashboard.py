@@ -194,7 +194,7 @@ def _bar_chart(counts, column):
         st.altair_chart(chart, theme=None)
 
 
-def _chart_section(df, column, title, hide_unknown):
+def _chart_section(df, column, title, hide_unknown, notes_below=False):
     """A white card with a title, a one-line subtitle, the total, and the bar chart of
     the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out
     (and a note says how many defects that hides), so the real distribution isn't
@@ -217,12 +217,19 @@ def _chart_section(df, column, title, hide_unknown):
         )
         if counts.empty:
             st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
-            return
+            return []
         _bar_chart(counts, column)
+        notes = []
         if (counts[column] == UNKNOWN).any():
-            st.caption(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
+            notes.append(f"The orange bar is 'Unknown': defects whose {column.lower()} wasn't on the board or in the file name.")
         if hidden:
-            st.caption(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
+            notes.append(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
+        if not notes_below:
+            for note in notes:
+                st.caption(note)
+    # Side-by-side cards: the notes are drawn under the cards by the caller, so a note in
+    # one card cannot make that card taller than its neighbour.
+    return notes if notes_below else []
 
 
 # ---------------------------------------------------------------------------
@@ -382,9 +389,17 @@ def render_analytics_dashboard():
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
     tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
     with tower_col:
-        _chart_section(df, "Tower", "Defects by tower", hide_unknown)
+        tower_notes = _chart_section(df, "Tower", "Defects by tower", hide_unknown, notes_below=True)
     with material_col:
-        _chart_section(df, "Material", "Defects by material", hide_unknown)
+        material_notes = _chart_section(df, "Material", "Defects by material", hide_unknown, notes_below=True)
+    if tower_notes or material_notes:
+        note_tower_col, note_material_col = st.columns([1, 1], gap="small")
+        with note_tower_col:
+            for note in tower_notes:
+                st.caption(note)
+        with note_material_col:
+            for note in material_notes:
+                st.caption(note)
     _chart_section(df, "Floor", "Defects by floor", hide_unknown)
 
     with st.expander("View the data behind the charts"):
