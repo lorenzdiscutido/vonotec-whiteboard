@@ -243,7 +243,7 @@ def render_file_management():
                 xlsx_bytes = None
             if xlsx_bytes is not None:
                 st.download_button(
-                    label="Download master log",
+                    label="Download workbook",
                     data=xlsx_bytes,
                     file_name=os.path.basename(path),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -278,7 +278,7 @@ def render_file_management():
 
 
 # ---------------------------------------------------------------------------
-# Pending syncs: batch files that never reached SharePoint
+# Pending Syncs: batch files that never reached SharePoint
 # ---------------------------------------------------------------------------
 
 def _push_pending(item):
