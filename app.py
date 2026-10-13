@@ -6,15 +6,15 @@
     excel_writer.py      master Excel file (layout, units, repair formulas)
     batch_processor.py   the per-photo batch loop
     ui_sections.py       session state, folder picker, file management, pending syncs
-    ui_source_browser.py folder card for "Process from SharePoint"
+    ui_source_browser.py folder card for "Import from SharePoint"
     sync_tracker.py      remembers which batch files reached SharePoint
     ui_components.py     CSS and header
     ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
     dashboard_data.py    reads the batch Excel files into a table for the dashboard
     dashboard_loader.py  downloads those files in the background so the dashboard is ready
 
-Photos can come from two places: uploaded from this computer, or already sitting in any
-SharePoint folder ("Process from SharePoint"). Both end up in the same batch loop.
+Photos can come from two places: uploaded from this device, or already sitting in any
+SharePoint folder ("Import from SharePoint"). Both end up in the same batch loop.
 """
 import os
 import datetime
@@ -31,7 +31,7 @@ from ui_sections import (
     init_session_state, show_batch_results, render_photo_previews,
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
-    hide_uploader_chrome_if_filled,
+    hide_uploader_chrome_if_filled, PROCESS_BUTTON_LABEL,
 )
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
@@ -40,8 +40,9 @@ from dashboard_loader import start_warmup_if_due
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
 
-SOURCE_LOCAL = "Upload Local Photos"
-SOURCE_SHAREPOINT = "Process from SharePoint"
+# Parallel wording: both options describe the same stage (bringing photos in)
+SOURCE_LOCAL = "Upload from device"
+SOURCE_SHAREPOINT = "Import from SharePoint"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
@@ -62,9 +63,9 @@ start_warmup_if_due()
 
 # Streamlit forgets the value of any widget that is not drawn in a run. While the
 # dashboard is open the extraction widgets are not drawn, so without this they would
-# reset (the photo source back to "Upload Local Photos", the folder choices, the batch
-# name...) when the person comes back. Writing a widget's value back into session state
-# on every run keeps it. This must run before those widgets are drawn.
+# reset (the photo source, the folder choices, the batch name...) when the person
+# comes back. Writing a widget's value back into session state on every run keeps it.
+# This must run before those widgets are drawn.
 _KEEP_ALIVE_PREFIXES = (
     "photo_source", "batch_name_input", "folder_choice_input",
     "new_folder_name_input", "src_recursive", "src_lv_",
@@ -182,7 +183,7 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
 def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
     """Local photos: validates the form, then runs the batch."""
     if not files:
-        st.error("Please select at least one photo before extracting.")
+        st.error("Please select at least one photo before processing.")
         return
 
     filename, subfolder, creating_new_folder, error = _prepare_output(
@@ -240,6 +241,12 @@ form_col, results_col = st.columns([3, 2], gap="large")
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
     with st.container(key="form_panel"):
+        # Stable heading first: what this step is, then the choice, then the content for that choice.
+        ui_components.section_heading(
+            "Input source", "Choose where to import photos from", step="Step 1 of 2",
+            description="Select photos from your device or import them from an existing SharePoint folder.",
+        )
+
         # A radio rather than st.tabs: only the chosen source's code runs on each click.
         # Without SharePoint sync there is nothing to read from, so only uploading is offered.
         if ENABLE_SHAREPOINT_SYNC:
@@ -255,10 +262,13 @@ with form_col:
         uploaded_files = []
         source_path, include_subfolders = [], False
         if remote_mode:
-            # The folder card has its own title, status, selectors and photo count
+            # The folder card has its own title ("Choose a SharePoint folder"), status,
+            # selectors and photo count
             source_path, include_subfolders = render_source_browser()
         else:
-            ui_components.section_heading("Input source", "Upload whiteboards", step="Step 1 of 2")
+            ui_components.subsection_heading(
+                "Upload whiteboard photos", "Drop photos here or browse your device. JPG and PNG are supported.",
+            )
             uploaded_files = st.file_uploader(
                 "Choose whiteboard images...",
                 type=["jpg", "jpeg", "png"],
@@ -286,7 +296,7 @@ with form_col:
             # Re-read the folder list each round, so folders other people created show up
             st.session_state.sp_folders = None
 
-        # "Process from SharePoint": the batch name defaults to the name of the chosen folder.
+        # "Import from SharePoint": the batch name defaults to the name of the chosen folder.
         # It is filled in when a folder is chosen (or a new round starts, or the box was
         # refilled above) and then left alone, so whatever the person types over it is kept
         # until they pick a different folder.
@@ -307,15 +317,16 @@ with form_col:
                     "Batch name",
                     key="batch_name_input",
                     help="This becomes the Excel file name, both here and in SharePoint. "
-                         "With 'Process from SharePoint' it starts as the chosen folder's name, "
+                         "With 'Import from SharePoint' it starts as the chosen folder's name, "
                          "and you can change it.",
                 )
 
+        # The same final action whichever source was used
         if remote_mode:
             with st.container(key="action_buttons"):
                 _spacer, fetch_col = st.columns([2.5, 1.5], gap="small")  # empty spacer column pushes the button right
                 with fetch_col:
-                    fetch_clicked = st.button("Fetch and Process Folder", type="primary", key="fetch_folder")
+                    fetch_clicked = st.button(PROCESS_BUTTON_LABEL, type="primary", key="fetch_folder")
             extract_clicked, clear_clicked = False, False
         else:
             extract_clicked, clear_clicked = render_action_buttons()
