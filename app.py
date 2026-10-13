@@ -500,7 +500,7 @@ with form_col:
 
         ui_components.section_heading(
 
-            "Input source", "Choose where to import photos from", step="Step 1 of 3",
+            "Input source", "Choose where to import photos from",
 
             description="Select photos from your device or import them from an existing SharePoint folder.",
 
@@ -628,9 +628,13 @@ with form_col:
 
         # Where the file goes and what it is called: grouped in a box, side by side
 
-        with st.container(border=True, key="save_settings"):
+        # Step 1 gate: the card is muted (not locked) until photos are chosen
 
-            ui_components.card_heading("Output preferences", "Save settings", step="Step 2 of 3")
+        photos_gate_open = bool(source_path) if remote_mode else bool(uploaded_files)
+
+        with st.container(border=True, key="save_settings" if photos_gate_open else "save_settings_muted"):
+
+            ui_components.card_heading("Output preferences", "Save settings")
 
             folder_column, name_column = st.columns(2, gap="medium")
 
@@ -686,13 +690,13 @@ with form_col:
 
 # progress blue, the rest muted.
 
-_done = set()
+_done = set()  # steps complete so far; a later step is never done before an earlier one
 
 if not photos_missing:
 
     _done.add(1)
 
-if not destination_missing:
+if 1 in _done and not destination_missing:
 
     _done.add(2)
 
