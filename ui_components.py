@@ -22,22 +22,41 @@ def load_local_css(file_name="style.css"):
         pass
 
 
-def render_header():
-    """The white header card: the Vonotec logo, a divider and the product name."""
-    tagline = "Data Extraction and Master Log Automator"
+def _brand_html():
+    """The logo, a thin divider and the product name (left of the header bar)."""
     try:
         with open("vonotec.png", "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
-        brand = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
+        logo = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
     except FileNotFoundError:
-        brand = '<span class="brand-text">VONOTEC</span>'
-    st.markdown(
-        '<div class="header-container">'
-        f'<div class="header-flex">{brand}<span class="product-name">Whiteboard AI</span></div>'
-        f'<span class="header-tagline">{tagline}</span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+        logo = '<span class="brand-text">VONOTEC</span>'
+    return f'<div class="brand">{logo}<span class="product-name">Whiteboard AI</span></div>'
+
+
+def render_header(views):
+    """One white header bar with three parts: the brand on the left, the view switch
+    (a radio, drawn as two pills) in the middle and the tagline on the right.
+    `views` is the list of view names; returns the one that is chosen."""
+    with st.container(key="app_header"):
+        try:
+            col_brand, col_nav, col_tagline = st.columns([1.2, 1, 1.2], vertical_alignment="center")
+        except TypeError:  # older Streamlit without vertical_alignment
+            col_brand, col_nav, col_tagline = st.columns([1.2, 1, 1.2])
+
+        with col_brand:
+            st.markdown(_brand_html(), unsafe_allow_html=True)
+        with col_nav:
+            with st.container(key="view_switch"):
+                view = st.radio(
+                    "View", views,
+                    horizontal=True, label_visibility="collapsed", key="active_view",
+                )
+        with col_tagline:
+            st.markdown(
+                '<div class="header-tagline">Data Extraction and Master Log Automator</div>',
+                unsafe_allow_html=True,
+            )
+    return view
 
 
 def section_heading(eyebrow, title, badge=None, step=None):
