@@ -136,6 +136,11 @@ def _load_scope(scope, subfolders):
 # Charts
 # ---------------------------------------------------------------------------
 
+# Bars are at most this wide (pixels) when a chart has this many bars or fewer
+BAR_MAX_WIDTH = 48
+FEW_BARS_MAX = 8
+
+
 def _bar_chart(counts, column):
     """A bar chart of counts (from dashboard_data.count_by), keeping the order
     the table is already in."""
@@ -155,7 +160,8 @@ def _bar_chart(counts, column):
 
     chart = (
         alt.Chart(counts)
-        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+        # With only a few categories the bars would stretch into huge blocks, so cap their width
+        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, **({"size": BAR_MAX_WIDTH} if len(counts) <= FEW_BARS_MAX else {}))
         .encode(
             # Blue for known values, orange for the "Unknown" bar
             color=alt.condition(
@@ -172,7 +178,7 @@ def _bar_chart(counts, column):
         )
         # padding: breathing room between the chart and the rounded card, so nothing touches the edge
         .properties(
-            height=240, width="container", background=CHART_BACKGROUND,
+            height=220, width="container", background=CHART_BACKGROUND,
             padding={"left": 4, "right": 12, "top": 10, "bottom": 4},
         )
         .configure(font=CHART_FONT)
@@ -182,7 +188,10 @@ def _bar_chart(counts, column):
         )
         .configure_view(stroke=None)
     )
-    st.altair_chart(chart, theme=None)  # theme=None keeps the colors above instead of the app theme's
+    try:
+        st.altair_chart(chart, theme=None, use_container_width=True)  # theme=None keeps the colors above instead of the app theme's
+    except TypeError:  # newer Streamlit without use_container_width: the chart already has width="container"
+        st.altair_chart(chart, theme=None)
 
 
 def _chart_section(df, column, title, hide_unknown):
@@ -371,7 +380,7 @@ def render_analytics_dashboard():
         return
 
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
-    tower_col, material_col = st.columns(2, gap="large")
+    tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
     with tower_col:
         _chart_section(df, "Tower", "Defects by tower", hide_unknown)
     with material_col:
