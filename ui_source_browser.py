@@ -48,9 +48,9 @@ def _cached_folders(path):
 
 @st.cache_data(ttl=COUNT_CACHE_SECONDS, show_spinner=False)
 def _cached_photo_count(path, recursive):
-    """(number of photos, time it was counted) for a folder."""
+    """(number of photos, number of folders that hold them, time it was counted)."""
     images = sharepoint_client.list_images_at(list(path), recursive=recursive)
-    return len(images), time.time()
+    return len(images), len({image["folder"] for image in images}), time.time()
 
 
 def _saved_path():
@@ -109,7 +109,7 @@ def _footer_html(path, has_selection, recursive):
         )
     try:
         with st.spinner("Counting photos..."):
-            count, counted_at = _cached_photo_count(tuple(path), bool(recursive))
+            count, folder_count, counted_at = _cached_photo_count(tuple(path), bool(recursive))
     except Exception:
         return (
             '<div class="source-footer"><span class="source-count">'
@@ -119,11 +119,13 @@ def _footer_html(path, has_selection, recursive):
     if count == 0:
         label = "<b>No photos found</b> in the selected folder"
     else:
-        label = f"<b>{count:,} photo{'s' if count != 1 else ''} found</b> in the selected folder"
+        label = f"<b>{count:,} photo{'s' if count != 1 else ''} found</b>"
+        if recursive and folder_count > 1:
+            label += f" across {folder_count:,} folders"
     return (
         '<div class="source-footer">'
         f'<span class="source-count">{_ICON_IMAGE}{label}</span>'
-        f'<span class="source-updated">Updated {_ago(counted_at)}</span></div>'
+        f'<span class="source-updated">Last updated {_ago(counted_at)}</span></div>'
     )
 
 
