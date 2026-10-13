@@ -112,18 +112,43 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-action_buttons div.stButton { width: auto !important; }
 
 /* ---------- Form fields ---------- */
-[data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #425069 !important; font-size: 12px !important; font-weight: 600 !important; }
-.stApp div[data-baseweb="select"] > div,
-.stApp div[data-baseweb="base-input"],
-.stApp div[data-baseweb="input"] { min-height: 36px; background-color: #ffffff !important; border: 1px solid #dce3eb !important; border-radius: 7px !important; }
-.stApp div[data-baseweb="base-input"]:focus-within,
-.stApp div[data-baseweb="select"]:focus-within > div { border-color: #7790c0 !important; box-shadow: 0 0 0 3px #e9effa !important; }
-.stApp div[data-baseweb="select"] div, .stApp div[data-baseweb="select"] span,
-.stApp [data-testid="stTextInput"] input { color: #26344c !important; font-size: 13px !important; }
+/* Field labels (Figma .field label) */
+[data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #425069 !important; font-size: 11px !important; font-weight: 600 !important; margin-bottom: 6px !important; }
+/* 11px between stacked fields (e.g. "Name for the new folder" under the folder selector) */
+.stApp [data-testid="stSelectbox"], .stApp [data-testid="stMultiSelect"], .stApp [data-testid="stTextInput"] { margin-bottom: 11px; }
+.stApp [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] [data-testid="stSelectbox"]) { gap: 11px; }
+
+/* Selectboxes and multiselects (SharePoint folders, Save settings, sidebar filters) */
+.stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+.stApp div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
+.stApp div[data-baseweb="select"] > div { min-height: 38px !important; background-color: #ffffff !important; border: 1px solid #dce3eb !important; border-radius: 7px !important; color: #26344c !important; font-size: 13px !important; box-shadow: 0 1px 2px rgba(15,23,42,0.03) !important; transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
+
+/* Text inputs (Batch name, Name for the new folder): the visible box is the outer
+   data-baseweb="input"; the inner wrapper and the <input> itself stay borderless so the
+   border is never doubled or clipped. */
+.stApp div[data-testid="stTextInput"] div[data-baseweb="input"],
+.stApp div[data-baseweb="input"] { min-height: 38px !important; background-color: #ffffff !important; border: 1px solid #dce3eb !important; border-radius: 7px !important; box-shadow: 0 1px 2px rgba(15,23,42,0.03) !important; transition: border-color 0.15s ease, box-shadow 0.15s ease; overflow: hidden; }
+.stApp div[data-baseweb="base-input"] { background-color: transparent !important; border: none !important; box-shadow: none !important; min-height: 36px; }
+.stApp [data-testid="stTextInput"] input { background-color: transparent !important; color: #26344c !important; font-size: 13px !important; padding: 0 12px !important; border: none !important; box-shadow: none !important; }
+
+/* Hover */
+.stApp div[data-baseweb="select"] > div:hover,
+.stApp div[data-baseweb="input"]:hover { border-color: #b8c4d4 !important; }
+/* Focus: Figma's #7790c0 border and 3px #e9effa ring */
+.stApp div[data-baseweb="select"] > div:focus-within,
+.stApp div[data-baseweb="input"]:focus-within { border-color: #7790c0 !important; box-shadow: 0 0 0 3px #e9effa !important; outline: none !important; }
+
+.stApp div[data-baseweb="select"] div, .stApp div[data-baseweb="select"] span { color: #26344c !important; font-size: 13px !important; }
 .stApp div[data-baseweb="select"] svg { fill: #8290a2 !important; }
 /* Chosen items of a multi-select */
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"] { background-color: #eaf0fb !important; }
 .stApp div[data-baseweb="select"] span[data-baseweb="tag"], .stApp div[data-baseweb="select"] span[data-baseweb="tag"] * { color: #1e3a8a !important; }
+
+/* Card heading: eyebrow + title on the left, a small gray icon on the right */
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.card-heading .eyebrow { margin-bottom: 4px !important; }
+.card-heading .card-title { margin-bottom: 0; }
+.card-heading svg { flex: 0 0 auto; margin-top: 2px; }
 
 /* Photo uploader: the Figma dropzone. A centered column with a round upload badge and three
    lines of text. The text is drawn with CSS (Streamlit's own labels are hidden), and the
