@@ -294,3 +294,10 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .source-count b { color: #0f172a; font-weight: 700; }
 .source-count svg { flex: 0 0 auto; color: #2f5597; }
 .source-updated { color: #64748b; }
+
+/* ---------- Input source: stable heading, description and source-specific subheading ---------- */
+.section-desc { margin: 2px 0 16px 0 !important; color: #475569 !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.5 !important; }
+.source-subhead { margin: 2px 0 12px 0; }
+.source-subhead-title { color: #0f172a; font-size: 16.5px; font-weight: 600; line-height: 1.3; }
+.source-subhead-desc { margin-top: 3px; color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+.st-key-source_mode_switcher, .st-key-photo_source { margin: 0 auto 1.1rem auto !important; }
