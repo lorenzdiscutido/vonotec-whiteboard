@@ -1,4 +1,3 @@
-# ui_sections.py
 """Reusable Streamlit sections for the Whiteboard app.
 (Header and CSS stay in ui_components.py.)"""
 import io
@@ -15,7 +14,7 @@ import sync_tracker
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 
 # The one final action, whichever photo source is used
-PROCESS_BUTTON_LABEL = "Process photos"
+PROCESS_BUTTON_LABEL = "Extract data"
 
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
@@ -182,11 +181,6 @@ def status_message(text):
 # Uploader: hide the empty-state chrome once photos are chosen
 # ---------------------------------------------------------------------------
 
-# Injected only while at least one photo is selected. It hides the round upload icon
-# (::before), the "PNG or JPG ..." text (::after) and the instruction text, and turns the
-# native browse button (which style.css stretches invisibly over the whole empty box)
-# into a small "+ Add more" button, so more photos can still be added. The chips' own
-# delete (x) and pagination buttons are not touched.
 _UPLOADER_FILLED_CSS = (
     "<style>"
     "[data-testid='stFileUploaderDropzone']::before, "
@@ -226,9 +220,7 @@ PREVIEW_PIXELS = 240      # longest side of a thumbnail
 @st.cache_data(show_spinner=False, max_entries=300)
 def _thumbnail_bytes(name, size, file_id, _data):
     """A small JPEG of one uploaded photo, or None if it can't be read. Phone
-    photos are large, so only this small copy is sent to the browser. It is made
-    once per photo: the cache is keyed by name, size and id; the photo's own bytes
-    (_data, underscore = not part of the key) are only used the first time."""
+    photos are large, so only this small copy is sent to the browser."""
     try:
         with Image.open(io.BytesIO(_data)) as img:
             img.draft("RGB", (PREVIEW_PIXELS * 2, PREVIEW_PIXELS * 2))  # fast, rough decode for JPEGs
@@ -252,14 +244,19 @@ def _format_size(num_bytes):
 
 
 def render_photo_previews(uploaded_files):
-    """A count and a grid of small previews of the selected photos, so people can
-    check they picked the right ones before extracting."""
+    """A count and a grid of small previews of the selected photos."""
     if not uploaded_files:
         return
 
     photos = list(uploaded_files)
     total_bytes = sum(getattr(photo, "size", 0) or 0 for photo in photos)
-    st.caption(f"{len(photos)} photo{'s' if len(photos) != 1 else ''} selected \u00b7 {_format_size(total_bytes)}")
+    
+    st.markdown(
+        f'<div style="color:#16865b; font-size:12px; font-weight:700; margin-bottom:8px;">'
+        f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16865b;margin-right:6px;"></span>'
+        f'{len(photos)} photo{"s" if len(photos) != 1 else ""} selected &middot; {_format_size(total_bytes)}</div>',
+        unsafe_allow_html=True
+    )
 
     def draw_grid():
         for start in range(0, len(photos), PREVIEW_COLUMNS):
@@ -272,8 +269,6 @@ def render_photo_previews(uploaded_files):
                     else:
                         st.caption("(no preview)")
 
-    # Every photo is shown. More than one row scrolls inside a fixed-height box,
-    # so a big batch doesn't make the page endlessly long.
     if len(photos) > PREVIEW_COLUMNS:
         with st.container(height=PREVIEW_SCROLL_HEIGHT, border=False, key="thumbnail_scroll_gallery"):
             draw_grid()
@@ -297,33 +292,56 @@ def refresh_folder_list():
         st.session_state.sp_folders_error = True
 
 
-def render_folder_picker():
-    """Returns (folder_choice, new_folder_raw)."""
+def render_folder_picker(source_chosen=True, photo_count=0):
+    """Returns (folder_choice, new_folder_raw).
+    Mutes settings area if source isn't chosen yet (Progressive disclosure)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return MAIN_FOLDER_LABEL, ""
 
-    if st.session_state.sp_folders is None:
-        with st.spinner("Loading SharePoint folders..."):
-            refresh_folder_list()
-    if st.session_state.sp_folders_error:
-        st.warning(
-            "Could not load the folder list from SharePoint right now. You can still save to "
-            "the main folder, or create a new folder."
-        )
+    disabled_state = not source_chosen and not photo_count
+    
+    with st.container(key="save_settings_block"):
+        # We manually render the title because the container controls the inner padding
+        ui_components.card_heading("OUTPUT PREFERENCES", "Save settings")
+        
+        if disabled_state:
+            st.markdown(
+                '<p style="color:#64748b; font-size:12.5px; margin: 4px 0 0 0;">'
+                'Please select photos or a SharePoint source folder above to unlock destination settings.</p>',
+                unsafe_allow_html=True
+            )
+            return MAIN_FOLDER_LABEL, ""
 
-    options = [MAIN_FOLDER_LABEL] + list(st.session_state.sp_folders) + [NEW_FOLDER_LABEL]
-    default = st.session_state.last_folder_choice
-    folder_choice = st.selectbox(
-        "Save into which SharePoint folder?",
-        options,
-        index=options.index(default) if default in options else 0,
-        key="folder_choice_input",
-    )
+        if st.session_state.sp_folders is None:
+            with st.spinner("Loading SharePoint folders..."):
+                refresh_folder_list()
+        if st.session_state.sp_folders_error:
+            st.warning(
+                "Could not load the folder list from SharePoint right now. You can still save to "
+                "the main folder, or create a new folder."
+            )
 
-    new_folder_raw = ""
-    if folder_choice == NEW_FOLDER_LABEL:
-        new_folder_raw = st.text_input("Name for the new folder", key="new_folder_name_input")
-    return folder_choice, new_folder_raw
+        col1, col2 = st.columns(2)
+        options = [MAIN_FOLDER_LABEL] + list(st.session_state.sp_folders) + [NEW_FOLDER_LABEL]
+        default = st.session_state.last_folder_choice
+        
+        with col1:
+            folder_choice = st.selectbox(
+                "Save into which SharePoint folder?",
+                options,
+                index=options.index(default) if default in options else 0,
+                key="folder_choice_input",
+                disabled=disabled_state,
+            )
+
+        new_folder_raw = ""
+        with col2:
+            if folder_choice == NEW_FOLDER_LABEL:
+                new_folder_raw = st.text_input("Name for the new folder", key="new_folder_name_input", disabled=disabled_state)
+            else:
+                st.text_input("Batch name", value="Auto-generated based on date", disabled=True)
+
+        return folder_choice, new_folder_raw
 
 
 def resolve_subfolder(folder_choice, new_folder_raw):
@@ -355,17 +373,14 @@ def remember_new_folder(subfolder):
 # Buttons and file management
 # ---------------------------------------------------------------------------
 
-PROCESS_VERB = "Process"
-
-
 def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, batch_name_raw, remote):
     """Returns (photos_missing, destination_missing): a short sentence for each thing that is
     still missing, or "" when it is fine. The Process button stays disabled until both are ""."""
     photos_missing = ""
     if remote and not source_chosen:
-        photos_missing = "Choose the SharePoint folder to read photos from"
+        photos_missing = "Select a SharePoint folder to continue"
     elif not remote and not photo_count:
-        photos_missing = "Add at least one photo"
+        photos_missing = "Select local photos to continue"
     destination_missing = ""
     if folder_choice == NEW_FOLDER_LABEL and not (new_folder_raw or "").strip():
         destination_missing = "Enter a name for the new folder"
@@ -374,39 +389,52 @@ def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, 
     return photos_missing, destination_missing
 
 
-def _process_label(photo_count, remote):
+def _process_label(photo_count, remote, blocked_reason=""):
+    if blocked_reason:
+        return "Select a folder" if remote else "Select photos"
     if remote:
-        return f"{PROCESS_VERB} SharePoint photos"  # the count is only known once the folder is listed
+        return f"Extract {photo_count} photos" if photo_count else "Extract SharePoint photos"
     if photo_count:
-        return f"{PROCESS_VERB} {photo_count} photo{'s' if photo_count != 1 else ''}"
-    return PROCESS_BUTTON_LABEL
+        return f"Extract {photo_count} photo{'s' if photo_count != 1 else ''}"
+    return "Extract data"
 
 
 def render_action_buttons(photo_count=0, blocked_reason="", remote=False):
     """The sticky action footer (style.css pins it to the bottom of the left panel): the
-    Process button, whose text carries the context ("Process 16 photos"), then a lower-emphasis
-    Clear button. The Process button is disabled while `blocked_reason` is not empty, and the
-    reason is shown next to it. Returns (process_clicked, clear_clicked)."""
+    Process button, whose text carries the context ("Extract 16 photos"). 
+    The requirement text sits directly beside the disabled button."""
     with st.container(key="action_buttons"):
-        label = _process_label(photo_count, remote)
-        if remote:
-            process_clicked = st.button(label, type="primary", key="fetch_folder", disabled=bool(blocked_reason))
-            clear_clicked = False
-        else:
-            col1, col2 = st.columns(2, gap="small")
-            with col1:
-                process_clicked = st.button(label, type="primary", key="extract_data", disabled=bool(blocked_reason))
-            with col2:
-                clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos")
-        if blocked_reason:
-            st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
+        label = _process_label(photo_count, remote, blocked_reason)
+        
+        # Align buttons right, hint left
+        col_hint, col_btn_clear, col_btn_primary = st.columns([1, 0.4, 0.4])
+        
+        with col_hint:
+            if blocked_reason:
+                st.markdown(
+                    f'<p style="color:#d85f0d; font-size:12.5px; font-weight:600; padding-top:12px;">'
+                    f'{html.escape(blocked_reason)}</p>', 
+                    unsafe_allow_html=True
+                )
+        
+        with col_btn_clear:
+            if not remote:
+                clear_clicked = st.button("Clear All", key="clear_photos", use_container_width=True)
+            else:
+                clear_clicked = False
+                
+        with col_btn_primary:
+            if remote:
+                process_clicked = st.button(label, type="primary", key="fetch_folder", disabled=bool(blocked_reason), use_container_width=True)
+            else:
+                process_clicked = st.button(label, type="primary", key="extract_data", disabled=bool(blocked_reason), use_container_width=True)
+                
     return process_clicked, clear_clicked
 
 
 def file_management_title_html(label, folder):
     """The heading of the file card: a small label over "Generated workbook", then the
-    batch name and folder (which can be long) in lighter gray. Both are escaped,
-    since they come from what people typed."""
+    batch name and folder (which can be long) in lighter gray."""
     folder_note = f' in folder "{html.escape(str(folder))}"' if folder else ""
     return (
         '<p class="eyebrow">File management</p>'
