@@ -94,14 +94,15 @@ def section_heading(eyebrow, title, badge=None, step=None):
     )
 
 
-def card_heading(eyebrow, title, icon=_ICON_FILE):
-    """The same label-over-title pair, smaller, for the top of a card, with an
-    optional small icon on the right."""
+def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
+    """The same label-over-title pair, smaller, for the top of a card. On the right: an
+    optional step label such as "Step 2 of 2", then an optional small icon."""
+    step_html = f'<span class="step-label">{html.escape(step)}</span>' if step else ""
     st.markdown(
         '<div class="card-heading"><div>'
         f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
         f'<div class="card-title">{html.escape(title)}</div>'
-        f'</div>{icon}</div>',
+        f'</div><div class="card-heading-right">{step_html}{icon}</div></div>',
         unsafe_allow_html=True,
     )
 
