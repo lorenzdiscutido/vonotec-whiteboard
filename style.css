@@ -22,11 +22,11 @@ header[data-testid="stHeader"] { background: transparent !important; }
 
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .brand img { display: block; height: auto; margin: 0; }
-.brand-text { color: #1e3a8a; font-weight: 800; font-size: 24px !important; letter-spacing: .02em; }
+.brand-text { color: #1e3a8a; font-weight: 800; font-size: 22px; letter-spacing: .02em; }
 .product-name { padding-left: 12px; border-left: 1px solid #dce3eb; color: #334155; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .header-tagline { color: #475569 !important; font-size: 12.5px !important; font-weight: 600 !important; white-space: nowrap; text-align: right; width: 100%; }
 
-/* ---------- Headings & Status Badge ---------- */
+/* ---------- Headings & Status Badge (Upgraded Font Thickness & Contrast) ---------- */
 .eyebrow { margin: 0 0 4px !important; color: #d85f0d !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .section-heading h2 { margin: 0 !important; padding: 0 !important; color: #0f172a !important; font-size: 23px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; line-height: 1.25 !important; }
@@ -42,7 +42,7 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 .status-badge.complete { color: #16865b; border-color: #bfe6d7; }
 .status-badge.complete > span { background: #16865b; }
 
-/* ---------- Unified Split-Pane Workspace Card ---------- */
+/* ---------- Unified Split-Pane Workspace Card (Zero Gap Between Left & Right Panels, Matching Figma .workspace) ---------- */
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: clip !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] { display: flex !important; flex-direction: column !important; align-self: stretch !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] > div, [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"], [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-form_panel), [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-results_panel) { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
@@ -55,7 +55,7 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 
 /* ---------- Inner Cards ---------- */
 .st-key-save_settings, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
-.st-key-save_settings { padding: 14px 16px !important; margin-top: 6px !important; }
+.st-key-save_settings { padding: 14px 16px !important; margin-top: 12px !important; }
 .st-key-file_card { padding: 14px 16px !important; margin-top: 18px !important; }
 [class*="st-key-chart_"] { border-radius: 9px !important; box-shadow: 0 2px 10px rgba(30,58,138,.025); padding: 8px 6px 4px; }
 
@@ -78,7 +78,7 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 /* Each Tab Pill (Inactive State) */
 .stApp [data-testid="stRadio"] div[role="radiogroup"] label { position: relative !important; height: 38px !important; padding: 0 18px !important; margin: 0 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; border-radius: 7px !important; background-color: transparent !important; color: #475569 !important; cursor: pointer !important; transition: all 0.18s ease !important; width: auto !important; }
 
-/* COMPLETELY REMOVE the Blue/Grey Radio Circle div */
+/* COMPLETELY REMOVE the Blue/Grey Radio Circle div (any div inside label that does NOT hold the text!) */
 .stApp [data-testid="stRadio"] div[role="radiogroup"] label input[type="radio"], .stApp [data-testid="stRadio"] div[role="radiogroup"] label div:not(:has([data-testid="stMarkdownContainer"])):not([data-testid="stMarkdownContainer"]):not(:has(p)) { display: none !important; width: 0 !important; height: 0 !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: none !important; opacity: 0 !important; pointer-events: none !important; }
 
 /* Keep the Text Container & Words 100% Visible */
@@ -124,8 +124,12 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-start_fresh div.stButton > button:first-child:hover { background-color: #fef2f2 !important; }
 .st-key-confirm_delete div.stButton > button:first-child { background-color: #dc2626 !important; border-color: #dc2626 !important; }
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
+.st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
+.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
+.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+.st-key-action_buttons div.stButton { width: auto !important; }
 
-/* ---------- Form Field Labels & Spacing ---------- */
+/* ---------- Form Field Labels & Spacing (Upgraded Weight & Legibility) ---------- */
 [data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #334155 !important; font-size: 12px !important; font-weight: 600 !important; margin-bottom: 6px !important; }
 .stApp [data-testid="stSelectbox"], .stApp [data-testid="stMultiSelect"], .stApp [data-testid="stTextInput"] { margin-bottom: 11px; }
 .stApp [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] [data-testid="stSelectbox"]) { gap: 11px; }
@@ -139,7 +143,7 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .card-heading .card-title { margin-bottom: 0; }
 .card-heading svg { flex: 0 0 auto; margin-top: 2px; }
 
-/* ---------- Photo Uploader Dropzone ---------- */
+/* ---------- Photo Uploader Dropzone (empty state: round icon + text, whole box is the click target) ---------- */
 div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
 [data-testid="stFileUploaderDropzone"], [data-testid="stFileUploadDropzone"] { position: relative; min-height: 210px !important; margin-top: 10px !important; padding: 28px 20px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important; border: 2px dashed #1e3a8a !important; border-radius: 10px !important; background-color: #f8fafd !important; text-align: center !important; transition: 0.2s ease !important; cursor: pointer !important; }
 [data-testid="stFileUploaderDropzone"]:hover, [data-testid="stFileUploadDropzone"]:hover { border-color: #1e3a8a !important; background-color: #f2f6fd !important; transform: translateY(-1px); }
@@ -149,11 +153,17 @@ div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; }
 [data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploadDropzone"]::before { content: ""; display: block; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 50%; background-color: #e7eefb; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='27' height='27' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
 [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Drop whiteboard photos here"; color: #1e293b; font-size: 15.5px; font-weight: 700; line-height: 1.5; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { content: "or click to browse from your computer"; color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.5; }
-[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #64748b; font-size: 11px; font-weight: 500; }
+[data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { content: "PNG or JPG \00B7  Up to 200 MB per file"; margin-top: 7px; color: #64748b; font-size: 12px; font-weight: 500; }
+
+/* The native [ Upload ] button inside the dropzone: stretched invisibly over the whole box, so there is only ONE visible upload icon (our round one). Only the dropzone's own browse button is targeted, never the delete (x) or pagination buttons of the file chips. */
 [data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploadDropzone"] > button, [data-testid="stFileUploaderDropzone"] button[data-testid="stBaseButton-secondary"] { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; opacity: 0 !important; z-index: 1 !important; cursor: pointer !important; }
+
+/* Uploaded file chips and their scroll/pagination/delete controls stay clickable */
 [data-testid="stFileUploaderFile"], [data-testid="stFileUploaderPagination"], [data-testid="stFileUploaderDeleteBtn"], [data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button { position: relative !important; z-index: 5 !important; pointer-events: auto !important; }
 [data-testid="stFileUploaderFile"] svg, [data-testid="stFileUploaderPagination"] svg, [data-testid="stFileUploaderDeleteBtn"] svg { display: inline-block !important; }
 [data-testid="stFileUploaderDeleteBtn"] button, [data-testid="stFileUploaderPagination"] button, [data-testid="stFileUploaderFile"] button { position: relative !important; inset: auto !important; width: auto !important; height: auto !important; opacity: 1 !important; }
+
+/* Once photos are uploaded (matches the Python-injected rule in ui_sections.py): hide the round icon, the helper texts and the browse overlay, so only the scrollable file chips remain and clicking inside the box never opens the file browser */
 [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]::before, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]::before, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]::after, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzoneInstructions"], [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"] > button, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"] > button, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"] button[data-testid="stBaseButton-secondary"] { display: none !important; }
 [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"], [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"] { min-height: 0 !important; padding: 14px 16px !important; cursor: default !important; }
 [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploaderDropzone"]:hover, [data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"]) [data-testid="stFileUploadDropzone"]:hover { transform: none; background-color: #f8fafd !important; }
@@ -165,6 +175,7 @@ div[data-testid="stToggle"] label > div:first-of-type, .st-key-src_recursive lab
 div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type, .st-key-src_recursive label:has(input:checked) > div:first-of-type, .st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type { background-color: #2f5597 !important; }
 div[data-testid="stToggle"] label > div:first-of-type div, .st-key-src_recursive label > div:first-of-type div, .st-key-analytics_hide_unknown label > div:first-of-type div { background-color: #ffffff !important; }
 
+/* ---------- Notification alerts: semantic colors, full 1px borders, no blue stripe ---------- */
 div[data-testid="stAlert"] { border: none !important; border-radius: 8px !important; padding: 0 !important; background: transparent !important; }
 div[data-testid="stAlert"] [data-testid="stAlertContainer"], div[data-testid="stAlert"] div[role="alert"] { border-radius: 8px !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.55 !important; overflow-wrap: anywhere !important; border-left-width: 1px !important; }
 div[data-testid="stAlert"] [data-testid="stAlertContainer"] p, div[data-testid="stAlert"] [data-testid="stAlertContainer"] li, div[data-testid="stAlert"] [data-testid="stAlertContainer"] span { font-size: 13px !important; font-weight: 500 !important; line-height: 1.55 !important; overflow-wrap: anywhere !important; }
@@ -177,6 +188,7 @@ div[data-testid="stAlert"] [data-testid="stAlertContainer"]:has([data-testid="st
 div[data-testid="stAlert"] [data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) { background-color: #eff6ff !important; border: 1px solid #bfdbfe !important; color: #1e3a8a !important; }
 div[data-testid="stAlert"] [data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) * { color: #1e3a8a !important; }
 
+/* ---------- Instructions expander text ---------- */
 .instruction-text { background-color: transparent !important; border: none !important; border-radius: 0 !important; padding: 4px 6px 8px 6px !important; margin: 0 !important; color: #334155 !important; font-size: 13.5px !important; font-weight: 500 !important; line-height: 1.65 !important; }
 .instruction-text ol { margin: 8px 0 0 0 !important; padding-left: 20px !important; }
 .instruction-text li { margin-bottom: 5px !important; color: #334155 !important; font-weight: 500 !important; }
@@ -291,7 +303,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .st-key-source_mode_switcher, .st-key-photo_source { margin: 0 auto 1.1rem auto !important; }
 
 /* ---------- Typography scale (kept last so it wins): page title 24 bold, section title 20 bold, card/panel title 15.5 bold, body and inputs 14 medium, supporting text 12.5 medium, nothing below 12px ---------- */
-.brand-text { color: #1e3a8a; font-weight: 800; font-size: 24px !important; letter-spacing: .02em; }
+.brand-text { font-size: 24px !important; font-weight: 700 !important; }
 .section-heading h2 { font-size: 20px !important; font-weight: 700 !important; }
 h3 { font-size: 18px !important; font-weight: 700 !important; }
 .card-title, .panel-title, .chart-name, .source-title, .source-subhead-title, .st-key-dashboard_sidebar .side-title, .sync-card strong { color: #1e293b !important; font-size: 15.5px !important; font-weight: 700 !important; line-height: 1.35 !important; }
@@ -308,14 +320,13 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 
 /* ---------- Workspace upgrade: stepper, Help link, sticky footer, compact batch results ---------- */
 .workflow-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 14px 2px; }
-.wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #64748b; }
-.wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 700; color: #64748b; background: #ffffff; }
+.wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #94a3b8; }
+.wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 700; color: #94a3b8; background: #ffffff; }
 .wf-current { color: #1e3a8a; }
 .wf-current .wf-num { background: #1e3a8a; border-color: #1e3a8a; color: #ffffff; }
 .wf-done { color: #16865b; }
 .wf-done .wf-num { background: #16865b; border-color: #16865b; color: #ffffff; }
 .wf-arrow { color: #cbd5e1; font-size: 14px; }
-
 .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 18px; width: 100%; }
 .help-pop { position: relative; flex: 0 0 auto; }
 .help-pop > summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: #1e3a8a; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 7px; user-select: none; }
@@ -326,14 +337,10 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 .help-panel p { margin: 0 0 8px 0; color: #0f172a !important; font-size: 14px !important; }
 .help-panel ol { margin: 0; padding-left: 20px; }
 .help-panel li { margin-bottom: 4px; }
-
 .st-key-form_panel [data-testid="stElementContainer"]:has(.st-key-action_buttons), .st-key-form_panel div:has(> .st-key-action_buttons) { position: sticky !important; bottom: 0; z-index: 20; background: #ffffff; }
 .st-key-action_buttons { margin: 0 !important; padding: 12px 0 8px 0 !important; border-top: 1px solid #e3e9ef; background: #ffffff; }
 .st-key-action_buttons button:disabled { opacity: 0.45 !important; cursor: not-allowed !important; transform: none !important; box-shadow: none !important; }
-.st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; align-items: center !important; }
-.st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
 .footer-hint { margin: 6px 0 0 0 !important; color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
-
 .rs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a; }
 .rs-total { color: #0f172a; }
 .rs-added { color: #16865b; }
