@@ -230,8 +230,6 @@ form_col, results_col = st.columns([3, 2], gap="large")
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
     with st.container(key="form_panel"):
-        ui_components.section_heading("Input source", "Whiteboard photos")
-
         # A radio rather than st.tabs: only the chosen source's code runs on each click.
         # Without SharePoint sync there is nothing to read from, so only uploading is offered.
         if ENABLE_SHAREPOINT_SYNC:
@@ -243,6 +241,12 @@ with form_col:
         else:
             source = SOURCE_LOCAL
         remote_mode = source == SOURCE_SHAREPOINT
+
+        # The heading sits under the source switch and follows the chosen source
+        if remote_mode:
+            ui_components.section_heading("Input source", "Choose a SharePoint folder", step="Step 1 of 2")
+        else:
+            ui_components.section_heading("Input source", "Upload whiteboards", step="Step 1 of 2")
 
         uploaded_files = []
         source_path, include_subfolders = [], False
