@@ -78,11 +78,22 @@ def section_heading(eyebrow, title, badge=None, step=None):
     )
 
 
-def card_heading(eyebrow, title):
-    """The same label-over-title pair, smaller, for the top of a card."""
+# Gray file icon on the right of the "Save settings" card heading
+_ICON_FILE = (
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ba8b9" '
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
+)
+
+
+def card_heading(eyebrow, title, icon=_ICON_FILE):
+    """The same label-over-title pair, smaller, for the top of a card, with an optional
+    small icon on the right."""
     st.markdown(
+        '<div class="card-heading"><div>'
         f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
-        f'<div class="card-title">{html.escape(title)}</div>',
+        f'<div class="card-title">{html.escape(title)}</div>'
+        f'</div>{icon}</div>',
         unsafe_allow_html=True,
     )
 
