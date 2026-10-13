@@ -45,7 +45,7 @@ SOURCE_LOCAL = "Upload from device"
 SOURCE_SHAREPOINT = "Import from SharePoint"
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Vonotec Whiteboard Extractor", layout="wide")
+st.set_page_config(page_title="VONOTEC Whiteboard Extractor", layout="wide")
 ui_components.load_local_css("style.css")
 
 # --- HEADER AND VIEW SWITCH ---
@@ -75,6 +75,7 @@ for _key in list(st.session_state.keys()):
         st.session_state[_key] = st.session_state[_key]
 
 if view == VIEW_DASHBOARD:
+    st.session_state.batch_running = False  # leaving mid-batch must not restart it on return
     # One connected card: the controls (which files, Refresh, filters) on the left, the
     # numbers and charts on the right, which refresh by themselves.
     render_dashboard_view()
@@ -182,17 +183,24 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
     st.rerun()
 
 
+def _fail(kind, text):
+    """A problem found before the batch could start. It is shown after the page redraws, so the
+    Extract button (disabled while a batch is starting) is enabled again."""
+    st.session_state.start_problem = (kind, text)
+    st.rerun()
+
+
 def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
     """Local photos: validates the form, then runs the batch."""
     if not files:
-        st.error("Please select at least one photo before processing.")
+        _fail("error", "Please select at least one photo before processing.")
         return
 
     filename, subfolder, creating_new_folder, error = _prepare_output(
         batch_name_raw, folder_choice, new_folder_raw
     )
     if error:
-        st.error(error)
+        _fail("error", error)
         return
 
     _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder)
@@ -206,11 +214,11 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
         batch_name_raw, folder_choice, new_folder_raw
     )
     if error:
-        st.error(error)
+        _fail("error", error)
         return
 
     if not source_path:
-        st.error("Please choose the SharePoint folder to read photos from.")
+        _fail("error", "Please choose the SharePoint folder to read photos from.")
         return
 
     where = " / ".join(source_path)
@@ -218,16 +226,17 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
         with st.spinner("Looking for photos in SharePoint..."):
             images = sharepoint_client.list_images_at(source_path, recursive=include_subfolders)
     except Exception as e:
-        st.error(f"Could not read that SharePoint folder right now: {e}")
+        _fail("error", f"Could not read that SharePoint folder right now: {e}")
         return
 
     if not images:
         extra = "" if include_subfolders else " Turn on 'Include photos from all folders inside this one' to also look in its subfolders."
-        st.warning(f"No photos (.jpg, .jpeg or .png) were found in {where}.{extra}")
+        _fail("warning", f"No photos (.jpg, .jpeg or .png) were found in {where}.{extra}")
         return
 
     # Remember this location so the selectors open on it next time
     save_prefs({"photo_source_path": list(source_path), "include_subfolders": bool(include_subfolders)})
+    st.session_state.last_remote_path = list(source_path)  # lets the button say "Extract again" for this folder
 
     files = [RemoteFile(item["display_name"], item["id"]) for item in images]
     intro = [("status", f"Found {len(files)} photo(s) in {where}"
@@ -334,13 +343,25 @@ with form_col:
         photos_missing, destination_missing = process_blockers(
             len(uploaded_files or []), bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
         )
+        # A click does not start the batch right away: it sets batch_running and redraws the page,
+        # so the button is already disabled and reads "Extracting..." while the batch runs.
+        running = bool(st.session_state.get("batch_running", False))
+        if remote_mode:
+            batch_done = bool(st.session_state.batch_results) and list(source_path) == st.session_state.get("last_remote_path")
+        else:
+            batch_done = bool(st.session_state.batch_results) and not uploaded_files
         process_clicked, clear_clicked = render_action_buttons(
             photo_count=len(uploaded_files or []),
             blocked_reason=photos_missing or destination_missing,
             remote=remote_mode,
+            running=running,
+            done=batch_done,
         )
-        extract_clicked = process_clicked and not remote_mode
-        fetch_clicked = process_clicked and remote_mode
+        if process_clicked:
+            st.session_state.batch_running = True
+            st.rerun()
+        extract_clicked = running and not remote_mode
+        fetch_clicked = running and remote_mode
 
 # Fill the stepper now that the form's state is known: finished steps green, the one in
 # progress blue, the rest muted.
@@ -384,12 +405,20 @@ with results_col:
         if nothing_to_show:
             ui_components.render_empty_results()
 
+        problem = st.session_state.pop("start_problem", None)
+        if problem:
+            (st.error if problem[0] == "error" else st.warning)(problem[1])
+
         show_batch_results()
 
-        if extract_clicked:
-            start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
-        if fetch_clicked:
-            start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
+        # The finally block lowers the flag even when the batch ends in st.rerun() or an error
+        try:
+            if extract_clicked:
+                start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
+            if fetch_clicked:
+                start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
+        finally:
+            st.session_state.batch_running = False
 
         render_file_management()
         render_pending_syncs()
