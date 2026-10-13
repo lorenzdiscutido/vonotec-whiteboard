@@ -4,6 +4,7 @@ Analytics Dashboard. No Streamlit in here, so it can be tested on its own.
 
 The sheet layout it understands (written by excel_writer.py):
     A Submitter | B Date | C Elevation | D Drop | E Floor | F Tower | G Damage | H Dimension | I Unit | J Photo ...
+    ... | O Repair Dimension | P Repair Unit
     (older files have no Unit column, so their photo is in column I instead)
 
     Row 1-2 are headers. Every whiteboard is a block of rows: the details
@@ -19,6 +20,7 @@ import openpyxl
 import pandas as pd
 
 from config import REFERENCE_DATA, MATERIAL_RULES
+from defect_rules import BOARD_UNITS, REPAIR_UNITS, calculate_repair
 
 SHEET_NAME = "Whiteboard Data"
 FIRST_DATA_ROW = 3
@@ -26,7 +28,7 @@ UNKNOWN = "Unknown"
 
 COLUMNS = [
     "Folder", "File", "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
-    "Material", "Defect Code", "Defect Type", "Dimension", "Unit",
+    "Material", "Defect Code", "Defect Type", "Dimension", "Unit", "Repair Dimension", "Repair Unit",
 ]
 
 # Title rows hold a material name, matched ignoring capitals
@@ -65,6 +67,36 @@ def _is_empty(value):
     return value is None or (isinstance(value, str) and not value.strip())
 
 
+def _number(value):
+    """A cell as a number, or None when it holds no number (empty, text, an Excel error)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip().replace(",", ""))
+        except ValueError:
+            return None
+    return None
+
+
+_DIMENSION_TEXT = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([A-Za-z]+(?:\s*(?:\^\s*2|\u00b2|2))?)?")
+
+
+def _split_dimension(value):
+    """A Dimension cell as (number, unit). New files hold a plain number; older ones hold
+    text such as '60 CM' or '120 CM2'. (None, '') when there is no number."""
+    number = _number(value)
+    if number is not None:
+        return number, ""
+    match = _DIMENSION_TEXT.match(value) if isinstance(value, str) else None
+    if not match:
+        return None, ""
+    unit = re.sub(r"\s*(?:\^\s*2|2)$", "\u00b2", (match.group(2) or "").upper().strip())
+    return float(match.group(1)), unit
+
+
 def tower_from_text(text):
     """Finds a tower in text such as a batch file name, e.g.
     'CERCA NUVEO TOWER 1- FRONT- DROP 7.xlsx' -> '1'. Returns '' when the text
@@ -99,6 +131,7 @@ def parse_workbook(path, folder_label, filename):
         if header is None or len(header) < 8:
             raise ValueError("the sheet doesn't have the expected columns")
         has_unit_col = len(header) > 9 and header[9] == "Whiteboard Photo"
+        repair_at = (9 if has_unit_col else 8) + 5  # index of Repair Dimension; Repair Unit is the next one
 
         # Workers sometimes forget to write the tower on the board, but the batch
         # name usually has it ("... TOWER 1 - FRONT - DROP 7"), so it fills the gap.
@@ -110,7 +143,7 @@ def parse_workbook(path, folder_label, filename):
         for index, cells in enumerate(all_rows, start=2):
             if index < FIRST_DATA_ROW:
                 continue  # second header row
-            cells = list(cells) + [None] * (9 - len(cells))  # pad short rows
+            cells = list(cells) + [None] * (16 - len(cells))  # pad short rows
 
             # A new block starts where the merged details cells hold a value
             if any(not _is_empty(c) for c in cells[:6]):
@@ -131,7 +164,20 @@ def parse_workbook(path, folder_label, filename):
                 material = title
                 continue
 
-            code = damage_text.split()[0] if damage_text.split() else ""
+            parts = damage_text.split()
+            code = parts[0] if parts else ""
+
+            # The dimension as a number (older files hold text such as "60 CM"), with its unit
+            number, unit_in_text = _split_dimension(cells[7])
+            unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
+
+            # Repair dimension: the result Excel saved in the file. A file that was never opened
+            # in Excel has none saved, so it is worked out here with the same formula.
+            repair = _number(cells[repair_at])
+            repair_unit = _text(cells[repair_at + 1])
+            if repair is None:
+                repair, calculated_unit = calculate_repair(parts, number)
+                repair_unit = repair_unit or calculated_unit
             rows.append({
                 "Folder": folder_label,
                 "File": filename,
@@ -144,8 +190,10 @@ def parse_workbook(path, folder_label, filename):
                 "Material": material,
                 "Defect Code": code,
                 "Defect Type": _TYPE_BY_CODE.get(code, ""),
-                "Dimension": cells[7] if not _is_empty(cells[7]) else None,
-                "Unit": _text(cells[8]) if has_unit_col else "",
+                "Dimension": number,
+                "Unit": unit,
+                "Repair Dimension": repair,
+                "Repair Unit": repair_unit,
             })
         return rows
     finally:
@@ -163,6 +211,7 @@ def rows_to_dataframe(rows):
     for column in ("Floor", "Tower", "Material", "Defect Type"):
         df[column] = df[column].replace("", UNKNOWN).fillna(UNKNOWN)
     df["Dimension"] = pd.to_numeric(df["Dimension"], errors="coerce")
+    df["Repair Dimension"] = pd.to_numeric(df["Repair Dimension"], errors="coerce")
     return df
 
 
@@ -190,3 +239,49 @@ def count_by(df, column):
     else:
         counts = counts.sort_values(["Defects", column], ascending=[False, True])
     return counts.reset_index(drop=True)
+
+
+# Defect codes in the order of the Reference Data sheet, so tables list them the way people know them
+_CODE_ORDER = {code: position for position, code in enumerate(_TYPE_BY_CODE)}
+
+DEFECT_SUMMARY_COLUMNS = [
+    "Defect Code", "Defect Type", "Defects", "Board Unit", "Total Dimension",
+    "Repair Unit", "Total Repair Dimension", "Missing Dimension",
+]
+
+
+def _most_common_text(values):
+    """The most frequent non-empty text in `values` ('' if there is none)."""
+    counts = {}
+    for value in values:
+        if isinstance(value, str) and value:
+            counts[value] = counts.get(value, 0) + 1
+    return max(counts, key=counts.get) if counts else ""
+
+
+def dimension_by_defect(df):
+    """One row per defect code (not per material): how many defects, the total dimension written
+    on the boards and the total repair dimension. The two totals are in different units (CM and
+    L.M., or CM\u00b2 and SQ.M.), so each row carries its own units. A total is None when no
+    defect of that code has one (NP and BG are written without a dimension).
+    'Missing Dimension' counts defects that should have had a dimension but have none."""
+    if df.empty:
+        return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
+
+    rows = []
+    for code, group in df.groupby("Defect Code", sort=False):
+        dimensions = group["Dimension"].dropna()
+        repairs = group["Repair Dimension"].dropna()
+        rows.append({
+            "Defect Code": code,
+            "Defect Type": _TYPE_BY_CODE.get(code, "") or UNKNOWN,
+            "Defects": len(group),
+            "Board Unit": _most_common_text(group["Unit"]) or BOARD_UNITS.get(code, ""),
+            "Total Dimension": float(dimensions.sum()) if len(dimensions) else None,
+            "Repair Unit": _most_common_text(group["Repair Unit"]) or REPAIR_UNITS.get(code, ""),
+            "Total Repair Dimension": float(repairs.sum()) if len(repairs) else None,
+            "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(code) else 0,
+        })
+    summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
+    summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))
+    return summary.sort_values(["_order", "Defect Code"]).drop(columns="_order").reset_index(drop=True)
