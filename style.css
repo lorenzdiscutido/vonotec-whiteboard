@@ -42,9 +42,17 @@ h3 { color: #1e3a8a !important; }
 .status-badge.complete { color: #16865b; border-color: #bfe6d7; }
 .status-badge.complete > span { background: #16865b; }
 
-/* ---------- Cards ---------- */
-.st-key-form_panel, .st-key-results_panel { background: #ffffff; border: 1px solid #e3e9ef; border-radius: 12px; box-shadow: 0 4px 22px rgba(30,58,138,.045); padding: 30px; }
-.st-key-results_panel { background: #fbfcfe; }
+/* ---------- Unified Split-Pane Workspace Card (Zero Gap Between Left & Right Panels, Matching Figma .workspace) ---------- */
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: hidden !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] { display: flex !important; flex-direction: column !important; align-self: stretch !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] > div, [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"], [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-form_panel), [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-results_panel) { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
+.st-key-form_panel, .st-key-results_panel { flex: 1 1 auto !important; height: 100% !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 30px !important; margin: 0 !important; display: flex !important; flex-direction: column !important; }
+.st-key-form_panel { background: #ffffff !important; }
+.st-key-results_panel { background: #fbfcfe !important; border-left: 1px solid #e3e9ef !important; }
+.st-key-results_panel > [data-testid="stVerticalBlock"] { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
+.st-key-results_panel [data-testid="stElementContainer"]:has(.tip-card) { margin-top: auto !important; padding-top: 22px !important; }
+
+/* ---------- Inner Cards ---------- */
 .st-key-save_settings, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
 .st-key-save_settings { padding: 14px 16px !important; margin-top: 12px !important; }
 .st-key-file_card { padding: 14px 16px !important; margin-top: 18px !important; }
@@ -54,7 +62,7 @@ h3 { color: #1e3a8a !important; }
 .sync-icon { flex: 0 0 auto; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 8px; background: #e2eafb; color: #2f5597; }
 .sync-card strong { font-size: 13px; color: #263650; }
 .sync-card p { margin: 4px 0 0 0; color: #718096; font-size: 11px; line-height: 1.5; }
-.tip-card { margin-top: 22px; padding: 15px; display: flex; gap: 11px; align-items: flex-start; border: 1px solid #f3e3cf; border-radius: 10px; background: #fffaf4; color: #74522b; }
+.tip-card { margin-top: 0; padding: 15px; display: flex; gap: 11px; align-items: flex-start; border: 1px solid #f3e3cf; border-radius: 10px; background: #fffaf4; color: #74522b; }
 .tip-icon { flex: 0 0 auto; margin-top: 1px; color: #d97706; }
 .tip-card strong { font-size: 11px; }
 .tip-card p { margin: 3px 0 0 0; color: #8b7359; font-size: 10px; line-height: 1.5; }
@@ -195,7 +203,7 @@ section[data-testid="stSidebar"] div.stButton > button:first-child { height: 38p
 
 .panel-title { color: #24324a !important; font-weight: 600 !important; font-size: 15px !important; margin: 0 0 .5rem 0 !important; }
 
-@media (max-width: 900px) { .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) { display: none !important; } .st-key-top_app_header { padding: 10px 16px !important; } }
+@media (max-width: 900px) { .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) { display: none !important; } .st-key-top_app_header { padding: 10px 16px !important; } .st-key-results_panel { border-left: 0 !important; border-top: 1px solid #e3e9ef !important; } }
 @media (max-width: 640px) { .st-key-top_app_header [data-testid="stHorizontalBlock"] { gap: .6rem !important; } }
 
 /* ---------- Always-Visible Boxes & Borders on All Selectboxes, Multiselects, and Text Inputs ---------- */
