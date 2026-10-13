@@ -18,6 +18,7 @@ SharePoint folder ("Process from SharePoint"). Both end up in the same batch loo
 """
 import os
 import datetime
+import traceback
 
 import streamlit as st
 
@@ -25,11 +26,12 @@ import sharepoint_client
 import ui_components
 from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
 from file_utils import sanitize_batch_filename, load_prefs, save_prefs
-from batch_processor import run_batch
+from batch_processor import run_batch, BatchOutcome
 from ui_sections import (
     init_session_state, show_batch_results, render_photo_previews,
     render_folder_picker, resolve_subfolder, remember_new_folder,
     render_action_buttons, render_file_management, render_pending_syncs,
+    hide_uploader_chrome_if_filled,
 )
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
@@ -123,7 +125,12 @@ def _prepare_output(batch_name_raw, folder_choice, new_folder_raw):
 def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro=None):
     """Runs the batch for `files` (uploaded or from SharePoint), then stores the
     messages and resets the uploader. `intro` is a list of (kind, text) messages
-    to show before the batch's own messages."""
+    to show before the batch's own messages.
+
+    Everything the right-hand panel needs (messages, the generated workbook's path,
+    label and folder) lives in st.session_state, so it survives the st.rerun() at
+    the end. Bumping uploader_key gives st.file_uploader a brand-new key, which
+    empties it and the photo previews."""
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
     output_path = os.path.join(local_dir, filename)
@@ -132,6 +139,7 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
     st.session_state.last_output_label = batch_name_raw.strip()
     st.session_state.last_output_folder = subfolder
     st.session_state.last_folder_choice = subfolder if subfolder else MAIN_FOLDER_LABEL
+    st.session_state.confirm_reset = False
     save_prefs({"save_folder": st.session_state.last_folder_choice})
 
     progress_bar = st.progress(0)
@@ -146,7 +154,13 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
                 unsafe_allow_html=True,
             )
 
-    outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress)
+    # Even if something unexpected goes wrong, the uploader is still reset below
+    # and the person sees the error in the Batch results panel.
+    try:
+        outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress)
+    except Exception as e:
+        traceback.print_exc()
+        outcome = BatchOutcome(messages=[("error", f"The batch stopped unexpectedly: {e}")])
 
     if outcome.created_folder:
         remember_new_folder(subfolder)
@@ -158,7 +172,10 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
         f"Successfully added {outcome.processed} new file(s). Skipped {outcome.skipped} duplicate(s).",
     ))
     st.session_state.batch_results = results
-    st.session_state.uploader_key += 1  # clears the uploader and suggests a fresh batch name
+
+    # Reset the uploader: a new key means a fresh, empty st.file_uploader (and no previews),
+    # and it also suggests a fresh batch name. The right panel keeps showing the results.
+    st.session_state.uploader_key += 1
     st.rerun()
 
 
@@ -259,6 +276,9 @@ with form_col:
                 label_visibility="collapsed",
                 key=f"uploader_{st.session_state.uploader_key}",
             )
+            # With 1+ photos chosen, hide the round upload icon, the helper text and the
+            # browse overlay, so only the scrollable file chips remain in the dashed box.
+            hide_uploader_chrome_if_filled(uploaded_files)
             render_photo_previews(uploaded_files)
 
         # Suggest a fresh default name each time a new round of photos is selected,
