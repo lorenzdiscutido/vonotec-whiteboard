@@ -32,7 +32,7 @@ from ui_sections import (
     render_action_buttons, render_file_management, render_pending_syncs,
 )
 from ui_source_browser import render_source_browser
-from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
+from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Extraction"
@@ -72,12 +72,9 @@ for _key in list(st.session_state.keys()):
         st.session_state[_key] = st.session_state[_key]
 
 if view == VIEW_DASHBOARD:
-    # The controls (which files, Refresh, filters) go in the sidebar; the numbers
-    # and charts fill the main area and refresh by themselves.
-    with st.sidebar:
-        render_dashboard_controls()
-    with st.container(key="analytics"):
-        render_analytics_dashboard()
+    # One connected card: the controls (which files, Refresh, filters) on the left, the
+    # numbers and charts on the right, which refresh by themselves.
+    render_dashboard_view()
     st.stop()  # nothing below belongs to the dashboard view
 
 ui_components.render_instructions()
