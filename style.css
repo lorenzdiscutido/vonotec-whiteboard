@@ -214,10 +214,12 @@ div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { b
 .st-key-analytics div[data-testid="stMetricLabel"] p { color: #475569 !important; font-size: 12px !important; font-weight: 600 !important; }
 .st-key-analytics div[data-testid="stMetricValue"], .st-key-analytics div[data-testid="stMetricValue"] > div { color: #1e3a8a !important; font-size: 25px !important; font-weight: 700 !important; letter-spacing: -.03em; line-height: 1.1; }
 
-.chart-title { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 0; }
+.chart-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 8px 10px 0; }
 .chart-name { color: #1e293b !important; font-size: 15px !important; font-weight: 700 !important; }
 .chart-sub { margin-top: 3px; color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; }
 .chart-total { color: #2f5597 !important; font-size: 12.5px !important; font-weight: 700 !important; }
+.chart-totals-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; flex: 0 0 auto; }
+.chart-total-line { color: #2f5597 !important; font-size: 12.5px !important; font-weight: 700 !important; line-height: 1.35; white-space: nowrap; }
 
 .data-table-wrap { max-height: 420px; overflow: auto; background-color: #ffffff; }
 .data-table-wrap table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; background-color: #ffffff; }
@@ -285,7 +287,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .source-status.error > span { background: #dc2626; }
 .source-field-label { color: #334155; font-size: 12px; font-weight: 600; line-height: 1.6; margin-bottom: 6px; }
 .source-field-box { display: flex; align-items: center; min-height: 40px; padding: 0 14px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 13.5px; font-weight: 600; }
-.st-key-source_card [data-testid="stSelectbox"] [data-baseweb="select"] > div { background-color: #ffffff !important; }
+.st-key-source_card [data-testid="stSelectbox"] [data-baseweb="select"] > div, .st-key-source_card [data-testid="stTextInput"] [data-baseweb="input"], .st-key-source_card [data-testid="stTextInput"] [data-baseweb="base-input"] { background-color: #ffffff !important; }
 .st-key-source_card [data-testid="stSelectbox"] [data-baseweb="select"] > div > div { background-color: transparent !important; }
 .source-path { margin: 4px 0 6px 0 !important; color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; overflow-wrap: anywhere; }
 .source-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; padding-top: 14px; border-top: 1px solid #e3e9ef; color: #475569; font-size: 12px; font-weight: 500; }
@@ -312,7 +314,7 @@ h3 { font-size: 18px !important; font-weight: 700 !important; }
 div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-analytics_hide_unknown label p { font-size: 14px !important; font-weight: 500 !important; }
 .step-label, .file-sub, .sync-card p, .tip-card p, .chart-sub, .source-sub, .source-subhead-desc, .section-desc, .sync-detail, .source-path, .header-tagline, .st-key-analytics div[data-testid="stMetricLabel"] p, .st-key-form_panel p, .st-key-dashboard_sidebar p, [data-testid="stCaptionContainer"] p, [data-testid="stCaptionContainer"] { color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
 .tip-card p { color: #785a37 !important; }
-.tip-card strong, .chart-total, .chart-legend, .status-badge, .source-status, .source-field-label, .eyebrow { font-size: 12.5px !important; }
+.tip-card strong, .chart-total, .chart-total-line, .chart-legend, .status-badge, .source-status, .source-field-label, .eyebrow { font-size: 12.5px !important; }
 [data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p { color: #334155 !important; font-size: 12.5px !important; font-weight: 600 !important; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after { color: #475569 !important; font-size: 12.5px !important; font-weight: 500 !important; }
 [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; }
@@ -418,11 +420,9 @@ details.rs-row > summary::-webkit-details-marker { display: none; }
 .dim-bar-repair { background-color: #7c9cd6; }
 .dim-na { color: #94a3b8; font-weight: 600; }
 
-/* ---------- Dashboard: 4 Engineering KPI Cards (Total Defects, Linear LM, Area SQ LM, Missing Dimensions) ---------- */
-.kpi-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e3e9ef; border-top-width: 3px; border-radius: 9px; box-shadow: 0 2px 10px rgba(30, 58, 138, 0.025); height: 100%; box-sizing: border-box; }
-.kpi-blue { border-top-color: #2f5597; }
-.kpi-orange { border-top-color: #f97316; background: #fffcf9; }
-.kpi-green { border-top-color: #16865b; }
+/* ---------- Dashboard: 4 Engineering KPI Cards (Clean 1px border, no top accent stripe) ---------- */
+.kpi-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e3e9ef; border-radius: 9px; box-shadow: 0 2px 10px rgba(30, 58, 138, 0.025); height: 100%; box-sizing: border-box; }
+.kpi-orange { background: #ffffff; }
 .kpi-icon { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 7px; }
 .kpi-icon-blue { background: #eaf0fb; color: #1e3a8a; }
 .kpi-icon-orange { background: #fff0e3; color: #c2570c; }

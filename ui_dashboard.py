@@ -188,7 +188,7 @@ def _missing_dimension_rows(df):
 
 
 def _kpi_card_html(label, value_text, unit_text, sub_text, icon_svg, tone="blue"):
-    """Renders one enterprise KPI card with an icon tile, label, 25px bold value + unit,
+    """Renders one enterprise KPI card with an icon tile, label, 24px bold value + unit,
     and a secondary context line underneath."""
     unit_html = f'<span class="kpi-unit">{html.escape(unit_text)}</span>' if unit_text else ""
     return (
@@ -418,14 +418,16 @@ def _largest_by_unit(records, value_key, unit_key):
     return largest
 
 
-def _totals_text(records, value_key, unit_key, decimals, trim):
-    """'123.45 LM · 56.78 SQ LM': the grand total of a column, one figure per unit."""
+def _totals_lines(records, value_key, unit_key, decimals, trim):
+    """Returns a list of ('2,645.34 LM', '216.10 SQ LM') strings, one per unit, so each unit
+    can be displayed on its own separate line."""
     totals = {}
     for record in records:
         value = record[value_key]
-        if value is not None and value == value:
-            totals[record[unit_key]] = totals.get(record[unit_key], 0) + value
-    return " \u00b7 ".join(f"{_number_text(total, decimals, trim)} {unit}".strip() for unit, total in totals.items())
+        unit = record[unit_key]
+        if value is not None and value == value and unit:
+            totals[unit] = totals.get(unit, 0) + value
+    return [f"{_number_text(total, decimals, trim)} {unit}".strip() for unit, total in totals.items()]
 
 
 def _dimension_table_html(records):
@@ -458,18 +460,21 @@ def _dimension_table_html(records):
 
 def _dimension_section(summary):
     """A card with the total dimension and the total repair dimension of every defect code.
-    Both totals are shown in LM and SQ LM, and CC- is merged into C-."""
+    Both totals are shown in LM and SQ LM, and CC- is merged into C-. The LM and SQ LM
+    repair totals in the header are stacked on their own lines for clarity."""
     records = summary.to_dict("records")
-    repair_total = _totals_text(records, "Total Repair Dimension", "Repair Unit", 2, False)
+    repair_lines = _totals_lines(records, "Total Repair Dimension", "Repair Unit", 2, False)
+    repair_html = "".join(
+        f'<div class="chart-total-line">Repair total: {html.escape(line)}</div>'
+        for line in repair_lines
+    )
 
     with st.container(border=True, key="chart_dimensions"):
         st.markdown(
             '<div class="chart-title"><div>'
             '<div class="chart-name">Dimensions by defect</div>'
             '<div class="chart-sub">Total dimension and total repair dimension for each defect code (in LM and SQ LM)</div>'
-            '</div><div style="text-align:right;">'
-            + (f'<span class="chart-total">Repair total: {html.escape(repair_total)}</span>' if repair_total else "")
-            + "</div></div>",
+            f'</div><div class="chart-totals-stack">{repair_html}</div></div>',
             unsafe_allow_html=True,
         )
         if not records:

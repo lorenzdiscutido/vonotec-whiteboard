@@ -26,7 +26,7 @@ import os
 import re
 import time
 import random
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import requests
 import streamlit as st
@@ -224,13 +224,7 @@ def ensure_subfolder(name):
 
 def list_xlsx_files(subfolder=""):
     """Returns the Excel files directly inside the landing folder (subfolder="")
-    or inside one subfolder of it, sorted A-Z by name.
-
-    Each item: {"name", "modified", "size", "subfolder"}. "modified" is
-    SharePoint's last-modified time; the dashboard uses it to know when a
-    cached copy of the file is out of date. Excel's hidden "~$..." lock files
-    (created while someone has a workbook open) are left out. Returns an empty
-    list if the folder doesn't exist."""
+    or inside one subfolder of it, sorted A-Z by name."""
     site_id = _get_site_id()
     encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
     select = "$select=name,size,lastModifiedDateTime,file&$top=200"
@@ -249,7 +243,6 @@ def list_xlsx_files(subfolder=""):
         data = response.json()
         for item in data.get("value", []):
             name = item.get("name", "")
-            # Children with a "file" facet are files; folders have a "folder" facet instead
             if "file" not in item:
                 continue
             if name.startswith("~$") or not name.lower().endswith(".xlsx"):
@@ -260,17 +253,13 @@ def list_xlsx_files(subfolder=""):
                 "size": item.get("size", 0),
                 "subfolder": subfolder,
             })
-        url = data.get("@odata.nextLink")  # more pages, if there are many files
+        url = data.get("@odata.nextLink")
     return sorted(files, key=lambda f: f["name"].lower())
 
 
 def list_image_files(subfolder=""):
     """Returns the photos (.jpg, .jpeg, .png) directly inside the landing folder
-    (subfolder="") or inside one subfolder of it, sorted A-Z by name.
-
-    Each item: {"name", "modified", "size", "subfolder"}. Sub-folders are not
-    searched, and only items with a "file" facet count (folders have a "folder"
-    facet instead). Returns an empty list if the folder doesn't exist."""
+    (subfolder="") or inside one subfolder of it, sorted A-Z by name."""
     site_id = _get_site_id()
     encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
     select = "$select=name,size,lastModifiedDateTime,file&$top=200"
@@ -290,7 +279,7 @@ def list_image_files(subfolder=""):
         for item in data.get("value", []):
             name = item.get("name", "")
             if "file" not in item:
-                continue  # a folder
+                continue
             if not name.lower().endswith(IMAGE_EXTENSIONS):
                 continue
             files.append({
@@ -299,15 +288,14 @@ def list_image_files(subfolder=""):
                 "size": item.get("size", 0),
                 "subfolder": subfolder,
             })
-        url = data.get("@odata.nextLink")  # more pages, if there are many files
+        url = data.get("@odata.nextLink")
     return sorted(files, key=lambda f: f["name"].lower())
 
 
 # ---------------------------------------------------------------------------
-# Browsing ANY folder of the document library (for photos that live outside the landing folder)
+# Browsing & Searching ANY folder of the document library
 # ---------------------------------------------------------------------------
 
-# Safety stop for "include subfolders": never walk more folders than this
 MAX_RECURSIVE_FOLDERS = 300
 
 
@@ -339,9 +327,7 @@ def _iter_children(segments, select):
 
 def list_folders_at(segments):
     """Names of the folders directly inside the folder at `segments`
-    (counted from the top of the document library), sorted A-Z.
-    At the very top of the library only the folders allowed by
-    ALLOWED_ROOT_PREFIXES are returned; deeper folders are never filtered."""
+    (counted from the top of the document library), sorted A-Z."""
     names = [
         item["name"]
         for item in _iter_children(list(segments), "$select=name,folder&$top=200")
@@ -352,15 +338,72 @@ def list_folders_at(segments):
     return sorted(names, key=str.lower)
 
 
+def search_folders_at(root_segments, query_text, max_results=60):
+    """Searches SharePoint for folders whose name or path matches `query_text`
+    under `root_segments`. Returns a sorted list of folder paths (each path is a
+    list of folder names from the top of the document library)."""
+    cleaned_query = (query_text or "").strip().replace("'", "")
+    if not cleaned_query:
+        return []
+
+    site_id = _get_site_id()
+    token = _get_access_token()
+    root_list = [s for s in root_segments if s]
+    encoded_root = _encode_folder_path(root_list)
+    escaped_q = quote(cleaned_query, safe="")
+
+    if encoded_root:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded_root}:/search(q='{escaped_q}')?$select=name,folder,parentReference&$top=100"
+    else:
+        url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/search(q='{escaped_q}')?$select=name,folder,parentReference&$top=100"
+
+    response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    if response.status_code == 404:
+        return []
+    response.raise_for_status()
+
+    needle = cleaned_query.lower()
+    seen = set()
+    matches = []
+
+    for item in response.json().get("value", []):
+        if "folder" not in item:
+            continue
+        name = item.get("name", "")
+        if not name:
+            continue
+
+        parent_path = (item.get("parentReference") or {}).get("path") or ""
+        if "root:" in parent_path:
+            rel_parent = parent_path.split("root:", 1)[1].lstrip("/")
+        else:
+            rel_parent = ""
+
+        parent_parts = [unquote(p) for p in rel_parent.split("/") if p]
+        full_segments = parent_parts + [name]
+
+        if root_list and full_segments[:len(root_list)] != root_list:
+            continue
+        if not full_segments or not _is_allowed_root_folder(full_segments[0]):
+            continue
+
+        display_str = " / ".join(full_segments).lower()
+        if needle not in display_str:
+            continue
+
+        key = tuple(full_segments)
+        if key not in seen:
+            seen.add(key)
+            matches.append(full_segments)
+            if len(matches) >= max_results:
+                break
+
+    return sorted(matches, key=lambda segs: " / ".join(segs).lower())
+
+
 def list_images_at(segments, recursive=False):
     """Photos (.jpg, .jpeg, .png) inside the folder at `segments`, optionally
-    including every folder below it.
-
-    Each item: {"id", "name", "display_name", "folder", "size", "modified"}.
-    "id" is SharePoint's id for the file (use download_item_to_bytes with it);
-    "display_name" is the file name with its subfolder path relative to the starting
-    folder, so two photos called IMG_001.jpg in different folders stay distinguishable.
-    At most MAX_RECURSIVE_FOLDERS folders are walked."""
+    including every folder below it."""
     base = list(segments)
     select = "$select=id,name,size,lastModifiedDateTime,file,folder&$top=200"
     queue = [base]
@@ -395,19 +438,7 @@ def list_images_at(segments, recursive=False):
 # ---------------------------------------------------------------------------
 
 def download_file(remote_filename, local_path, subfolder=""):
-    """Downloads the file from SharePoint to local_path, if it exists there.
-    subfolder is the folder inside the landing folder ("" = the landing folder itself).
-
-    This matters because this app's local disk is temporary: it can be wiped
-    by a reboot or redeploy, while the SharePoint copy persists. Without this,
-    a wiped-and-restarted app would start a brand new, empty master file and
-    overwrite the fuller one already in SharePoint the next time it synced.
-
-    Returns True if an existing file was downloaded, False if nothing exists
-    there yet (a normal first-ever run, not an error)."""
-    # This is often the very first SharePoint network call of a fresh session,
-    # before the connection has "warmed up," so a one-off transient failure
-    # here is retried rather than surfaced as a scary warning right away.
+    """Downloads the file from SharePoint to local_path, if it exists there."""
     last_error = None
     for attempt in range(3):
         try:
@@ -426,13 +457,10 @@ def download_file(remote_filename, local_path, subfolder=""):
                     f.write(chunk)
             return True
         except requests.exceptions.HTTPError as e:
-            # A real HTTP error (not just "not found") is worth retrying once or
-            # twice, but not endlessly, unlike a plain connection/timeout issue.
             last_error = e
             if attempt < 2:
                 time.sleep(2 + attempt * 2)
         except requests.exceptions.RequestException as e:
-            # Connection/timeout-type issues: the likely "cold start" case.
             last_error = e
             if attempt < 2:
                 time.sleep(2 + attempt * 2)
@@ -442,11 +470,7 @@ def download_file(remote_filename, local_path, subfolder=""):
 
 def download_file_to_bytes(remote_filename, subfolder=""):
     """Downloads one file from SharePoint straight into memory and returns its
-    raw bytes, so nothing is written to the local disk. subfolder is the folder
-    inside the landing folder ("" = the landing folder itself).
-
-    Returns None if the file no longer exists there. Raises an exception if the
-    download keeps failing after a few tries."""
+    raw bytes."""
     last_error = None
     for attempt in range(3):
         try:
@@ -461,7 +485,6 @@ def download_file_to_bytes(remote_filename, subfolder=""):
             response.raise_for_status()
             return response.content
         except requests.exceptions.RequestException as e:
-            # HTTP errors and connection/timeout problems alike: try again a couple of times
             last_error = e
             if attempt < 2:
                 time.sleep(2 + attempt * 2)
@@ -470,11 +493,7 @@ def download_file_to_bytes(remote_filename, subfolder=""):
 
 
 def download_item_to_bytes(item_id):
-    """Downloads one file straight into memory using SharePoint's id for it (the
-    "id" from list_images_at), so it works for a file in any folder.
-
-    Returns None if the file no longer exists. Raises an exception if the
-    download keeps failing after a few tries."""
+    """Downloads one file straight into memory using SharePoint's id for it."""
     last_error = None
     for attempt in range(3):
         try:
@@ -497,11 +516,7 @@ def download_item_to_bytes(item_id):
 
 def upload_file(local_path, remote_filename, subfolder=""):
     """Uploads local_path to the landing folder (or a subfolder of it),
-    replacing any existing file with the same name.
-
-    Raises an exception on failure. The caller should treat this as
-    best-effort: the local Excel file is always the source of truth and is
-    saved successfully regardless of whether this upload succeeds."""
+    replacing any existing file with the same name."""
     token = _get_access_token()
     site_id = _get_site_id()
     item_path = _encode_item_path(_remote_folder(subfolder), remote_filename)
@@ -550,7 +565,6 @@ def _upload_large_file(local_path, site_id, item_path, token, file_size):
         while start < file_size:
             chunk = f.read(CHUNK_SIZE_BYTES)
             end = start + len(chunk) - 1
-            # No Authorization header here: the uploadUrl itself is pre-authenticated.
             chunk_response = requests.put(
                 upload_url,
                 headers={
