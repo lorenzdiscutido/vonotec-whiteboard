@@ -28,6 +28,7 @@ import sharepoint_client
 import ui_components
 from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
 from dashboard_loader import get_file_rows, is_loaded
+from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
 
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
@@ -58,6 +59,12 @@ TABLE_COLUMNS = [
     "Repair Dimension", "Repair Unit", "Date", "Submitter", "Elevation", "Drop", "Folder", "File",
 ]
 
+# Columns shown in the "Records needing review (missing dimensions)" queue table
+REVIEW_QUEUE_COLUMNS = [
+    "Folder", "File", "Tower", "Floor", "Drop", "Elevation",
+    "Material", "Defect Code", "Defect Type", "Date", "Submitter",
+]
+
 # The data table is drawn as HTML (see _data_table_html); this many rows at most
 DATA_TABLE_MAX_ROWS = 1000
 
@@ -67,6 +74,33 @@ HIDE_UNKNOWN_KEY = "analytics_hide_unknown"
 # Folder/file lists are kept for just under one refresh interval, so every
 # automatic check really asks SharePoint instead of reusing the previous answer.
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
+
+# Inline SVG icons for the 4 KPI cards
+_KPI_ICON_DEFECTS = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M5 20V10m7 10V4m7 16v-7"/></svg>'
+)
+_KPI_ICON_LINEAR = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 12h18M3 12l3.5-3.5M3 12l3.5 3.5M21 12l-3.5-3.5M21 12l-3.5 3.5"/></svg>'
+)
+_KPI_ICON_AREA = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg>'
+)
+_KPI_ICON_WARN = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
+)
+_KPI_ICON_OK = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
+)
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +167,134 @@ def _load_scope(scope, subfolders):
     if progress is not None:
         progress.empty()
     return rows, files_read, skipped
+
+
+# ---------------------------------------------------------------------------
+# KPI Cards & Missing-Dimension Review Queue
+# ---------------------------------------------------------------------------
+
+def _base_defect_code(code):
+    parts = str(code or "").split()
+    return parts[0] if parts else ""
+
+
+def _missing_dimension_rows(df):
+    """Returns the subset of `df` where a defect requires a dimension on the board
+    (per BOARD_UNITS in config.py) but its Dimension is missing/NaN."""
+    if df.empty:
+        return df
+    requires_dim = df["Defect Code"].apply(lambda c: bool(BOARD_UNITS.get(_base_defect_code(c), "")))
+    return df[requires_dim & df["Dimension"].isna()]
+
+
+def _kpi_card_html(label, value_text, unit_text, sub_text, icon_svg, tone="blue"):
+    """Renders one enterprise KPI card with an icon tile, label, 25px bold value + unit,
+    and a secondary context line underneath."""
+    unit_html = f'<span class="kpi-unit">{html.escape(unit_text)}</span>' if unit_text else ""
+    return (
+        f'<div class="kpi-card kpi-{html.escape(tone)}">'
+        f'<span class="kpi-icon kpi-icon-{html.escape(tone)}">{icon_svg}</span>'
+        '<div class="kpi-body">'
+        f'<div class="kpi-label">{html.escape(label)}</div>'
+        f'<div class="kpi-value"><span>{html.escape(value_text)}</span>{unit_html}</div>'
+        f'<div class="kpi-sub">{html.escape(sub_text)}</div>'
+        '</div></div>'
+    )
+
+
+def _render_kpi_cards(df, summary, files_read):
+    """Draws the 4 Option B KPI cards across the top of the dashboard:
+      1. Total defects
+      2. Linear repair total (LM) + board LM subtitle
+      3. Area repair total (SQ LM) + board SQ LM subtitle
+      4. Missing dimensions (Needs review)"""
+    linear_rows = summary[summary["Repair Unit"] == "LM"] if not summary.empty else summary
+    area_rows = summary[summary["Repair Unit"] == "SQ LM"] if not summary.empty else summary
+
+    linear_repair = float(linear_rows["Total Repair Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
+    linear_board = float(linear_rows["Total Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
+
+    area_repair = float(area_rows["Total Repair Dimension"].dropna().sum()) if not area_rows.empty else 0.0
+    area_board = float(area_rows["Total Dimension"].dropna().sum()) if not area_rows.empty else 0.0
+
+    missing_count = int(summary["Missing Dimension"].sum()) if not summary.empty else 0
+    folder_count = int(df["Folder"].nunique()) if not df.empty else 0
+
+    col1, col2, col3, col4 = st.columns(4, gap="small")
+    with col1:
+        st.markdown(
+            _kpi_card_html(
+                "Total defects",
+                f"{len(df):,}",
+                "",
+                f"Across {files_read:,} file{'s' if files_read != 1 else ''} \u00b7 {folder_count:,} folder{'s' if folder_count != 1 else ''}",
+                _KPI_ICON_DEFECTS,
+                tone="blue",
+            ),
+            unsafe_allow_html=True,
+        )
+    with col2:
+        st.markdown(
+            _kpi_card_html(
+                "Linear repair total",
+                f"{linear_repair:,.2f}",
+                "LM",
+                f"Board total: {linear_board:,.2f} LM",
+                _KPI_ICON_LINEAR,
+                tone="blue",
+            ),
+            unsafe_allow_html=True,
+        )
+    with col3:
+        st.markdown(
+            _kpi_card_html(
+                "Area repair total",
+                f"{area_repair:,.2f}",
+                "SQ LM",
+                f"Board total: {area_board:,.2f} SQ LM",
+                _KPI_ICON_AREA,
+                tone="blue",
+            ),
+            unsafe_allow_html=True,
+        )
+    with col4:
+        warn_tone = "orange" if missing_count > 0 else "green"
+        warn_icon = _KPI_ICON_WARN if missing_count > 0 else _KPI_ICON_OK
+        warn_sub = "Needs review in Excel" if missing_count > 0 else "All dimensions complete"
+        st.markdown(
+            _kpi_card_html(
+                "Missing dimensions",
+                f"{missing_count:,}",
+                "",
+                warn_sub,
+                warn_icon,
+                tone=warn_tone,
+            ),
+            unsafe_allow_html=True,
+        )
+
+
+def _render_missing_dimensions_queue(df):
+    """Best Practice #1: When any defects are missing a required board dimension,
+    shows a compact expandable review queue with the exact SharePoint Folder, File,
+    Tower, Floor, Drop, Material, and Defect Code so engineers can jump straight to
+    that Excel workbook and fill in the missing number."""
+    missing_df = _missing_dimension_rows(df)
+    if missing_df.empty:
+        return
+
+    count = len(missing_df)
+    label = f"Records needing review: {count:,} defect{'s' if count != 1 else ''} missing a dimension in Excel"
+    with st.expander(label, expanded=False):
+        st.caption(
+            "Open the corresponding Excel file in SharePoint to check the embedded whiteboard photo "
+            "and fill in the missing dimension. The dashboard updates automatically once saved."
+        )
+        cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
+        shown = missing_df[cols].head(DATA_TABLE_MAX_ROWS)
+        table = shown.to_html(index=False, border=0, na_rep="", classes="data-table", escape=True)
+        table = "".join(line.strip() for line in table.splitlines())
+        st.markdown(f'<div class="data-table-wrap">{table}</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +456,9 @@ def _dimension_table_html(records):
     )
 
 
-def _dimension_section(df):
+def _dimension_section(summary):
     """A card with the total dimension and the total repair dimension of every defect code.
     Both totals are shown in LM and SQ LM, and CC- is merged into C-."""
-    summary = dimension_by_defect(df)
     records = summary.to_dict("records")
     repair_total = _totals_text(records, "Total Repair Dimension", "Repair Unit", 2, False)
 
@@ -557,15 +718,17 @@ def render_analytics_dashboard():
         selected_materials,
     )
 
-    # --- Summary / KPI Cards ---
-    total_col, files_col, folders_col = st.columns(3)
-    total_col.metric("Defects", f"{len(df):,}")
-    files_col.metric("Excel files read", f"{files_read:,}")
-    folders_col.metric("Folders", f"{df['Folder'].nunique():,}")
+    summary = dimension_by_defect(df)
+
+    # --- 4 Engineering KPI Cards (Option B) ---
+    _render_kpi_cards(df, summary, files_read)
 
     if df.empty:
         st.info("No defects match these filters.")
         return
+
+    # --- Best Practice #1: Review Queue for Defects Missing a Required Dimension ---
+    _render_missing_dimensions_queue(df)
 
     # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
     with st.container(key="charts_grid"):
@@ -575,7 +738,7 @@ def render_analytics_dashboard():
         with material_col:
             _chart_section(df, "Material", "Defects by material", hide_unknown)
         _chart_section(df, "Floor", "Defects by floor", hide_unknown)
-        _dimension_section(df)
+        _dimension_section(summary)
 
     # Note about hidden unknown defects
     note = _chart_notes(df, hide_unknown)

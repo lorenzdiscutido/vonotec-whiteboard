@@ -213,9 +213,6 @@ div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { b
 .st-key-analytics div[data-testid="stMetricLabel"], .st-key-analytics div[data-testid="stMetricValue"] { grid-column: 2; }
 .st-key-analytics div[data-testid="stMetricLabel"] p { color: #475569 !important; font-size: 12px !important; font-weight: 600 !important; }
 .st-key-analytics div[data-testid="stMetricValue"], .st-key-analytics div[data-testid="stMetricValue"] > div { color: #1e3a8a !important; font-size: 25px !important; font-weight: 700 !important; letter-spacing: -.03em; line-height: 1.1; }
-.st-key-analytics div[data-testid="stColumn"]:nth-child(1) div[data-testid="stMetric"]::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V10m7 10V4m7 16v-7'/%3E%3C/svg%3E"); }
-.st-key-analytics div[data-testid="stColumn"]:nth-child(2) div[data-testid="stMetric"]::before { background-color: #fff0e6; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d85f0d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5h16v14H4V5Zm0 11 4.5-4.5 3.2 3.2 2.3-2.3 6 5.6M15.5 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z'/%3E%3C/svg%3E"); }
-.st-key-analytics div[data-testid="stColumn"]:nth-child(3) div[data-testid="stMetric"]::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6.5h6l2-2h9v15h-17v-13Z'/%3E%3C/svg%3E"); }
 
 .chart-title { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 0; }
 .chart-name { color: #1e293b !important; font-size: 15px !important; font-weight: 700 !important; }
@@ -420,3 +417,20 @@ details.rs-row > summary::-webkit-details-marker { display: none; }
 .dim-bar-board { background-color: #2f5597; }
 .dim-bar-repair { background-color: #7c9cd6; }
 .dim-na { color: #94a3b8; font-weight: 600; }
+
+/* ---------- Dashboard: 4 Engineering KPI Cards (Total Defects, Linear LM, Area SQ LM, Missing Dimensions) ---------- */
+.kpi-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 10px; background: #ffffff; border: 1px solid #e3e9ef; border-top-width: 3px; border-radius: 9px; box-shadow: 0 2px 10px rgba(30, 58, 138, 0.025); height: 100%; box-sizing: border-box; }
+.kpi-blue { border-top-color: #2f5597; }
+.kpi-orange { border-top-color: #f97316; background: #fffcf9; }
+.kpi-green { border-top-color: #16865b; }
+.kpi-icon { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 7px; }
+.kpi-icon-blue { background: #eaf0fb; color: #1e3a8a; }
+.kpi-icon-orange { background: #fff0e3; color: #c2570c; }
+.kpi-icon-green { background: #e8f6ef; color: #16865b; }
+.kpi-body { min-width: 0; flex: 1 1 auto; }
+.kpi-label { color: #475569 !important; font-size: 12.5px !important; font-weight: 600 !important; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-value { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; color: #1e3a8a !important; font-size: 24px !important; font-weight: 700 !important; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.kpi-orange .kpi-value { color: #c2570c !important; }
+.kpi-green .kpi-value { color: #16865b !important; }
+.kpi-unit { color: #64748b !important; font-size: 12.5px !important; font-weight: 700 !important; letter-spacing: 0; }
+.kpi-sub { margin-top: 3px; color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
