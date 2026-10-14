@@ -6,8 +6,9 @@ flow). This runs with no one signed in, which is what makes it possible to
 sync in the background every time a photo is processed.
 
 Files can be saved straight into the landing folder, into a subfolder of it,
-or into a nested subfolder (e.g. "Project A/Tower 1"). Subfolders can be listed
-and created from here, so people can group their batches by project and tower.
+or into any depth of nested subfolders (e.g. "Project A/Tower 1/Front").
+Subfolders can be listed and created from here, so people can group their
+batches by project, tower, elevation, etc.
 
 Whiteboard photos that coworkers put in those folders can also be listed
 (list_image_files) and read straight into memory (download_file_to_bytes).
@@ -36,23 +37,13 @@ from settings import ALLOWED_ROOT_PREFIXES
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
-# Microsoft requires a resumable "upload session" above 4 MB; a single PUT
-# works below that. The master file starts small but grows as photos are
-# embedded, so both paths are needed.
 SIMPLE_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
-# Each chunk in a resumable upload must be a multiple of 320 KiB.
-# 10 MB is Microsoft's own recommended chunk size.
 CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 
 XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# Photo types the app can read (matched ignoring capitals)
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
-# Writing to the same file again very soon after the previous write can get a
-# transient "423 Locked" while SharePoint finishes processing that previous
-# write, or a "429"/"503" if it's briefly busy. These clear on their own
-# within a few seconds, so they are retried rather than treated as failures.
 MAX_UPLOAD_ATTEMPTS = 5
 RETRYABLE_STATUS_CODES = {423, 429, 503, 504}
 
@@ -67,9 +58,7 @@ def _retry_wait_seconds(response, attempt):
             pass
     return min((2 ** attempt) + random.random(), 20)
 
-# The access token and the resolved site id are reused across calls instead
-# of being fetched every time, since both are slow network round-trips and
-# neither changes between photos in the same run.
+
 _token_cache = {"access_token": None, "expires_at": 0}
 _site_id_cache = {"site_id": None}
 
@@ -141,7 +130,7 @@ def _remote_folder(subfolder=""):
 
 
 # ---------------------------------------------------------------------------
-# Subfolders: listing and creating (supports nested subfolders)
+# Subfolders: listing and creating (supports multi-level nested subfolders)
 # ---------------------------------------------------------------------------
 
 def _is_allowed_root_folder(name):
@@ -165,7 +154,7 @@ def sanitize_folder_name(name):
 
 def list_subfolders_of(parent_subfolder=""):
     """Returns the names of the folders directly inside `parent_subfolder`
-    (which itself is relative to the landing folder), sorted A-Z.
+    (which itself is relative to the landing folder, e.g. 'Nuveo/hello'), sorted A-Z.
     When `parent_subfolder=""`, lists the top-level folders in the landing folder."""
     site_id = _get_site_id()
     segments = _landing_segments() + [s for s in (parent_subfolder or "").split("/") if s]
@@ -196,15 +185,17 @@ def list_subfolders():
     return list_subfolders_of("")
 
 
-def list_all_output_folders(max_depth=2):
+def list_all_output_folders(max_depth=8):
     """Returns all folder paths inside the landing folder up to `max_depth` levels deep
-    (e.g. ['Cerca Nuveo', 'Cerca Nuveo/Tower 1', 'Cerca Nuveo/Tower 2', 'Test']),
+    (e.g. ['Nuveo', 'Nuveo/hello', 'Nuveo/hello/drop 1', 'Test']),
     sorted A-Z. Used by the Analytics Dashboard and warm-up loader so Excel files
-    saved inside nested subfolders are automatically discovered."""
+    saved at any subfolder depth are automatically discovered."""
     results = []
     queue = [("", 1)]
-    while queue:
+    walked = 0
+    while queue and walked < 250:
         parent, depth = queue.pop(0)
+        walked += 1
         for child in list_subfolders_of(parent):
             rel_path = f"{parent}/{child}" if parent else child
             results.append(rel_path)
@@ -233,8 +224,8 @@ def _create_folder_if_missing(parent_segments, name):
 
 
 def ensure_subfolder(subfolder_path):
-    """Creates the subfolder (and any nested child subfolder, e.g. 'Project A/Tower 1')
-    inside the landing folder. Does nothing for segments that already exist."""
+    """Creates the subfolder (and any number of nested child subfolders, e.g.
+    'Nuveo/hello/sub2/sub3') inside the landing folder."""
     parent = []
     sub_segments = [s for s in (subfolder_path or "").split("/") if s]
     for segment in _landing_segments() + sub_segments:
@@ -248,7 +239,7 @@ def ensure_subfolder(subfolder_path):
 
 def list_xlsx_files(subfolder=""):
     """Returns the Excel files directly inside the landing folder (subfolder="")
-    or inside one (possibly nested) subfolder of it, sorted A-Z by name."""
+    or inside one (possibly multi-level nested) subfolder of it, sorted A-Z by name."""
     site_id = _get_site_id()
     encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
     select = "$select=name,size,lastModifiedDateTime,file&$top=200"
@@ -269,7 +260,7 @@ def list_xlsx_files(subfolder=""):
             name = item.get("name", "")
             if "file" not in item:
                 continue
-            if name.startswith("~$") or not name.lower().endswith(".xlsx"):
+            if name.startswith("~\$") or not name.lower().endswith(".xlsx"):
                 continue
             files.append({
                 "name": name,

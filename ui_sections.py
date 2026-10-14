@@ -17,8 +17,9 @@ from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 # The one final action, whichever photo source is used
 PROCESS_BUTTON_LABEL = "Extract photos"
 
-# Labels for the second-level output subfolder dropdown (Option 2 cascading picker)
+# Label for creating a subfolder at any nesting level
 NEW_SUBFOLDER_LABEL = "+ Create a new subfolder..."
+MAX_OUTPUT_FOLDER_DEPTH = 10
 
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
@@ -27,11 +28,11 @@ _SESSION_DEFAULTS = {
     "confirm_reset": False,
     "last_output_path": None,
     "last_output_label": None,
-    "last_output_folder": "",      # "" = the main landing folder, or "Parent" / "Parent/Child"
+    "last_output_folder": "",      # "" = the main landing folder, or "Folder1/Sub1/Sub2..."
     "last_folder_choice": MAIN_FOLDER_LABEL,
     "sp_folders": None,            # None = not loaded yet
     "sp_folders_error": False,
-    "sp_nested_folders": {},       # parent_folder -> list of child folder names
+    "sp_nested_folders": {},       # relative_path -> list of child folder names
 }
 
 
@@ -325,7 +326,9 @@ def render_photo_previews(uploaded_files):
 
 
 # ---------------------------------------------------------------------------
-# Cascading SharePoint output folder & subfolder picker (Option 2)
+# Multi-Level Cascading SharePoint Output Folder Picker
+#   Supports unlimited drill-down: Folder 1 > Subfolder > Sub-subfolder > ...
+#   Plus multi-level creation by typing "Sub1/Sub2" or drilling down level by level.
 # ---------------------------------------------------------------------------
 
 def refresh_folder_list():
@@ -339,26 +342,28 @@ def refresh_folder_list():
         st.session_state.sp_folders_error = True
 
 
-def _get_nested_folders(parent_folder):
-    """Returns the cached list of subfolders inside `parent_folder`, fetching once per session."""
+def _get_nested_folders(relative_path):
+    """Returns the cached list of subfolders inside `relative_path`, fetching once per session."""
     nested_map = st.session_state.setdefault("sp_nested_folders", {})
-    if parent_folder not in nested_map:
+    if relative_path not in nested_map:
         try:
-            nested_map[parent_folder] = sharepoint_client.list_subfolders_of(parent_folder)
+            nested_map[relative_path] = sharepoint_client.list_subfolders_of(relative_path)
         except Exception:
-            nested_map[parent_folder] = []
-    return nested_map[parent_folder]
+            nested_map[relative_path] = []
+    return nested_map[relative_path]
 
 
-def _direct_parent_label(parent_name):
-    return f"(Save directly in {parent_name})"
+def _direct_parent_label(folder_name):
+    return f"(Save directly in {folder_name})"
 
 
 def render_folder_picker(disabled=False):
-    """Cascading 2-level output folder picker:
-    1. Top-level folder ('Main folder', existing folders, or '+ Create a new folder...')
-    2. When an existing folder (or new folder) is chosen, a second dropdown lets the user
-       save directly in that folder, pick an existing subfolder, or '+ Create a new subfolder...'.
+    """Multi-level cascading output folder picker:
+    - Level 0: 'Main folder', existing top-level folders, or '+ Create a new folder...'
+    - Level 1..N: Whenever an existing folder is picked, another dropdown appears for the
+      next level down: '(Save directly in <Folder>)', existing subfolders, or '+ Create a new subfolder...'.
+    - When creating a new folder or subfolder at any level, users can also type '/' (e.g. 'Sub1/Sub2')
+      to create multiple new nested levels at once.
     Returns (folder_choice, new_folder_raw)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return MAIN_FOLDER_LABEL, ""
@@ -375,103 +380,117 @@ def render_folder_picker(disabled=False):
     top_folders = list(st.session_state.sp_folders or [])
     options = [MAIN_FOLDER_LABEL] + top_folders + [NEW_FOLDER_LABEL]
 
-    # Split remembered "Parent/Child" choice into parent and child defaults
     remembered = str(st.session_state.last_folder_choice or MAIN_FOLDER_LABEL)
     remembered_parts = [p for p in remembered.split("/") if p] if remembered != MAIN_FOLDER_LABEL else []
-    default_parent = remembered_parts[0] if remembered_parts else MAIN_FOLDER_LABEL
-    default_child = remembered_parts[1] if len(remembered_parts) > 1 else ""
+    default_top = remembered_parts[0] if remembered_parts else MAIN_FOLDER_LABEL
 
-    parent_choice = st.selectbox(
+    top_choice = st.selectbox(
         "Save into which SharePoint folder?",
         options,
-        index=options.index(default_parent) if default_parent in options else 0,
+        index=options.index(default_top) if default_top in options else 0,
         key="folder_choice_input",
         disabled=disabled,
     )
 
     # Case 1: Saving straight into the Main landing folder
-    if parent_choice == MAIN_FOLDER_LABEL:
+    if top_choice == MAIN_FOLDER_LABEL:
         return MAIN_FOLDER_LABEL, ""
 
-    # Case 2: Creating a brand-new top-level folder (with optional new subfolder inside it)
-    if parent_choice == NEW_FOLDER_LABEL:
-        new_parent_raw = st.text_input(
-            "Name for the new folder",
+    # Case 2: Creating a new top-level folder (supports nested path like "Folder 1/Sub 1/Sub 2")
+    if top_choice == NEW_FOLDER_LABEL:
+        new_folder_raw = st.text_input(
+            "Name for the new folder (use / to create nested subfolders, e.g. Folder 1/Subfolder)",
             key="new_folder_name_input",
             disabled=disabled,
         )
-        new_sub_raw = st.text_input(
-            "Subfolder inside the new folder (optional)",
-            placeholder="Leave blank to save directly in the new folder",
-            key="new_subfolder_under_new_input",
-            disabled=disabled,
+        return NEW_FOLDER_LABEL, new_folder_raw
+
+    # Case 3: Existing top-level folder chosen -> progressive multi-level drill-down loop
+    selected_segments = [top_choice]
+    for depth in range(1, MAX_OUTPUT_FOLDER_DEPTH):
+        current_rel_path = "/".join(selected_segments)
+        current_leaf = selected_segments[-1]
+        child_folders = _get_nested_folders(current_rel_path) if not disabled else []
+
+        direct_label = _direct_parent_label(current_leaf)
+        sub_options = [direct_label] + list(child_folders) + [NEW_SUBFOLDER_LABEL]
+
+        # Pre-select remembered segment at this depth if it matches
+        default_sub = (
+            remembered_parts[depth]
+            if len(remembered_parts) > depth and remembered_parts[:depth] == selected_segments
+            else direct_label
         )
-        combined_new = f"{new_parent_raw.strip()}/{new_sub_raw.strip()}" if (new_sub_raw or "").strip() else new_parent_raw
-        return NEW_FOLDER_LABEL, combined_new
+        default_sub_index = sub_options.index(default_sub) if default_sub in sub_options else 0
 
-    # Case 3: Existing top-level folder selected -> show cascading Subfolder dropdown
-    child_folders = _get_nested_folders(parent_choice) if not disabled else []
-    direct_label = _direct_parent_label(parent_choice)
-    sub_options = [direct_label] + list(child_folders) + [NEW_SUBFOLDER_LABEL]
-    default_sub_index = sub_options.index(default_child) if default_child in sub_options else 0
-
-    parent_hash = hashlib.md5(parent_choice.encode("utf-8")).hexdigest()[:8]
-    sub_choice = st.selectbox(
-        f'Subfolder inside "{parent_choice}"',
-        sub_options,
-        index=default_sub_index,
-        key=f"subfolder_choice_input_{parent_hash}",
-        disabled=disabled,
-        help="Save directly in this folder, choose an existing subfolder, or create a new subfolder inside it.",
-    )
-
-    if sub_choice == direct_label:
-        return parent_choice, ""
-    if sub_choice == NEW_SUBFOLDER_LABEL:
-        new_sub_raw = st.text_input(
-            f'Name for the new subfolder inside "{parent_choice}"',
-            key=f"new_subfolder_name_input_{parent_hash}",
+        path_hash = hashlib.md5(current_rel_path.encode("utf-8")).hexdigest()[:8]
+        sub_choice = st.selectbox(
+            f'Subfolder inside "{current_leaf}"',
+            sub_options,
+            index=default_sub_index,
+            key=f"subfolder_choice_lv{depth}_{path_hash}",
             disabled=disabled,
+            help="Save directly here, pick an existing subfolder to drill deeper, or create a new subfolder.",
         )
-        return f"{parent_choice}/{NEW_SUBFOLDER_LABEL}", new_sub_raw
-    return f"{parent_choice}/{sub_choice}", ""
+
+        if sub_choice == direct_label:
+            return current_rel_path, ""
+
+        if sub_choice == NEW_SUBFOLDER_LABEL:
+            new_sub_raw = st.text_input(
+                f'Name for the new subfolder inside "{current_leaf}" (use / for deeper levels)',
+                key=f"new_subfolder_name_lv{depth}_{path_hash}",
+                disabled=disabled,
+            )
+            return f"{current_rel_path}/{NEW_SUBFOLDER_LABEL}", new_sub_raw
+
+        # User picked an existing child folder -> append and loop to show the next level down!
+        selected_segments.append(sub_choice)
+
+    return "/".join(selected_segments), ""
+
+
+def _sanitize_relative_segments(raw_path):
+    """Splits a user-typed folder string on '/' and sanitizes each segment individually."""
+    parts = [p.strip() for p in str(raw_path or "").replace("\\", "/").split("/") if p.strip()]
+    cleaned = []
+    for part in parts:
+        safe = sharepoint_client.sanitize_folder_name(part)
+        if not safe:
+            return []
+        cleaned.append(safe)
+    return cleaned
 
 
 def resolve_subfolder(folder_choice, new_folder_raw):
-    """Turns the cascading picker's answer into (subfolder_path, creating_new_folder, error_message)."""
+    """Turns the multi-level picker's answer into (subfolder_path, creating_new_folder, error_message)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return "", False, None
 
     top_folders = list(st.session_state.sp_folders or [])
 
-    # Creating a new top-level folder (and optionally a nested subfolder inside it)
+    # Creating a brand-new top-level folder (and any nested "/" segments typed inside it)
     if folder_choice == NEW_FOLDER_LABEL:
-        raw_parts = [p.strip() for p in (new_folder_raw or "").split("/") if p.strip()]
-        if not raw_parts:
+        segments = _sanitize_relative_segments(new_folder_raw)
+        if not segments:
             return "", False, "Please enter a name for the new folder before extracting."
-        clean_parent = sharepoint_client.sanitize_folder_name(raw_parts[0])
-        if not clean_parent:
-            return "", False, "Please enter a valid name for the new folder before extracting."
-        matched_parent = next((f for f in top_folders if f.lower() == clean_parent.lower()), None)
-        final_parent = matched_parent or clean_parent
+        matched_top = next((f for f in top_folders if f.lower() == segments[0].lower()), None)
+        segments[0] = matched_top or segments[0]
+        creating = (matched_top is None) or (len(segments) > 1)
+        return "/".join(segments), creating, None
 
-        if len(raw_parts) > 1:
-            clean_child = sharepoint_client.sanitize_folder_name(raw_parts[1])
-            if not clean_child:
-                return "", False, "Please enter a valid name for the new subfolder before extracting."
-            return f"{final_parent}/{clean_child}", True, None
-        return final_parent, matched_parent is None, None
-
-    # Creating a new subfolder inside an existing parent folder
+    # Creating a new subfolder (or multi-level chain like "Sub1/Sub2") inside an existing folder path
     if isinstance(folder_choice, str) and folder_choice.endswith(f"/{NEW_SUBFOLDER_LABEL}"):
-        parent_folder = folder_choice[: -len(f"/{NEW_SUBFOLDER_LABEL}")]
-        clean_child = sharepoint_client.sanitize_folder_name(new_folder_raw)
-        if not clean_child:
-            return "", False, f'Please enter a name for the new subfolder inside "{parent_folder}".'
-        existing_children = _get_nested_folders(parent_folder)
-        matched_child = next((c for c in existing_children if c.lower() == clean_child.lower()), None)
-        final_child = matched_child or clean_child
-        return f"{parent_folder}/{final_child}", matched_child is None, None
+        parent_path = folder_choice[: -len(f"/{NEW_SUBFOLDER_LABEL}")]
+        parent_leaf = parent_path.split("/")[-1]
+        segments = _sanitize_relative_segments(new_folder_raw)
+        if not segments:
+            return "", False, f'Please enter a name for the new subfolder inside "{parent_leaf}".'
+        existing_children = _get_nested_folders(parent_path)
+        matched_first = next((c for c in existing_children if c.lower() == segments[0].lower()), None)
+        segments[0] = matched_first or segments[0]
+        creating = (matched_first is None) or (len(segments) > 1)
+        return f"{parent_path}/{'/'.join(segments)}", creating, None
 
     if folder_choice != MAIN_FOLDER_LABEL:
         return folder_choice, False, None
@@ -479,21 +498,24 @@ def resolve_subfolder(folder_choice, new_folder_raw):
 
 
 def remember_new_folder(subfolder):
-    """Adds a just-created top-level or nested subfolder to the session dropdown lists."""
+    """Adds every level of a newly created folder path ('Folder1/Sub1/Sub2') into the session caches
+    so it immediately appears in the cascading dropdowns without re-querying SharePoint."""
     parts = [p for p in (subfolder or "").split("/") if p]
     if not parts:
         return
-    parent = parts[0]
-    folders = st.session_state.sp_folders or []
-    if parent.lower() not in [f.lower() for f in folders]:
-        st.session_state.sp_folders = sorted(folders + [parent], key=str.lower)
 
-    if len(parts) > 1:
-        child = parts[1]
-        nested_map = st.session_state.setdefault("sp_nested_folders", {})
-        children = list(nested_map.get(parent) or [])
-        if child.lower() not in [c.lower() for c in children]:
-            nested_map[parent] = sorted(children + [child], key=str.lower)
+    top = parts[0]
+    folders = st.session_state.sp_folders or []
+    if top.lower() not in [f.lower() for f in folders]:
+        st.session_state.sp_folders = sorted(folders + [top], key=str.lower)
+
+    nested_map = st.session_state.setdefault("sp_nested_folders", {})
+    for idx in range(1, len(parts)):
+        parent_path = "/".join(parts[:idx])
+        child_name = parts[idx]
+        children = list(nested_map.get(parent_path) or [])
+        if child_name.lower() not in [c.lower() for c in children]:
+            nested_map[parent_path] = sorted(children + [child_name], key=str.lower)
 
 
 # ---------------------------------------------------------------------------
@@ -518,11 +540,10 @@ def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, 
 
     destination_missing = ""
     if folder_choice == NEW_FOLDER_LABEL:
-        raw_parent = (new_folder_raw or "").split("/")[0].strip()
-        if not raw_parent:
+        if not _sanitize_relative_segments(new_folder_raw):
             destination_missing = "Enter a name for the new folder."
     elif isinstance(folder_choice, str) and folder_choice.endswith(f"/{NEW_SUBFOLDER_LABEL}"):
-        if not (new_folder_raw or "").strip():
+        if not _sanitize_relative_segments(new_folder_raw):
             destination_missing = "Enter a name for the new subfolder."
     if not destination_missing and not (batch_name_raw or "").strip():
         destination_missing = "Enter a batch name to continue."
