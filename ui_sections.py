@@ -40,13 +40,11 @@ def init_session_state():
 # With more messages than this, the old plain message list goes into a scrollable box
 RESULTS_BOX_MIN_MESSAGES = 5
 RESULTS_BOX_HEIGHT_PX = 320
-# app.py always ends a batch with two messages ("Batch Complete." and the summary
-# line); they stay outside the box so the outcome is visible without scrolling.
 RESULTS_PINNED_MESSAGES = 2
 
 # The compact result rows scroll inside a box once there are more than this many
 RESULT_ROWS_BOX_MIN = 8
-RESULT_ROWS_BOX_HEIGHT_PX = 380
+RESULT_ROWS_BOX_HEIGHT_PX = 390
 
 # Short icons for the result rows: green check, orange alert, gray skip, red cross
 _ROW_ICONS = {
@@ -55,6 +53,19 @@ _ROW_ICONS = {
     "skipped": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>',
     "failed": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>',
 }
+_ICON_CHEVRON = (
+    '<svg class="rs-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>'
+)
+_ICON_FILE_BADGE = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4"/></svg>'
+)
+_ICON_FOLDER_BADGE = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.5h6l2-2h9v15h-17v-13Z"/></svg>'
+)
+
 _ROW_LABELS = {"added": "Added", "review": "Needs review", "skipped": "Skipped", "failed": "Failed"}
 # Rows that need attention come first
 _ROW_ORDER = {"failed": 0, "review": 1, "skipped": 2, "added": 3}
@@ -71,55 +82,87 @@ def _show_message(kind, text):
         st.markdown(f'<p class="status-msg">{text}</p>', unsafe_allow_html=True)
 
 
-def _short_name(name, limit=32):
-    """The file name without its folder path, shortened in the middle if it is long
-    (the extension stays visible)."""
+def _middle_truncate(name, limit=46):
+    """Middle-truncates long filenames so both the beginning and unique ending/extension stay visible."""
     base = os.path.basename(str(name).replace("\\", "/"))
     if len(base) <= limit:
         return base
     stem, ext = os.path.splitext(base)
-    keep = max(limit - len(ext) - 1, 8)
-    return f"{stem[:keep]}\u2026{ext}"
+    tail_len = min(10, max(len(stem) // 3, 4))
+    head_len = max(limit - len(ext) - tail_len - 1, 8)
+    return f"{stem[:head_len]}\u2026{stem[-tail_len:]}{ext}"
 
 
 def _summary_html(files):
-    """"16 processed - 15 added - 1 needs review", with the counts coloured."""
+    """ Renders status metric cards: Processed, Added, Needs review, Skipped, Failed."""
     count = {status: 0 for status in _ROW_LABELS}
     for item in files:
         count[item["status"]] = count.get(item["status"], 0) + 1
-    parts = [f'<span class="rs-total">{count["added"] + count["review"]} processed</span>']
+
+    processed_total = count["added"] + count["review"]
+    cards = [
+        f'<div class="rs-metric rs-metric-neutral"><span class="rs-metric-val">{processed_total}</span>'
+        '<span class="rs-metric-lbl">Processed</span></div>'
+    ]
     if count["added"]:
-        parts.append(f'<span class="rs-added">{count["added"]} added</span>')
+        cards.append(
+            f'<div class="rs-metric rs-metric-added"><span class="rs-metric-val">{count["added"]}</span>'
+            '<span class="rs-metric-lbl">Added</span></div>'
+        )
     if count["review"]:
-        parts.append(f'<span class="rs-review">{count["review"]} needs review</span>')
+        cards.append(
+            f'<div class="rs-metric rs-metric-review"><span class="rs-metric-val">{count["review"]}</span>'
+            '<span class="rs-metric-lbl">Need review</span></div>'
+        )
     if count["skipped"]:
-        parts.append(f'<span class="rs-skipped">{count["skipped"]} duplicate{"s" if count["skipped"] != 1 else ""} skipped</span>')
+        cards.append(
+            f'<div class="rs-metric rs-metric-neutral"><span class="rs-metric-val">{count["skipped"]}</span>'
+            '<span class="rs-metric-lbl">Skipped</span></div>'
+        )
     if count["failed"]:
-        parts.append(f'<span class="rs-failed">{count["failed"]} failed</span>')
-    return '<div class="rs-summary">' + '<span class="rs-sep">&middot;</span>'.join(parts) + '</div>'
+        cards.append(
+            f'<div class="rs-metric rs-metric-failed"><span class="rs-metric-val">{count["failed"]}</span>'
+            '<span class="rs-metric-lbl">Failed</span></div>'
+        )
+    return '<div class="rs-metrics-bar">' + "".join(cards) + '</div>'
 
 
 def _row_html(item):
-    """One compact row: icon, short file name, result chip, one-line reason. Rows with more
-    to say (everything except a plain "Added") open to show the full details."""
+    """Two-line result row:
+    - Line 1: status icon, middle-truncated filename (full on hover), status badge, and action chevron
+    - Line 2: clear issue explanation underneath
+    - Clicking anywhere on a row with details expands the full notes."""
     status = item["status"] if item["status"] in _ROW_LABELS else "added"
     full_name = str(item["name"])
-    short = _short_name(full_name)
+    short = _middle_truncate(full_name)
     reason = str(item.get("reason") or "")
+    details = [line for line in str(item.get("details") or "").splitlines() if line.strip()]
+    expandable = bool(details) or status in ("review", "failed", "skipped") or short != full_name
+
+    action_Cue = (
+        f'<span class="rs-action-cue">{"Review" if status == "review" else "Details"}{_ICON_CHEVRON}</span>'
+        if expandable else ""
+    )
+
     head = (
+        f'<div class="rs-top-line">'
         f'<span class="rs-icon rs-{status}">{_ROW_ICONS[status]}</span>'
         f'<span class="rs-name" title="{html.escape(full_name)}">{html.escape(short)}</span>'
         f'<span class="rs-chip rs-chip-{status}">{_ROW_LABELS[status]}</span>'
-        f'<span class="rs-reason">{html.escape(reason)}</span>'
+        f'{action_Cue}'
+        f'</div>'
+        f'<div class="rs-sub-line">{html.escape(reason)}</div>'
     )
-    details = [line for line in str(item.get("details") or "").splitlines() if line.strip()]
-    if status == "added" and not details and short == full_name:
+
+    if not expandable:
         return f'<div class="rs-row rs-row-{status}"><div class="rs-head">{head}</div></div>'
-    body = f'<div class="rs-line"><b>File:</b> {html.escape(full_name)}</div>'
-    if reason:
-        body += f'<div class="rs-line">{html.escape(reason)}</div>'
+
+    body = f'<div class="rs-line"><b>Full file name:</b> {html.escape(full_name)}</div>'
     if details:
-        body += '<ul>' + ''.join(f'<li>{html.escape(line)}</li>' for line in details) + '</ul>'
+        body += "<ul>" + "".join(f"<li>{html.escape(line)}</li>" for line in details) + "</ul>"
+    elif reason:
+        body += f'<div class="rs-line">{html.escape(reason)}</div>'
+
     return (
         f'<details class="rs-row rs-row-{status}"><summary class="rs-head">{head}</summary>'
         f'<div class="rs-details">{body}</div></details>'
@@ -127,8 +170,8 @@ def _row_html(item):
 
 
 def _show_report(report):
-    """The compact version of a batch's results: a summary line, any general notices, then
-    one row per photo (the ones that need attention first)."""
+    """Shows the metric summary pills, general notices, and a two-line row per photo.
+    When there are both flagged items and clean items, groups flagged items at the top."""
     files = report.get("files") or []
     if files:
         st.markdown(_summary_html(files), unsafe_allow_html=True)
@@ -139,8 +182,17 @@ def _show_report(report):
             st.caption(text)
     if not files:
         return
+
     rows = sorted(files, key=lambda item: _ROW_ORDER.get(item["status"], 9))
-    rows_html = '<div class="rs-list">' + ''.join(_row_html(item) for item in rows) + '</div>'
+    flagged_count = sum(1 for item in rows if item["status"] in ("review", "failed"))
+    if flagged_count > 0:
+        st.markdown(
+            f'<div class="rs-group-label">{flagged_count} item{"s" if flagged_count != 1 else ""} '
+            'requiring attention (click a row to inspect)</div>',
+            unsafe_allow_html=True,
+        )
+
+    rows_html = '<div class="rs-list">' + "".join(_row_html(item) for item in rows) + "</div>"
     if len(rows) > RESULT_ROWS_BOX_MIN:
         with st.container(height=RESULT_ROWS_BOX_HEIGHT_PX, border=False, key="batch_files_box"):
             st.markdown(rows_html, unsafe_allow_html=True)
@@ -149,9 +201,7 @@ def _show_report(report):
 
 
 def show_batch_results():
-    """Shows the last batch (kept even after the uploader is cleared): a compact summary
-    and one row per photo when the batch recorded them, otherwise the plain message list
-    (a long one goes inside a scrollable box)."""
+    """Shows the last batch: status metric cards and two-line expandable rows."""
     results = st.session_state.batch_results
     if not results:
         return
@@ -213,9 +263,9 @@ def hide_uploader_chrome_if_filled(uploaded_files):
 # Photo previews
 # ---------------------------------------------------------------------------
 
-PREVIEW_SCROLL_HEIGHT = 290  # px: more than one row of thumbnails scrolls inside a box this tall
-PREVIEW_COLUMNS = 6       # thumbnails per row
-PREVIEW_PIXELS = 240      # longest side of a thumbnail
+PREVIEW_SCROLL_HEIGHT = 290
+PREVIEW_COLUMNS = 6
+PREVIEW_PIXELS = 240
 
 
 @st.cache_data(show_spinner=False, max_entries=300)
@@ -378,7 +428,7 @@ def _process_label(photo_count, source_chosen, remote, running=False, done=False
             return f"Extracting {photo_count:,} photo{'s' if photo_count != 1 else ''}\u2026"
         return "Extracting\u2026"
     if done:
-        return "Extract again"
+        return f"Re-extract {photo_count:,} photo{'s' if photo_count != 1 else ''}" if photo_count > 0 else "Start new extraction"
     if remote and not source_chosen:
         return "Select a folder to continue"
     if not remote and photo_count <= 0:
@@ -418,29 +468,33 @@ def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="",
     return process_clicked, clear_clicked
 
 
-def file_management_title_html(label, folder):
-    """The heading of the file card."""
-    folder_note = f' in folder "{html.escape(str(folder))}"' if folder else ""
+def file_management_title_html(filename, folder):
+    """The heading of the file card with clear file and folder badges instead of raw quotes."""
+    folder_display = folder if folder else "Main folder"
     return (
         '<p class="eyebrow">File management</p>'
         '<div class="card-title">Generated workbook</div>'
-        f'<div class="file-sub">"{html.escape(str(label))}"{folder_note}</div>'
+        '<div class="file-meta-badges">'
+        f'<span class="file-meta-pill" title="{html.escape(str(filename))}">{_ICON_FILE_BADGE}{html.escape(str(filename))}</span>'
+        f'<span class="file-meta-pill file-meta-folder" title="{html.escape(str(folder_display))}">{_ICON_FOLDER_BADGE}{html.escape(str(folder_display))}</span>'
+        '</div>'
     )
 
 
 def render_file_management():
-    """Download / delete controls for the file of the last batch, in a card."""
+    """Download / Start new extraction / quiet Delete controls for the file of the last batch."""
     path = st.session_state.last_output_path
     if not (path and os.path.exists(path)):
         return
 
     with st.container(border=True, key="file_card"):
         st.markdown(
-            file_management_title_html(st.session_state.last_output_label, st.session_state.last_output_folder),
+            file_management_title_html(os.path.basename(path), st.session_state.last_output_folder),
             unsafe_allow_html=True,
         )
 
-        col1, col2 = st.columns(2)
+        # Primary & Secondary actions: Download master log + Start new extraction
+        col1, col2 = st.columns(2, gap="small")
         with col1:
             try:
                 with open(path, "rb") as f:
@@ -456,31 +510,42 @@ def render_file_management():
                     type="primary",
                 )
         with col2:
-            if st.button("Delete batch file", type="primary", key="start_fresh"):
-                st.session_state.confirm_reset = True
+            if st.button("Start new extraction", type="primary", key="start_new_extraction"):
+                st.session_state.uploader_key += 1
+                st.session_state.batch_results = []
+                st.session_state.batch_report = None
+                st.session_state.last_remote_path = None
+                st.session_state.confirm_reset = False
                 st.rerun()
 
-        if st.session_state.confirm_reset:
-            st.warning(
-                f'This will permanently delete the local copy of "{os.path.basename(path)}". It does not '
-                "touch the processed-photos duplicate log, and it does not delete any copy already "
-                "synced to SharePoint, you can remove that there directly if needed. Are you sure?"
-            )
-            yes_col, cancel_col = st.columns(2)
-            with yes_col:
-                if st.button("Yes, delete this file", type="primary", key="confirm_delete"):
-                    if os.path.exists(path):
-                        os.remove(path)
-                    sync_tracker.forget(path)
-                    st.session_state.last_output_path = None
-                    st.session_state.last_output_label = None
-                    st.session_state.last_output_folder = ""
-                    st.session_state.confirm_reset = False
+        # Destructive action tucked inside a quiet "More options" menu so it never competes with Download
+        with st.expander("More options", expanded=bool(st.session_state.confirm_reset)):
+            st.caption("Remove the local working copy of this workbook from the app.")
+            if not st.session_state.confirm_reset:
+                if st.button("Delete local batch file", type="primary", key="start_fresh"):
+                    st.session_state.confirm_reset = True
                     st.rerun()
-            with cancel_col:
-                if st.button("Cancel", type="primary", key="cancel_delete"):
-                    st.session_state.confirm_reset = False
-                    st.rerun()
+            else:
+                st.warning(
+                    f'This will permanently delete the local copy of "{os.path.basename(path)}". It does not '
+                    "touch the processed-photos duplicate log, and it does not delete any copy already "
+                    "synced to SharePoint. Are you sure?"
+                )
+                yes_col, cancel_col = st.columns(2, gap="small")
+                with yes_col:
+                    if st.button("Yes, delete file", type="primary", key="confirm_delete"):
+                        if os.path.exists(path):
+                            os.remove(path)
+                        sync_tracker.forget(path)
+                        st.session_state.last_output_path = None
+                        st.session_state.last_output_label = None
+                        st.session_state.last_output_folder = ""
+                        st.session_state.confirm_reset = False
+                        st.rerun()
+                with cancel_col:
+                    if st.button("Cancel", type="primary", key="cancel_delete"):
+                        st.session_state.confirm_reset = False
+                        st.rerun()
 
 
 # ---------------------------------------------------------------------------

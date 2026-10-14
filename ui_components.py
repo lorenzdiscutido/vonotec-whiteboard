@@ -1,3 +1,4 @@
+# ui_components.py
 import base64
 import html
 from pathlib import Path
@@ -19,7 +20,6 @@ _ICON_FILE = (
     '<path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
 )
 
-
 # The "?" icon of the Help link in the header
 _ICON_HELP = (
     '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -27,8 +27,7 @@ _ICON_HELP = (
     '<path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9M12 17h.01"/></svg>'
 )
 
-# The how-to text that opens from the Help link. One unbroken string with no indentation or
-# blank lines, so Markdown keeps it as plain HTML.
+# The how-to text that opens from the Help link.
 _HELP_HTML = (
     '<div class="help-title">How to use the whiteboard extractor</div>'
     '<p>Add whiteboard photos from your device or from a SharePoint folder. The AI extracts the data '
@@ -70,12 +69,11 @@ def _brand_html():
 def render_header(views):
     """One white header card with three equal columns: the brand on the left,
     the view switch (a radio, drawn as two pills) in the middle and the
-    tagline on the right. views is the list of view names; returns the one
-    that is chosen."""
+    tagline on the right."""
     with st.container(key="top_app_header"):
         try:
             col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
-        except TypeError:  # older Streamlit without vertical_alignment
+        except TypeError:
             col_left, col_center, col_right = st.columns([1, 1, 1])
 
         with col_left:
@@ -104,9 +102,7 @@ WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
 def render_stepper(done, current):
-    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line.
-    `done` is the set of finished step numbers (1 to 3) and `current` the step the person
-    is on: finished steps are green with a check, the current one is blue, the rest are muted."""
+    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
@@ -121,8 +117,7 @@ def render_stepper(done, current):
 def section_heading(eyebrow, title, badge=None, step=None, description=None):
     """A small orange label over a large title. On the right there is either a
     status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete", or a plain step label such as "Step 1 of 2". An optional
-    description goes in a line under the title."""
+    "complete", or a plain step label."""
     right = ""
     if badge:
         text, kind = badge
@@ -140,8 +135,7 @@ def section_heading(eyebrow, title, badge=None, step=None, description=None):
 
 
 def subsection_heading(title, description=None):
-    """The smaller heading of the source-specific content under the source switch
-    (for example "Upload whiteboard photos")."""
+    """The smaller heading of the source-specific content under the source switch."""
     desc_html = f'<div class="source-subhead-desc">{html.escape(description)}</div>' if description else ""
     st.markdown(
         f'<div class="source-subhead"><div class="source-subhead-title">{html.escape(title)}</div>{desc_html}</div>',
@@ -150,8 +144,7 @@ def subsection_heading(title, description=None):
 
 
 def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
-    """The same label-over-title pair, smaller, for the top of a card. On the right: an
-    optional step label such as "Step 2 of 2", then an optional small icon."""
+    """The same label-over-title pair, smaller, for the top of a card."""
     step_html = f'<span class="step-label">{html.escape(step)}</span>' if step else ""
     st.markdown(
         '<div class="card-heading"><div>'
@@ -199,15 +192,41 @@ def render_empty_results():
     )
 
 
-def render_tip():
-    st.markdown(
-        '<div class="tip-card">'
-        f'<span class="tip-icon">{_ICON_SPARK}</span>'
-        '<div><strong>Extraction tip</strong>'
-        '<p>For best results, use clear photos with the full whiteboard in frame.</p></div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+def render_tip(completed=False, review_count=0):
+    """Contextual footer card in the results panel:
+    - Before extraction: photo quality tip
+    - After extraction with flagged rows: explains how to review red rows in Excel
+    - After extraction with 0 flagged rows: confirms all rows passed validation"""
+    if completed and review_count > 0:
+        st.markdown(
+            '<div class="tip-card">'
+            f'<span class="tip-icon">{_ICON_PREVIEW_REVIEW}</span>'
+            f'<div><strong>How to review {review_count} flagged item{"s" if review_count != 1 else ""}</strong>'
+            '<p>Flagged items were added to the Excel workbook and highlighted in <b>red</b>. '
+            'Click any row above to see what was missing or shared, then open the workbook in SharePoint '
+            'or download it above to check the embedded photo and fill in the cell.</p></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    elif completed:
+        st.markdown(
+            '<div class="tip-card tip-card-ok">'
+            f'<span class="tip-icon tip-icon-ok">{_ICON_PREVIEW_STATUS}</span>'
+            '<div><strong>All extracted rows passed validation</strong>'
+            '<p>Every processed whiteboard had complete defect codes and dimensions. '
+            'The workbook is synced to SharePoint and ready in the Analytics Dashboard.</p></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="tip-card">'
+            f'<span class="tip-icon">{_ICON_SPARK}</span>'
+            '<div><strong>Extraction tip</strong>'
+            '<p>For best results, use clear photos with the full whiteboard in frame.</p></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def render_instructions():

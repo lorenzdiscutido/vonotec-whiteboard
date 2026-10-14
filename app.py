@@ -208,7 +208,8 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
 
 stepper_slot = st.empty()
 
-form_col, results_col = st.columns([3, 2], gap="large")
+# 55/45 split gives the results and review list plenty of horizontal room
+form_col, results_col = st.columns([11, 9], gap="large")
 
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
@@ -304,20 +305,24 @@ with form_col:
         fetch_clicked = running and remote_mode
 
 # Fill the stepper now that the form's state is known:
-# Step 1 ("Select photos") is only done when photos_missing is empty.
-# Step 2 ("Save destination") is only active AFTER Step 1 is done, and only marked done when the user is ready to extract.
+# Once a batch has completed (batch_done), all 3 steps show as completed (green checkmarks).
 _done = set()
-if not photos_missing:
-    _done.add(1)
-if 1 in _done and not destination_missing:
-    _done.add(2)
-_current = 1 if 1 not in _done else (2 if 2 not in _done else 3)
+if batch_done:
+    _done = {1, 2, 3}
+    _current = 3
+else:
+    if not photos_missing:
+        _done.add(1)
+    if 1 in _done and not destination_missing:
+        _done.add(2)
+    _current = 1 if 1 not in _done else (2 if 2 not in _done else 3)
 with stepper_slot.container():
     ui_components.render_stepper(_done, _current)
 
 if clear_clicked:
     st.session_state.uploader_key += 1
     st.session_state.batch_results = []
+    st.session_state.batch_report = None
     st.rerun()
 
 # --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
@@ -325,6 +330,7 @@ with results_col:
     with st.container(key="results_panel"):
         if uploaded_files:
             st.session_state.batch_results = []
+            st.session_state.batch_report = None
 
         if extract_clicked or fetch_clicked:
             badge = ("Extracting", "processing")
@@ -360,4 +366,11 @@ with results_col:
 
         render_file_management()
         render_pending_syncs()
-        ui_components.render_tip()
+
+        # Contextual footer tip: explains how to resolve flagged rows after extraction
+        report_files = (st.session_state.get("batch_report") or {}).get("files") or []
+        review_count = sum(1 for f in report_files if f.get("status") == "review")
+        ui_components.render_tip(
+            completed=bool(st.session_state.batch_results),
+            review_count=review_count,
+        )
