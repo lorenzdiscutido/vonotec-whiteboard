@@ -122,19 +122,19 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-clear_photos div.stButton > button:first-child { background-color: #fff8f3 !important; border: 1px solid #fed7bd !important; box-shadow: none; }
 .st-key-clear_photos div.stButton > button:first-child p { color: #c7500c !important; font-weight: 700 !important; }
 .st-key-clear_photos div.stButton > button:first-child:hover { background-color: #ffeedf !important; }
-/* File management card: Download is Primary Navy, Start new extraction is Secondary Outline, Delete is quiet inside More options */
-.st-key-file_card .stDownloadButton > button:first-child { background-color: #1e3a8a !important; border: 1px solid #1e3a8a !important; box-shadow: 0 3px 8px rgba(30,58,138,.14); }
-.st-key-file_card .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; }
+/* File management card: Download is Primary Navy, Start new extraction sits right next to it with a 10px gap */
+.st-key-file_card .stDownloadButton > button:first-child { background-color: #1e3a8a !important; border: 1px solid #1e3a8a !important; box-shadow: 0 3px 8px rgba(30,58,138,.14); width: auto !important; }
+.st-key-file_card .stDownloadButton > button:first-child p { color: #ffffff !important; font-weight: 700 !important; white-space: nowrap !important; }
 .st-key-file_card .stDownloadButton > button:first-child:hover { background-color: #2f5597 !important; }
-.st-key-start_new_extraction div.stButton > button:first-child { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
-.st-key-start_new_extraction div.stButton > button:first-child p { color: #1e3a8a !important; font-weight: 700 !important; }
+.st-key-start_new_extraction div.stButton > button:first-child { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; width: auto !important; }
+.st-key-start_new_extraction div.stButton > button:first-child p { color: #1e3a8a !important; font-weight: 700 !important; white-space: nowrap !important; }
 .st-key-start_new_extraction div.stButton > button:first-child:hover { background-color: #f1f5f9 !important; border-color: #94a3b8 !important; }
-.st-key-start_fresh div.stButton > button:first-child { height: 36px !important; background-color: #ffffff !important; border: 1px solid #f1c8c8 !important; box-shadow: none !important; }
+.st-key-start_fresh div.stButton > button:first-child { height: 36px !important; background-color: #ffffff !important; border: 1px solid #f1c8c8 !important; box-shadow: none !important; width: auto !important; }
 .st-key-start_fresh div.stButton > button:first-child p { color: #dc2626 !important; font-weight: 600 !important; font-size: 12px !important; }
 .st-key-start_fresh div.stButton > button:first-child:hover { background-color: #fef2f2 !important; }
-.st-key-confirm_delete div.stButton > button:first-child { height: 36px !important; background-color: #dc2626 !important; border-color: #dc2626 !important; }
+.st-key-confirm_delete div.stButton > button:first-child { height: 36px !important; background-color: #dc2626 !important; border-color: #dc2626 !important; width: auto !important; }
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
-.st-key-cancel_delete div.stButton > button:first-child { height: 36px !important; background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+.st-key-cancel_delete div.stButton > button:first-child { height: 36px !important; background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; width: auto !important; }
 .st-key-cancel_delete div.stButton > button:first-child p { color: #334155 !important; }
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
 .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
@@ -281,9 +281,10 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:last-child { background-color: #fbfcfe !important; border-left: 1px solid #e3e9ef !important; display: flex !important; flex-direction: column !important; }
 .card-heading-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .card-heading-right svg { margin-top: 0 !important; }
-.st-key-file_card [data-testid="stHorizontalBlock"] { gap: 10px !important; justify-content: stretch !important; flex-wrap: wrap !important; }
-.st-key-file_card [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { flex: 1 1 0% !important; min-width: 140px !important; }
-.st-key-file_card div.stButton, .st-key-file_card .stDownloadButton { width: 100% !important; }
+/* Keep File Management buttons side-by-side with a clean 10px gap instead of drifting apart */
+.st-key-file_card [data-testid="stHorizontalBlock"] { gap: 10px !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
+.st-key-file_card [data-testid="stHorizontalBlock"] > [data-testid="stColumn"], .st-key-file_card [data-testid="stHorizontalBlock"] > [data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+.st-key-file_card div.stButton, .st-key-file_card .stDownloadButton { width: auto !important; }
 .file-meta-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px 0; }
 .file-meta-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; color: #0f172a; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-meta-pill svg { flex: 0 0 auto; color: #2f5597; }
