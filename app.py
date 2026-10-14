@@ -18,6 +18,7 @@ SharePoint folder ("Import from SharePoint"). Both end up in the same batch loop
 """
 import os
 import datetime
+import importlib
 import traceback
 
 import streamlit as st
@@ -370,7 +371,17 @@ with results_col:
         # Contextual footer tip: explains how to resolve flagged rows after extraction
         report_files = (st.session_state.get("batch_report") or {}).get("files") or []
         review_count = sum(1 for f in report_files if f.get("status") == "review")
-        ui_components.render_tip(
-            completed=bool(st.session_state.batch_results),
-            review_count=review_count,
-        )
+        try:
+            ui_components.render_tip(
+                completed=bool(st.session_state.batch_results),
+                review_count=review_count,
+            )
+        except TypeError:
+            importlib.reload(ui_components)
+            try:
+                ui_components.render_tip(
+                    completed=bool(st.session_state.batch_results),
+                    review_count=review_count,
+                )
+            except TypeError:
+                ui_components.render_tip()
