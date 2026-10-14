@@ -4,13 +4,8 @@ parsed, in memory for the Analytics Dashboard.
 
 The important part is the background warm-up: the moment anyone opens the app
 (in any view), start_warmup_if_due() begins reading every Excel file in a
-background thread. By the time someone clicks over to the dashboard the data is
-usually already there, even right after a reboot or after the app woke up from
-sleep. Nothing here blocks the page.
-
-A file is downloaded once per version: the store is keyed by SharePoint's
-last-modified time, so an edited file is read again and an unchanged one never is.
-(The sheet parsing itself lives in dashboard_data.py.)"""
+background thread (including nested subfolders up to 2 levels deep). By the time
+someone clicks over to the dashboard the data is usually already there."""
 import os
 import tempfile
 import threading
@@ -36,7 +31,7 @@ WARMUP_WORKERS = 4
 # (subfolder, filename, modified, PARSER_VERSION) -> (rows, error_text)
 _store = {}
 _store_lock = threading.Lock()
-_key_locks = {}  # one lock per file version, so two readers never download the same file twice
+_key_locks = {}
 
 _warm_state = {"running": False, "last_started": 0.0}
 _warm_lock = threading.Lock()
@@ -65,9 +60,7 @@ def _download_and_parse(subfolder, filename):
 
 
 def get_file_rows(subfolder, filename, modified):
-    """The defect rows of one batch file, as (rows, error_text). Downloads the
-    file only if this version isn't in memory yet; if the warm-up is downloading
-    it right now, waits for that instead of downloading it a second time."""
+    """The defect rows of one batch file, as (rows, error_text)."""
     key = (subfolder, filename, modified, PARSER_VERSION)
     with _store_lock:
         if key in _store:
@@ -92,15 +85,15 @@ def _load_one(key):
     try:
         get_file_rows(*key)
     except Exception:
-        traceback.print_exc()  # leave it out of the store, so the next try downloads it again
+        traceback.print_exc()
 
 
 def _warm_up():
-    """Reads every Excel file in the landing folder and its subfolders, then
-    forgets the stored copies of files that were changed or deleted."""
+    """Reads every Excel file in the landing folder and all of its nested subfolders,
+    then forgets the stored copies of files that were changed or deleted."""
     try:
         keys = []
-        for folder in [""] + sharepoint_client.list_subfolders():
+        for folder in [""] + sharepoint_client.list_all_output_folders():
             for item in sharepoint_client.list_xlsx_files(folder):
                 keys.append((item["subfolder"], item["name"], item["modified"]))
 
@@ -113,7 +106,7 @@ def _warm_up():
                 del _store[stale]
                 _key_locks.pop(stale, None)
     except Exception:
-        traceback.print_exc()  # e.g. SharePoint unreachable: the dashboard shows its own message
+        traceback.print_exc()
     finally:
         with _warm_lock:
             _warm_state["running"] = False
@@ -121,8 +114,7 @@ def _warm_up():
 
 def start_warmup_if_due():
     """Starts the background read of all Excel files, unless one is already running
-    or one started less than WARMUP_MIN_GAP_SECONDS ago. Cheap to call on every
-    page run. Returns True if a new warm-up was started."""
+    or one started less than WARMUP_MIN_GAP_SECONDS ago."""
     if not ENABLE_SHAREPOINT_SYNC:
         return False
     with _warm_lock:

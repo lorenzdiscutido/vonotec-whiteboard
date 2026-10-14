@@ -17,6 +17,9 @@ from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 # The one final action, whichever photo source is used
 PROCESS_BUTTON_LABEL = "Extract photos"
 
+# Labels for the second-level output subfolder dropdown (Option 2 cascading picker)
+NEW_SUBFOLDER_LABEL = "+ Create a new subfolder..."
+
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
     "batch_results": [],
@@ -24,17 +27,23 @@ _SESSION_DEFAULTS = {
     "confirm_reset": False,
     "last_output_path": None,
     "last_output_label": None,
-    "last_output_folder": "",      # "" = the main landing folder
+    "last_output_folder": "",      # "" = the main landing folder, or "Parent" / "Parent/Child"
     "last_folder_choice": MAIN_FOLDER_LABEL,
     "sp_folders": None,            # None = not loaded yet
     "sp_folders_error": False,
+    "sp_nested_folders": {},       # parent_folder -> list of child folder names
 }
 
 
 def init_session_state():
     for key, default in _SESSION_DEFAULTS.items():
         if key not in st.session_state:
-            st.session_state[key] = list(default) if isinstance(default, list) else default
+            if isinstance(default, list):
+                st.session_state[key] = list(default)
+            elif isinstance(default, dict):
+                st.session_state[key] = dict(default)
+            else:
+                st.session_state[key] = default
 
 
 # With more messages than this, the old plain message list goes into a scrollable box
@@ -67,7 +76,6 @@ _ICON_FOLDER_BADGE = (
 )
 
 _ROW_LABELS = {"added": "Added", "review": "Needs review", "skipped": "Skipped", "failed": "Failed"}
-# Rows that need attention come first
 _ROW_ORDER = {"failed": 0, "review": 1, "skipped": 2, "added": 3}
 
 
@@ -94,7 +102,7 @@ def _middle_truncate(name, limit=46):
 
 
 def _summary_html(files):
-    """ Renders status metric cards: Processed, Added, Needs review, Skipped, Failed."""
+    """Renders status metric cards: Processed, Added, Need review, Skipped, Failed."""
     count = {status: 0 for status in _ROW_LABELS}
     for item in files:
         count[item["status"]] = count.get(item["status"], 0) + 1
@@ -128,10 +136,7 @@ def _summary_html(files):
 
 
 def _row_html(item):
-    """Two-line result row:
-    - Line 1: status icon, middle-truncated filename (full on hover), status badge, and action chevron
-    - Line 2: clear issue explanation underneath
-    - Clicking anywhere on a row with details expands the full notes."""
+    """Two-line result row with expandable details."""
     status = item["status"] if item["status"] in _ROW_LABELS else "added"
     full_name = str(item["name"])
     short = _middle_truncate(full_name)
@@ -139,7 +144,7 @@ def _row_html(item):
     details = [line for line in str(item.get("details") or "").splitlines() if line.strip()]
     expandable = bool(details) or status in ("review", "failed", "skipped") or short != full_name
 
-    action_Cue = (
+    action_cue = (
         f'<span class="rs-action-cue">{"Review" if status == "review" else "Details"}{_ICON_CHEVRON}</span>'
         if expandable else ""
     )
@@ -149,7 +154,7 @@ def _row_html(item):
         f'<span class="rs-icon rs-{status}">{_ROW_ICONS[status]}</span>'
         f'<span class="rs-name" title="{html.escape(full_name)}">{html.escape(short)}</span>'
         f'<span class="rs-chip rs-chip-{status}">{_ROW_LABELS[status]}</span>'
-        f'{action_Cue}'
+        f'{action_cue}'
         f'</div>'
         f'<div class="rs-sub-line">{html.escape(reason)}</div>'
     )
@@ -170,8 +175,7 @@ def _row_html(item):
 
 
 def _show_report(report):
-    """Shows the metric summary pills, general notices, and a two-line row per photo.
-    When there are both flagged items and clean items, groups flagged items at the top."""
+    """Shows the metric summary pills, general notices, and a two-line row per photo."""
     files = report.get("files") or []
     if files:
         st.markdown(_summary_html(files), unsafe_allow_html=True)
@@ -321,11 +325,11 @@ def render_photo_previews(uploaded_files):
 
 
 # ---------------------------------------------------------------------------
-# SharePoint folder picker
+# Cascading SharePoint output folder & subfolder picker (Option 2)
 # ---------------------------------------------------------------------------
 
 def refresh_folder_list():
-    """Reads the current subfolders from SharePoint."""
+    """Reads the current top-level subfolders from SharePoint."""
     try:
         st.session_state.sp_folders = sharepoint_client.list_subfolders()
         st.session_state.sp_folders_error = False
@@ -335,8 +339,27 @@ def refresh_folder_list():
         st.session_state.sp_folders_error = True
 
 
+def _get_nested_folders(parent_folder):
+    """Returns the cached list of subfolders inside `parent_folder`, fetching once per session."""
+    nested_map = st.session_state.setdefault("sp_nested_folders", {})
+    if parent_folder not in nested_map:
+        try:
+            nested_map[parent_folder] = sharepoint_client.list_subfolders_of(parent_folder)
+        except Exception:
+            nested_map[parent_folder] = []
+    return nested_map[parent_folder]
+
+
+def _direct_parent_label(parent_name):
+    return f"(Save directly in {parent_name})"
+
+
 def render_folder_picker(disabled=False):
-    """Returns (folder_choice, new_folder_raw). Locked when `disabled=True` (before Step 1 is done)."""
+    """Cascading 2-level output folder picker:
+    1. Top-level folder ('Main folder', existing folders, or '+ Create a new folder...')
+    2. When an existing folder (or new folder) is chosen, a second dropdown lets the user
+       save directly in that folder, pick an existing subfolder, or '+ Create a new subfolder...'.
+    Returns (folder_choice, new_folder_raw)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return MAIN_FOLDER_LABEL, ""
 
@@ -349,37 +372,106 @@ def render_folder_picker(disabled=False):
             "the main folder, or create a new folder."
         )
 
-    options = [MAIN_FOLDER_LABEL] + list(st.session_state.sp_folders) + [NEW_FOLDER_LABEL]
-    default = st.session_state.last_folder_choice
-    folder_choice = st.selectbox(
+    top_folders = list(st.session_state.sp_folders or [])
+    options = [MAIN_FOLDER_LABEL] + top_folders + [NEW_FOLDER_LABEL]
+
+    # Split remembered "Parent/Child" choice into parent and child defaults
+    remembered = str(st.session_state.last_folder_choice or MAIN_FOLDER_LABEL)
+    remembered_parts = [p for p in remembered.split("/") if p] if remembered != MAIN_FOLDER_LABEL else []
+    default_parent = remembered_parts[0] if remembered_parts else MAIN_FOLDER_LABEL
+    default_child = remembered_parts[1] if len(remembered_parts) > 1 else ""
+
+    parent_choice = st.selectbox(
         "Save into which SharePoint folder?",
         options,
-        index=options.index(default) if default in options else 0,
+        index=options.index(default_parent) if default_parent in options else 0,
         key="folder_choice_input",
         disabled=disabled,
     )
 
-    new_folder_raw = ""
-    if folder_choice == NEW_FOLDER_LABEL:
-        new_folder_raw = st.text_input(
+    # Case 1: Saving straight into the Main landing folder
+    if parent_choice == MAIN_FOLDER_LABEL:
+        return MAIN_FOLDER_LABEL, ""
+
+    # Case 2: Creating a brand-new top-level folder (with optional new subfolder inside it)
+    if parent_choice == NEW_FOLDER_LABEL:
+        new_parent_raw = st.text_input(
             "Name for the new folder",
             key="new_folder_name_input",
             disabled=disabled,
         )
-    return folder_choice, new_folder_raw
+        new_sub_raw = st.text_input(
+            "Subfolder inside the new folder (optional)",
+            placeholder="Leave blank to save directly in the new folder",
+            key="new_subfolder_under_new_input",
+            disabled=disabled,
+        )
+        combined_new = f"{new_parent_raw.strip()}/{new_sub_raw.strip()}" if (new_sub_raw or "").strip() else new_parent_raw
+        return NEW_FOLDER_LABEL, combined_new
+
+    # Case 3: Existing top-level folder selected -> show cascading Subfolder dropdown
+    child_folders = _get_nested_folders(parent_choice) if not disabled else []
+    direct_label = _direct_parent_label(parent_choice)
+    sub_options = [direct_label] + list(child_folders) + [NEW_SUBFOLDER_LABEL]
+    default_sub_index = sub_options.index(default_child) if default_child in sub_options else 0
+
+    parent_hash = hashlib.md5(parent_choice.encode("utf-8")).hexdigest()[:8]
+    sub_choice = st.selectbox(
+        f'Subfolder inside "{parent_choice}"',
+        sub_options,
+        index=default_sub_index,
+        key=f"subfolder_choice_input_{parent_hash}",
+        disabled=disabled,
+        help="Save directly in this folder, choose an existing subfolder, or create a new subfolder inside it.",
+    )
+
+    if sub_choice == direct_label:
+        return parent_choice, ""
+    if sub_choice == NEW_SUBFOLDER_LABEL:
+        new_sub_raw = st.text_input(
+            f'Name for the new subfolder inside "{parent_choice}"',
+            key=f"new_subfolder_name_input_{parent_hash}",
+            disabled=disabled,
+        )
+        return f"{parent_choice}/{NEW_SUBFOLDER_LABEL}", new_sub_raw
+    return f"{parent_choice}/{sub_choice}", ""
 
 
 def resolve_subfolder(folder_choice, new_folder_raw):
-    """Turns the picker's answer into (subfolder, creating_new_folder, error_message)."""
+    """Turns the cascading picker's answer into (subfolder_path, creating_new_folder, error_message)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return "", False, None
 
+    top_folders = list(st.session_state.sp_folders or [])
+
+    # Creating a new top-level folder (and optionally a nested subfolder inside it)
     if folder_choice == NEW_FOLDER_LABEL:
-        typed = sharepoint_client.sanitize_folder_name(new_folder_raw)
-        if not typed:
+        raw_parts = [p.strip() for p in (new_folder_raw or "").split("/") if p.strip()]
+        if not raw_parts:
             return "", False, "Please enter a name for the new folder before extracting."
-        match = next((f for f in st.session_state.sp_folders if f.lower() == typed.lower()), None)
-        return (match or typed), match is None, None
+        clean_parent = sharepoint_client.sanitize_folder_name(raw_parts[0])
+        if not clean_parent:
+            return "", False, "Please enter a valid name for the new folder before extracting."
+        matched_parent = next((f for f in top_folders if f.lower() == clean_parent.lower()), None)
+        final_parent = matched_parent or clean_parent
+
+        if len(raw_parts) > 1:
+            clean_child = sharepoint_client.sanitize_folder_name(raw_parts[1])
+            if not clean_child:
+                return "", False, "Please enter a valid name for the new subfolder before extracting."
+            return f"{final_parent}/{clean_child}", True, None
+        return final_parent, matched_parent is None, None
+
+    # Creating a new subfolder inside an existing parent folder
+    if isinstance(folder_choice, str) and folder_choice.endswith(f"/{NEW_SUBFOLDER_LABEL}"):
+        parent_folder = folder_choice[: -len(f"/{NEW_SUBFOLDER_LABEL}")]
+        clean_child = sharepoint_client.sanitize_folder_name(new_folder_raw)
+        if not clean_child:
+            return "", False, f'Please enter a name for the new subfolder inside "{parent_folder}".'
+        existing_children = _get_nested_folders(parent_folder)
+        matched_child = next((c for c in existing_children if c.lower() == clean_child.lower()), None)
+        final_child = matched_child or clean_child
+        return f"{parent_folder}/{final_child}", matched_child is None, None
 
     if folder_choice != MAIN_FOLDER_LABEL:
         return folder_choice, False, None
@@ -387,10 +479,21 @@ def resolve_subfolder(folder_choice, new_folder_raw):
 
 
 def remember_new_folder(subfolder):
-    """Adds a just-created folder to the dropdown list without re-reading SharePoint."""
+    """Adds a just-created top-level or nested subfolder to the session dropdown lists."""
+    parts = [p for p in (subfolder or "").split("/") if p]
+    if not parts:
+        return
+    parent = parts[0]
     folders = st.session_state.sp_folders or []
-    if subfolder.lower() not in [f.lower() for f in folders]:
-        st.session_state.sp_folders = sorted(folders + [subfolder], key=str.lower)
+    if parent.lower() not in [f.lower() for f in folders]:
+        st.session_state.sp_folders = sorted(folders + [parent], key=str.lower)
+
+    if len(parts) > 1:
+        child = parts[1]
+        nested_map = st.session_state.setdefault("sp_nested_folders", {})
+        children = list(nested_map.get(parent) or [])
+        if child.lower() not in [c.lower() for c in children]:
+            nested_map[parent] = sorted(children + [child], key=str.lower)
 
 
 # ---------------------------------------------------------------------------
@@ -414,9 +517,14 @@ def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, 
             photos_missing = "Upload at least one whiteboard photo to continue."
 
     destination_missing = ""
-    if folder_choice == NEW_FOLDER_LABEL and not (new_folder_raw or "").strip():
-        destination_missing = "Enter a name for the new folder."
-    elif not (batch_name_raw or "").strip():
+    if folder_choice == NEW_FOLDER_LABEL:
+        raw_parent = (new_folder_raw or "").split("/")[0].strip()
+        if not raw_parent:
+            destination_missing = "Enter a name for the new folder."
+    elif isinstance(folder_choice, str) and folder_choice.endswith(f"/{NEW_SUBFOLDER_LABEL}"):
+        if not (new_folder_raw or "").strip():
+            destination_missing = "Enter a name for the new subfolder."
+    if not destination_missing and not (batch_name_raw or "").strip():
         destination_missing = "Enter a batch name to continue."
     return photos_missing, destination_missing
 
@@ -469,8 +577,8 @@ def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="",
 
 
 def file_management_title_html(filename, folder):
-    """The heading of the file card with clear file and folder badges instead of raw quotes."""
-    folder_display = folder if folder else "Main folder"
+    """The heading of the file card with clear file and folder badges."""
+    folder_display = folder.replace("/", " / ") if folder else "Main folder"
     return (
         '<p class="eyebrow">File management</p>'
         '<div class="card-title">Generated workbook</div>'
@@ -493,7 +601,6 @@ def render_file_management():
             unsafe_allow_html=True,
         )
 
-        # Primary & Secondary actions: Download master log + Start new extraction
         col1, col2 = st.columns(2, gap="small")
         with col1:
             try:
@@ -518,7 +625,6 @@ def render_file_management():
                 st.session_state.confirm_reset = False
                 st.rerun()
 
-        # Destructive action tucked inside a quiet "More options" menu so it never competes with Download
         with st.expander("More options", expanded=bool(st.session_state.confirm_reset)):
             st.caption("Remove the local working copy of this workbook from the app.")
             if not st.session_state.confirm_reset:

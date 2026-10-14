@@ -5,9 +5,9 @@ using the Microsoft Graph API with app-only authentication (client-credentials
 flow). This runs with no one signed in, which is what makes it possible to
 sync in the background every time a photo is processed.
 
-Files can be saved straight into the landing folder, or into a subfolder of
-it. Subfolders can be listed and created from here, so people can group
-their batches (for example one folder per project or per month).
+Files can be saved straight into the landing folder, into a subfolder of it,
+or into a nested subfolder (e.g. "Project A/Tower 1"). Subfolders can be listed
+and created from here, so people can group their batches by project and tower.
 
 Whiteboard photos that coworkers put in those folders can also be listed
 (list_image_files) and read straight into memory (download_file_to_bytes).
@@ -133,7 +133,7 @@ def _landing_segments():
 
 
 def _remote_folder(subfolder=""):
-    """The landing folder, plus the chosen subfolder inside it (if any)."""
+    """The landing folder, plus the chosen subfolder path inside it (if any)."""
     parts = _landing_segments()
     if subfolder:
         parts += [s for s in subfolder.split("/") if s]
@@ -141,7 +141,7 @@ def _remote_folder(subfolder=""):
 
 
 # ---------------------------------------------------------------------------
-# Subfolders: listing and creating
+# Subfolders: listing and creating (supports nested subfolders)
 # ---------------------------------------------------------------------------
 
 def _is_allowed_root_folder(name):
@@ -154,7 +154,7 @@ def _is_allowed_root_folder(name):
 
 
 def sanitize_folder_name(name):
-    """Turns what the person typed into a safe SharePoint folder name, or
+    """Turns what the person typed into a safe single SharePoint folder name, or
     None if nothing usable was entered."""
     name = (name or "").strip()
     name = re.sub(r'[\\/:*?"<>|]', "_", name)  # characters not allowed in SharePoint names
@@ -163,11 +163,13 @@ def sanitize_folder_name(name):
     return name or None
 
 
-def list_subfolders():
-    """Returns the names of the folders directly inside the landing folder,
-    sorted A-Z. Returns an empty list if the landing folder doesn't exist yet."""
+def list_subfolders_of(parent_subfolder=""):
+    """Returns the names of the folders directly inside `parent_subfolder`
+    (which itself is relative to the landing folder), sorted A-Z.
+    When `parent_subfolder=""`, lists the top-level folders in the landing folder."""
     site_id = _get_site_id()
-    encoded = _encode_folder_path(_landing_segments())
+    segments = _landing_segments() + [s for s in (parent_subfolder or "").split("/") if s]
+    encoded = _encode_folder_path(segments)
     if encoded:
         url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?$select=name,folder&$top=200"
     else:
@@ -181,13 +183,34 @@ def list_subfolders():
             return []
         response.raise_for_status()
         data = response.json()
-        # Children that have a "folder" facet are folders; the rest are files
         names += [item["name"] for item in data.get("value", []) if "folder" in item]
-        url = data.get("@odata.nextLink")  # more pages, if there are many folders
-    if not _landing_segments():
-        # The landing folder is the top of the library: apply the top-level filter
+        url = data.get("@odata.nextLink")
+    if not segments:
         names = [n for n in names if _is_allowed_root_folder(n)]
     return sorted(names, key=str.lower)
+
+
+def list_subfolders():
+    """Returns the names of the folders directly inside the landing folder,
+    sorted A-Z. Returns an empty list if the landing folder doesn't exist yet."""
+    return list_subfolders_of("")
+
+
+def list_all_output_folders(max_depth=2):
+    """Returns all folder paths inside the landing folder up to `max_depth` levels deep
+    (e.g. ['Cerca Nuveo', 'Cerca Nuveo/Tower 1', 'Cerca Nuveo/Tower 2', 'Test']),
+    sorted A-Z. Used by the Analytics Dashboard and warm-up loader so Excel files
+    saved inside nested subfolders are automatically discovered."""
+    results = []
+    queue = [("", 1)]
+    while queue:
+        parent, depth = queue.pop(0)
+        for child in list_subfolders_of(parent):
+            rel_path = f"{parent}/{child}" if parent else child
+            results.append(rel_path)
+            if depth < max_depth:
+                queue.append((rel_path, depth + 1))
+    return sorted(results, key=str.lower)
 
 
 def _create_folder_if_missing(parent_segments, name):
@@ -209,11 +232,12 @@ def _create_folder_if_missing(parent_segments, name):
     response.raise_for_status()
 
 
-def ensure_subfolder(name):
-    """Creates the subfolder inside the landing folder. Does nothing if it
-    already exists. Also creates the landing folder itself if it's missing."""
+def ensure_subfolder(subfolder_path):
+    """Creates the subfolder (and any nested child subfolder, e.g. 'Project A/Tower 1')
+    inside the landing folder. Does nothing for segments that already exist."""
     parent = []
-    for segment in _landing_segments() + [name]:
+    sub_segments = [s for s in (subfolder_path or "").split("/") if s]
+    for segment in _landing_segments() + sub_segments:
         _create_folder_if_missing(parent, segment)
         parent.append(segment)
 
@@ -224,7 +248,7 @@ def ensure_subfolder(name):
 
 def list_xlsx_files(subfolder=""):
     """Returns the Excel files directly inside the landing folder (subfolder="")
-    or inside one subfolder of it, sorted A-Z by name."""
+    or inside one (possibly nested) subfolder of it, sorted A-Z by name."""
     site_id = _get_site_id()
     encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
     select = "$select=name,size,lastModifiedDateTime,file&$top=200"
@@ -340,8 +364,7 @@ def list_folders_at(segments):
 
 def search_folders_at(root_segments, query_text, max_results=60):
     """Searches SharePoint for folders whose name or path matches `query_text`
-    under `root_segments`. Returns a sorted list of folder paths (each path is a
-    list of folder names from the top of the document library)."""
+    under `root_segments`. Returns a sorted list of folder paths."""
     cleaned_query = (query_text or "").strip().replace("'", "")
     if not cleaned_query:
         return []
@@ -515,7 +538,7 @@ def download_item_to_bytes(item_id):
 
 
 def upload_file(local_path, remote_filename, subfolder=""):
-    """Uploads local_path to the landing folder (or a subfolder of it),
+    """Uploads local_path to the landing folder (or a nested subfolder of it),
     replacing any existing file with the same name."""
     token = _get_access_token()
     site_id = _get_site_id()

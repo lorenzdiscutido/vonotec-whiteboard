@@ -111,12 +111,13 @@ _ICON_CHEVRON_DOWN = (
 
 
 # ---------------------------------------------------------------------------
-# Cached SharePoint reads
+# Cached SharePoint reads (supports nested output folders)
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=LIST_CACHE_SECONDS, show_spinner=False)
 def _cached_subfolders():
-    return sharepoint_client.list_subfolders()
+    """Returns all output folders and nested subfolders inside the landing folder."""
+    return sharepoint_client.list_all_output_folders()
 
 
 @st.cache_data(ttl=LIST_CACHE_SECONDS, show_spinner=False)
@@ -136,12 +137,16 @@ def _refresh_lists():
 # ---------------------------------------------------------------------------
 
 def _folders_for_scope(scope, subfolders):
-    """The folders to read, where "" is the landing folder itself."""
+    """The folders to read, where "" is the landing folder itself.
+    Selecting a parent folder (e.g. 'Cerca Nuveo') automatically includes any
+    nested subfolders inside it (e.g. 'Cerca Nuveo/Tower 1')."""
     if scope == ALL_FILES_LABEL:
         return [""] + list(subfolders)
     if scope == MAIN_FOLDER_LABEL:
         return [""]
-    return [scope]
+    prefix = f"{scope}/"
+    children = [f for f in subfolders if f.startswith(prefix)]
+    return [scope] + children
 
 
 def _load_scope(scope, subfolders):
@@ -402,10 +407,7 @@ def _summary_to_excel_bytes(summary):
 
 
 def _data_health_html(record):
-    """Renders the DATA HEALTH cell for one defect row:
-    - '⚠ X missing' in orange if any dimensions are missing
-    - '✓ Complete' in green if all dimensions are recorded (or 0 occurrences)
-    - 'No dimension' muted pill for codes that don't use dimensions (NP, BG, GLASS-FRAME)."""
+    """Renders the DATA HEALTH cell for one defect row."""
     code = str(record["Defect Code"])
     base = _base_defect_code(code)
     missing = int(record["Missing Dimension"] or 0)
@@ -417,9 +419,7 @@ def _data_health_html(record):
 
 
 def _dimension_table_html(records):
-    """Builds the Repair Quantity Summary HTML table:
-    DEFECT | DESCRIPTION | COUNT | BOARD DIMENSIONS | LINEAR REPAIR LM | AREA REPAIR SQ LM | DATA HEALTH
-    plus a sticky Portfolio total footer row."""
+    """Builds the Repair Quantity Summary HTML table."""
     body = ""
     total_defects = 0
     total_linear = 0.0
@@ -608,10 +608,7 @@ def _bar_chart(counts, column):
 
 
 def _chart_badge_text(counts, column):
-    """Contextual right-hand badge for each chart card:
-    - Material: '177 total'
-    - Tower: '3 towers'
-    - Floor: 'Floor 11 is highest'"""
+    """Contextual right-hand badge for each chart card."""
     if counts.empty:
         return "0 total"
     if column == "Tower":
@@ -739,7 +736,8 @@ def render_dashboard_controls():
         "Which files do you want to analyze?",
         options,
         key=SCOPE_KEY,
-        help=f'"{ALL_FILES_LABEL}" combines every Excel file in the landing folder and all of its folders.',
+        help=f'"{ALL_FILES_LABEL}" combines every Excel file in the landing folder and all of its folders. '
+             'Selecting a parent folder automatically includes its subfolders.',
     )
     if st.button("Refresh data", type="primary", key="analytics_refresh"):
         _refresh_lists()
@@ -767,7 +765,7 @@ def render_dashboard_controls():
     st.multiselect("Floor", _sorted_options(df["Floor"]), key=_filter_key("floor", scope))
     st.multiselect("Material", _sorted_options(df["Material"]), key=_filter_key("material", scope))
     folders_in_data = _sorted_options(df["Folder"])
-    if scope == ALL_FILES_LABEL and len(folders_in_data) > 1:
+    if len(folders_in_data) > 1:
         st.multiselect("Folder", folders_in_data, key=_filter_key("folder", scope))
 
 
