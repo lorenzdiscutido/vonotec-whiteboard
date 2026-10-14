@@ -1,0 +1,22 @@
+[theme]
+# Light theme that matches the Figma design (colors from its :root variables).
+base = "dark"
+
+# Vonotec blue: focus outlines, progress bars (buttons and switches are styled in style.css)
+primaryColor = "#2F5597"
+
+# Page background of the design
+backgroundColor = "#f4f7f9"
+
+# Soft slate-gray: gives dropdowns and text boxes a visible fill on the white cards
+secondaryBackgroundColor = "#f1f5f9"
+
+# Dark slate text
+textColor = "#1e293b"
+
+# The design's font, DM Sans, is loaded by style.css (it is not one of Streamlit's built-in fonts)
+font = "sans serif"
+
+[client]
+# Hides the developer menu items in the top bar (Streamlit's own toolbar)
+toolbarMode = "minimal"

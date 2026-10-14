@@ -1,0 +1,613 @@
+"""The "Analytics Dashboard" tab: charts of defect frequency by Tower, Floor
+and Material (with the exact value on each bar), and a table of the total dimension and
+total repair dimension per defect, built by reading the batch Excel files straight from SharePoint.
+
+The Excel files are the source of truth (people correct them there), so the
+charts always reflect the checked data. Each file is downloaded once and kept
+in memory until SharePoint says it changed, so clicking around the filters
+doesn't re-download anything. app.py starts reading all the files in the
+background as soon as the app is opened, so the data is normally ready before
+anyone clicks over to this view (see dashboard_loader.py).
+
+The page has two parts, side by side in one card (see render_dashboard_view):
+  render_dashboard_controls()   the controls panel on the left: which files, Refresh, the filters
+  render_analytics_dashboard()  the main area: the numbers and charts. It is a
+                                "fragment", so it re-checks SharePoint on its own
+                                every DASHBOARD_REFRESH_SECONDS (see settings.py)
+                                without reloading the rest of the page. Only new
+                                or changed files are downloaded, so that is quick.
+They are separate because Streamlit does not let an auto-refreshing fragment draw
+widgets outside itself. The two share the widgets' values through st.session_state.
+(The sheet parsing itself lives in dashboard_data.py.)"""
+import html
+
+import streamlit as st
+
+import sharepoint_client
+import ui_components
+from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
+from dashboard_loader import get_file_rows, is_loaded
+from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
+
+# Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
+ALL_FILES_LABEL = "Whiteboard Excel Files"
+
+# Chart look: Vonotec-blue bars on a white card. The card's own background is set in
+# style.css (.st-key-analytics ... stVegaLiteChart) - keep CHART_BACKGROUND the same.
+CHART_COLOR = "#2F5597"
+ACCENT_COLOR = "#F97316"       # orange: marks the "Unknown" bars, so missing data stands out
+CHART_BACKGROUND = "#FFFFFF"
+CHART_TEXT = "#64748B"         # axis labels
+CHART_GRID = "#EDF0F4"         # soft gridlines behind the bars
+CHART_FONT = "DM Sans"
+
+# With more bars than this, the x-axis labels are tilted so they don't run into each other
+STRAIGHT_LABELS_MAX_BARS = 6
+
+# One line under each chart title (the design's "Distribution across active levels" style)
+CHART_SUBTITLES = {
+    "Tower": "Distribution across towers",
+    "Material": "Top classifications",
+    "Floor": "Distribution across active levels",
+}
+
+# Column order of the data table: the useful ones first, the long text ones last
+TABLE_COLUMNS = [
+    "Tower", "Floor", "Material", "Defect Code", "Defect Type", "Dimension", "Unit",
+    "Repair Dimension", "Repair Unit", "Date", "Submitter", "Elevation", "Drop", "Folder", "File",
+]
+
+# The data table is drawn as HTML (see _data_table_html); this many rows at most
+DATA_TABLE_MAX_ROWS = 1000
+
+# Keys of the sidebar widgets, read again by the main area
+SCOPE_KEY = "analytics_scope"
+HIDE_UNKNOWN_KEY = "analytics_hide_unknown"
+# Folder/file lists are kept for just under one refresh interval, so every
+# automatic check really asks SharePoint instead of reusing the previous answer.
+LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
+
+
+# ---------------------------------------------------------------------------
+# Cached SharePoint reads
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=LIST_CACHE_SECONDS, show_spinner=False)
+def _cached_subfolders():
+    return sharepoint_client.list_subfolders()
+
+
+@st.cache_data(ttl=LIST_CACHE_SECONDS, show_spinner=False)
+def _cached_file_list(subfolder):
+    return sharepoint_client.list_xlsx_files(subfolder)
+
+
+def _refresh_lists():
+    """Forgets the folder and file lists so new files show up. Files that were
+    already downloaded stay in memory; they are only re-downloaded if they changed."""
+    _cached_subfolders.clear()
+    _cached_file_list.clear()
+
+
+# ---------------------------------------------------------------------------
+# Loading the chosen scope
+# ---------------------------------------------------------------------------
+
+def _folders_for_scope(scope, subfolders):
+    """The folders to read, where "" is the landing folder itself."""
+    if scope == ALL_FILES_LABEL:
+        return [""] + list(subfolders)
+    if scope == MAIN_FOLDER_LABEL:
+        return [""]
+    return [scope]
+
+
+def _load_scope(scope, subfolders):
+    """Returns (rows, files_read, skipped), where skipped is a list of
+    (filename, reason) for files that could not be used."""
+    files = []
+    for folder in _folders_for_scope(scope, subfolders):
+        files += _cached_file_list(folder)
+
+    # Only show a progress bar when at least one file still has to be read
+    # (not on quiet checks, and not when the background warm-up got there first)
+    to_download = [i for i in files if not is_loaded(i["subfolder"], i["name"], i["modified"])]
+    progress = st.progress(0.0, text="Reading Excel files from SharePoint...") if to_download else None
+
+    rows, skipped, files_read = [], [], 0
+    for index, item in enumerate(files):
+        try:
+            file_rows, error = get_file_rows(item["subfolder"], item["name"], item["modified"])
+        except Exception as network_error:
+            file_rows, error = [], f"it could not be downloaded ({network_error})"
+
+        label = f'{item["subfolder"]}/{item["name"]}' if item["subfolder"] else item["name"]
+        if error:
+            skipped.append((label, error))
+        else:
+            rows += file_rows
+            files_read += 1
+        if progress is not None:
+            progress.progress((index + 1) / len(files), text=f"Reading Excel files... {index + 1} of {len(files)}")
+    if progress is not None:
+        progress.empty()
+    return rows, files_read, skipped
+
+
+# ---------------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------------
+
+# Bars are at most this wide (pixels) when a chart has this many bars or fewer
+BAR_MAX_WIDTH = 48
+FEW_BARS_MAX = 8
+
+# The value written above each bar; with more bars than MANY_BARS_MIN it gets smaller so the numbers fit
+VALUE_LABEL_COLOR = "#1E293B"
+VALUE_LABEL_SIZE_FEW = 12
+VALUE_LABEL_SIZE_MANY = 9.5
+MANY_BARS_MIN = 20
+
+
+def _bar_chart(counts, column):
+    """A bar chart of counts (from dashboard_data.count_by), keeping the order the table is
+    already in. Every bar carries its exact value above it, so nobody has to hover to read it."""
+    import altair as alt  # installed together with Streamlit
+
+    # Few bars: labels stay straight. Many bars: tilt them, and let Vega drop a label
+    # only if it would still collide with its neighbour ("greedy").
+    tilted = len(counts) > STRAIGHT_LABELS_MAX_BARS
+    x_axis = alt.Axis(
+        labelAngle=-45 if tilted else 0,
+        labelAlign="right" if tilted else "center",
+        labelBaseline="top",
+        labelOverlap="greedy",
+        labelLimit=160,
+        labelPadding=6,
+    )
+    # Padding leaves a gap between bars (and keeps a lone bar from filling the chart)
+    x = alt.X(f"{column}:N", sort=list(counts[column]), title=None,
+              scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25), axis=x_axis)
+    y = alt.Y("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1))
+
+    bars = (
+        alt.Chart(counts)
+        # With only a few categories the bars would stretch into huge blocks, so cap their width
+        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, **({"size": BAR_MAX_WIDTH} if len(counts) <= FEW_BARS_MAX else {}))
+        .encode(
+            # Blue for known values, orange for the "Unknown" bar
+            color=alt.condition(
+                f"datum['{column}'] == '{UNKNOWN}'",
+                alt.value(ACCENT_COLOR),
+                alt.value(CHART_COLOR),
+            ),
+            x=x,
+            y=y,
+            tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
+        )
+    )
+    # The exact value, just above each bar (smaller when there are very many bars)
+    labels = (
+        alt.Chart(counts)
+        .mark_text(
+            align="center", baseline="bottom", dy=-4,
+            fontSize=VALUE_LABEL_SIZE_FEW if len(counts) <= MANY_BARS_MIN else VALUE_LABEL_SIZE_MANY,
+            fontWeight=600, color=VALUE_LABEL_COLOR,
+        )
+        .encode(x=x, y=y, text=alt.Text("Defects:Q", format=",d"))
+    )
+
+    chart = (
+        alt.layer(bars, labels)
+        # padding: breathing room between the chart and the rounded card, so nothing touches the
+        # edge; the top one is larger so the label above the tallest bar is not cut off
+        .properties(
+            height=220, width="container", background=CHART_BACKGROUND,
+            padding={"left": 4, "right": 12, "top": 22, "bottom": 4},
+        )
+        .configure(font=CHART_FONT)
+        .configure_axis(
+            labelColor=CHART_TEXT, labelFontSize=12,  # Upgraded to 12px for legibility
+            titleFontSize=13,
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
+        )
+        .configure_view(stroke=None)
+    )
+    try:
+        st.altair_chart(chart, theme=None, use_container_width=True)  # theme=None keeps the colors above instead of the app theme's
+    except TypeError:  # newer Streamlit without use_container_width: the chart already has width="container"
+        st.altair_chart(chart, theme=None)
+
+
+# ---------------------------------------------------------------------------
+# Dimensions by defect: total dimension and total repair dimension per defect code
+# ---------------------------------------------------------------------------
+
+def _number_text(value, decimals=2, trim=False):
+    """12345.5 -> '12,345.50' (or '12,345.5' with trim). '' for a missing value."""
+    if value is None or value != value:
+        return ""
+    text = f"{value:,.{decimals}f}"
+    if trim and "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _dimension_cell(value, unit, maximum, css_class, decimals, trim):
+    """A total with its unit and a thin bar under it, as long as the total is compared with the
+    largest one of the same unit (different units are never compared with each other)."""
+    if value is None or value != value:
+        return '<span class="dim-na">&mdash;</span>'
+    width = max(value / maximum * 100, 2) if maximum else 0
+    return (
+        f'<div class="dim-value"><b>{_number_text(value, decimals, trim)}</b>'
+        f'<span class="dim-unit">{html.escape(unit)}</span></div>'
+        f'<div class="dim-track"><div class="dim-bar {css_class}" style="width:{width:.1f}%"></div></div>'
+    )
+
+
+def _largest_by_unit(records, value_key, unit_key):
+    largest = {}
+    for record in records:
+        value = record[value_key]
+        if value is not None and value == value:
+            largest[record[unit_key]] = max(largest.get(record[unit_key], 0), value)
+    return largest
+
+
+def _totals_text(records, value_key, unit_key, decimals, trim):
+    """'123.45 L.M. · 56.78 SQ.M.': the grand total of a column, one figure per unit."""
+    totals = {}
+    for record in records:
+        value = record[value_key]
+        if value is not None and value == value:
+            totals[record[unit_key]] = totals.get(record[unit_key], 0) + value
+    return " \u00b7 ".join(f"{_number_text(total, decimals, trim)} {unit}".strip() for unit, total in totals.items())
+
+
+def _dimension_table_html(records):
+    """The per-defect table as plain HTML (see .dim-table in style.css), written without
+    indentation so Markdown leaves it alone."""
+    board_largest = _largest_by_unit(records, "Total Dimension", "Board Unit")
+    repair_largest = _largest_by_unit(records, "Total Repair Dimension", "Repair Unit")
+    body = ""
+    for record in records:
+        body += (
+            "<tr>"
+            f'<td class="dim-code">{html.escape(str(record["Defect Code"]))}</td>'
+            f'<td>{html.escape(str(record["Defect Type"]))}</td>'
+            f'<td class="dim-count">{record["Defects"]:,}</td>'
+            '<td class="dim-cell">'
+            + _dimension_cell(record["Total Dimension"], record["Board Unit"],
+                              board_largest.get(record["Board Unit"]), "dim-bar-board", 2, True)
+            + '</td><td class="dim-cell">'
+            + _dimension_cell(record["Total Repair Dimension"], record["Repair Unit"],
+                              repair_largest.get(record["Repair Unit"]), "dim-bar-repair", 2, False)
+            + "</td></tr>"
+        )
+    return (
+        '<div class="dim-table-wrap"><table class="dim-table"><thead><tr>'
+        '<th>Defect</th><th>Defect type</th><th class="dim-count">Defects</th>'
+        '<th>Total dimension</th><th>Total repair dimension</th>'
+        f"</tr></thead><tbody>{body}</tbody></table></div>"
+    )
+
+
+def _dimension_section(df):
+    """A card with the total dimension and the total repair dimension of every defect code. A
+    table rather than a chart: the two totals are in different units (CM and L.M., CM\u00b2 and
+    SQ.M.), so one shared axis would compare things that cannot be compared. The thin bars only
+    compare totals that share a unit."""
+    summary = dimension_by_defect(df)
+    records = summary.to_dict("records")
+    repair_total = _totals_text(records, "Total Repair Dimension", "Repair Unit", 2, False)
+
+    with st.container(border=True, key="chart_dimensions"):
+        st.markdown(
+            '<div class="chart-title"><div>'
+            '<div class="chart-name">Dimensions by defect</div>'
+            '<div class="chart-sub">Total dimension and total repair dimension for each defect code</div>'
+            '</div><div style="text-align:right;">'
+            + (f'<span class="chart-total">Repair total: {html.escape(repair_total)}</span>' if repair_total else "")
+            + "</div></div>",
+            unsafe_allow_html=True,
+        )
+        if not records:
+            st.caption("Nothing to show yet.")
+            return
+        st.markdown(_dimension_table_html(records), unsafe_allow_html=True)
+
+        notes = []
+        missing = int(summary["Missing Dimension"].sum())
+        if missing:
+            notes.append(
+                f"{missing:,} defect(s) were written without a dimension, so they add nothing to the totals."
+            )
+        notes.append(
+            "Repair dimensions are read from the Excel files. For a file that was never opened in Excel, "
+            "they are worked out here with the same formulas."
+        )
+        st.caption(" ".join(notes))
+
+
+def _chart_notes(df, hide_unknown):
+    """ONE short line drawn above the chart filters area or as a general note."""
+    columns = ("Tower", "Floor", "Material")
+    if hide_unknown:
+        parts = []
+        for column in columns:
+            counts = count_by(df, column)
+            hidden = int(counts.loc[counts[column] == UNKNOWN, "Defects"].sum())
+            if hidden:
+                parts.append(f"{hidden:,} defect(s) with an unknown {column.lower()} are hidden.")
+        return " ".join(parts)
+    return ""
+
+
+def _chart_section(df, column, title, hide_unknown):
+    """A white card with a title, a one-line subtitle, the total, and the bar chart of
+    the defects per value of `column`. With hide_unknown, the "Unknown" bar is left out,
+    so the real distribution isn't flattened by it."""
+    counts = count_by(df, column)
+    if hide_unknown:
+        counts = counts[counts[column] != UNKNOWN]
+    
+    # Check if this chart has an unknown bar
+    has_unknown = not hide_unknown and not counts[counts[column] == UNKNOWN].empty
+
+    total = int(counts["Defects"].sum()) if not counts.empty else 0
+    with st.container(border=True, key=f"chart_{column.lower()}"):
+        # Include the in-chart legend if 'Unknown' is present
+        legend_html = '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:5px;"></span>Unknown classification' if has_unknown else ''
+        
+        st.markdown(
+            '<div class="chart-title"><div>'
+            f'<div class="chart-name">{title}</div>'
+            f'<div class="chart-sub">{CHART_SUBTITLES.get(column, "")}</div>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<span class="chart-total">{total:,} total</span>'
+            f'<div style="color:#64748b;font-size:11.5px;font-weight:500;margin-top:2px;">{legend_html}</div>'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+        if counts.empty:
+            st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
+            return
+        _bar_chart(counts, column)
+
+
+# ---------------------------------------------------------------------------
+# Sidebar: which files, refresh, filters
+# ---------------------------------------------------------------------------
+
+def _filter_key(name, scope):
+    """Filter widgets are keyed by the folder choice, so switching folders resets them."""
+    return f"flt_{name}_{scope}"
+
+
+def _sorted_options(series):
+    return sorted(series.unique(), key=natural_key)
+
+
+def _data_table_html(df):
+    """The data table as plain HTML: a bold dark header and light rows (see .data-table
+    in style.css). st.dataframe draws on a canvas that takes the app theme's dark blue
+    and cannot be recolored with CSS, so this is the way to get a light table."""
+    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [c for c in df.columns if c not in TABLE_COLUMNS]
+    shown = df[ordered].head(DATA_TABLE_MAX_ROWS)
+    table = shown.to_html(
+        index=False, border=0, na_rep="", classes="data-table", escape=True,
+        float_format=lambda value: f"{value:g}",
+    )
+    table = "".join(line.strip() for line in table.splitlines())  # no indentation, so Markdown leaves it alone
+    return f'<div class="data-table-wrap">{table}</div>'
+
+
+def render_dashboard_controls():
+    """The dashboard's controls (the left panel). Not a
+    fragment: any change here reruns the whole page, so the charts follow."""
+    st.markdown('<p class="side-title">Analytics controls</p>', unsafe_allow_html=True)
+
+    if not ENABLE_SHAREPOINT_SYNC:
+        st.caption("SharePoint sync is switched off, so there is nothing to analyze.")
+        return
+
+    try:
+        subfolders = _cached_subfolders()
+    except Exception as error:
+        st.error(f"Could not load the SharePoint folders right now: {error}")
+        if st.button("Try again", type="primary", key="analytics_retry"):
+            _refresh_lists()
+            st.rerun()
+        return
+
+    options = [ALL_FILES_LABEL, MAIN_FOLDER_LABEL] + list(subfolders)
+    scope = st.selectbox(
+        "Which files do you want to analyze?",
+        options,
+        key=SCOPE_KEY,
+        help=f'"{ALL_FILES_LABEL}" combines every Excel file in the landing folder and all of its folders.',
+    )
+    if st.button("Refresh data", type="primary", key="analytics_refresh"):
+        _refresh_lists()
+        st.rerun()
+
+    st.toggle(
+        "Exclude 'Unknown' locations",
+        key=HIDE_UNKNOWN_KEY,
+        help="Hides the 'Unknown' bar in each chart (defects whose tower, floor or material "
+             "couldn't be found), so the known ones are easier to compare.",
+    )
+
+    # The filter lists come from the data in the chosen folder(s). It is already in
+    # memory, so this is quick; the charts re-check SharePoint on their own.
+    try:
+        rows, files_read, _skipped = _load_scope(scope, subfolders)
+    except Exception:
+        return  # the main area explains what went wrong
+    df = rows_to_dataframe(rows)
+    if df.empty:
+        return
+
+    st.divider()  # separates the global controls above from the filters below
+    st.markdown('<p class="side-title">Filters</p>', unsafe_allow_html=True)
+    st.caption("Leave a filter empty to include everything.")
+    st.multiselect("Tower", _sorted_options(df["Tower"]), key=_filter_key("tower", scope))
+    st.multiselect("Floor", _sorted_options(df["Floor"]), key=_filter_key("floor", scope))
+    st.multiselect("Material", _sorted_options(df["Material"]), key=_filter_key("material", scope))
+    folders_in_data = _sorted_options(df["Folder"])
+    if scope == ALL_FILES_LABEL and len(folders_in_data) > 1:
+        st.multiselect("Folder", folders_in_data, key=_filter_key("folder", scope))
+
+
+# ---------------------------------------------------------------------------
+# Main area: numbers and charts
+# ---------------------------------------------------------------------------
+
+@st.fragment(run_every=DASHBOARD_REFRESH_SECONDS)
+def render_analytics_dashboard():
+    """A fragment: it re-runs by itself every DASHBOARD_REFRESH_SECONDS without
+    reloading the rest of the page. It reads the sidebar's choices from st.session_state."""
+    ui_components.section_heading("Portfolio overview", "Extraction analytics")
+
+    if not ENABLE_SHAREPOINT_SYNC:
+        st.info("The dashboard reads the Excel files stored in SharePoint, and SharePoint sync is switched off.")
+        return
+
+    try:
+        subfolders = _cached_subfolders()
+    except Exception as error:
+        st.error(f"Could not load the SharePoint folders right now: {error}. It will try again automatically.")
+        return
+
+    scope = st.session_state.get(SCOPE_KEY, ALL_FILES_LABEL)
+    if scope not in [ALL_FILES_LABEL, MAIN_FOLDER_LABEL] + list(subfolders):
+        scope = ALL_FILES_LABEL  # the chosen folder no longer exists
+    hide_unknown = bool(st.session_state.get(HIDE_UNKNOWN_KEY, False))
+
+    st.caption(
+        f"Showing: {scope}. Updates automatically: new or changed Excel files are picked up "
+        f"within {DASHBOARD_REFRESH_SECONDS} seconds."
+    )
+
+    try:
+        rows, files_read, skipped = _load_scope(scope, subfolders)
+    except Exception as error:
+        st.error(f"Could not read the file list from SharePoint right now: {error}. It will try again automatically.")
+        return
+
+    if skipped:
+        names = "\n".join(f"- {name}: {reason}" for name, reason in skipped)
+        st.warning(f"{len(skipped)} file(s) were left out of the charts because:\n\n{names}")
+
+    if files_read == 0:
+        st.info("There are no Excel files to analyze in this selection yet.")
+        return
+
+    df = rows_to_dataframe(rows)
+    if df.empty:
+        st.info(f"Read {files_read} file(s), but none of them contain any defects yet.")
+        return
+
+    # --- Render Active Filter Chips ---
+    # We construct the HTML for the chips and clear button.
+    # Note: Streamlit doesn't natively support clearing other widgets via HTML buttons, 
+    # so we display them visually, and users can use the standard sidebar inputs or 
+    # a st.button to clear them.
+    active_filters = []
+    
+    selected_towers = st.session_state.get(_filter_key("tower", scope)) or []
+    if selected_towers:
+        active_filters.append(f"Tower: {', '.join(selected_towers)}")
+        
+    selected_floors = st.session_state.get(_filter_key("floor", scope)) or []
+    if selected_floors:
+        active_filters.append(f"Floor: {', '.join(selected_floors)}")
+        
+    selected_materials = st.session_state.get(_filter_key("material", scope)) or []
+    if selected_materials:
+        active_filters.append(f"Material: {', '.join(selected_materials)}")
+        
+    folders = st.session_state.get(_filter_key("folder", scope)) or []
+    if folders:
+        active_filters.append(f"Folder: {', '.join(folders)}")
+
+    if hide_unknown:
+        active_filters.append("Exclude unknown")
+
+    if active_filters:
+        chips_html = "".join([f'<span class="filter-chip">{html.escape(f)} &times;</span>' for f in active_filters])
+        st.markdown(
+            f'<div class="filter-chips-container">{chips_html}</div>', 
+            unsafe_allow_html=True
+        )
+
+        # Clear button (requires a rerun to actually clear session state)
+        if st.button("Clear all filters", key="clear_all_filters", help="Reset all applied filters"):
+            st.session_state[_filter_key("tower", scope)] = []
+            st.session_state[_filter_key("floor", scope)] = []
+            st.session_state[_filter_key("material", scope)] = []
+            st.session_state[_filter_key("folder", scope)] = []
+            st.session_state[HIDE_UNKNOWN_KEY] = False
+            st.rerun()
+
+    # --- Apply the sidebar filters to data ---
+    if folders:
+        df = df[df["Folder"].isin(folders)]
+    df = apply_filters(
+        df,
+        selected_towers,
+        selected_floors,
+        selected_materials,
+    )
+
+    # --- Summary / KPI Cards ---
+    total_col, files_col, folders_col = st.columns(3)
+    
+    # We use HTML inside metric help or container if we want secondary context, 
+    # or just use Streamlit's metric delta for the secondary line.
+    # Note: For pure formatting without deltas changing color, custom HTML is best, 
+    # but Streamlit's native metric is easiest if we don't have historical data to compare to.
+    total_col.metric("Defects", f"{len(df):,}")
+    files_col.metric("Excel files read", f"{files_read:,}")
+    folders_col.metric("Folders", f"{df['Folder'].nunique():,}")
+
+    if df.empty:
+        st.info("No defects match these filters.")
+        return
+
+    # --- Charts: Tower beside Material, then Floor (the widest) across the page ---
+    with st.container(key="charts_grid"):
+        tower_col, material_col = st.columns([1, 1], gap="small")  # equal halves; style.css sets the 14px gap
+        with tower_col:
+            _chart_section(df, "Tower", "Defects by tower", hide_unknown)
+        with material_col:
+            _chart_section(df, "Material", "Defects by material", hide_unknown)
+        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+        _dimension_section(df)
+
+    # Note about hidden unknown defects
+    note = _chart_notes(df, hide_unknown)
+    if note:
+        st.markdown(f'<div class="chart-legend">{html.escape(note)}</div>', unsafe_allow_html=True)
+
+    with st.expander("View the data behind the charts"):
+        st.markdown(_data_table_html(df), unsafe_allow_html=True)
+        if len(df) > DATA_TABLE_MAX_ROWS:
+            st.caption(f"Showing the first {DATA_TABLE_MAX_ROWS:,} of {len(df):,} defects.")
+
+
+def render_dashboard_view():
+    """The whole Dashboard view: the controls panel and the charts, side by side in
+    one connected card under the header. The CSS in style.css draws the card
+    around the two columns (it finds them through the two container keys)."""
+    col_controls, col_main = st.columns([0.22, 0.78], gap="small")
+    with col_controls:
+        with st.container(key="dashboard_sidebar"):
+            render_dashboard_controls()
+    with col_main:
+        with st.container(key="dashboard_main"):
+            # "analytics" stays its own container: the KPI card icons in style.css are keyed to it
+            with st.container(key="analytics"):
+                render_analytics_dashboard()

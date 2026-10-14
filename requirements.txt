@@ -1,0 +1,8 @@
+streamlit
+openpyxl
+Pillow
+google-generativeai
+requests
+pandas
+altair
+jinja2
