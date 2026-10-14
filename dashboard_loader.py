@@ -26,7 +26,7 @@ from settings import ENABLE_SHAREPOINT_SYNC
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
 # Bump this whenever dashboard_data.py parsing rules change so in-memory cached files re-parse automatically
-PARSER_VERSION = 3
+PARSER_VERSION = 4
 
 # A new background check starts at most this often, however many clicks happen
 WARMUP_MIN_GAP_SECONDS = 60
