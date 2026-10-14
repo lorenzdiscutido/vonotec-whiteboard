@@ -42,8 +42,53 @@ _TOWER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# First token of the Damage cell is the defect code, e.g. "DS CC" -> "DS"
+# First token of the Damage cell is the base defect code, e.g. "DS CC" -> "DS"
 _TYPE_BY_CODE = {row[0]: row[1] for row in REFERENCE_DATA[1:]}
+
+# Sealant codes that carry location modifiers (CC, CF/FC -> CF, GG, FG/GF -> FG, FF)
+_SEALANT_CODES = {"DS", "MS"}
+_CANONICAL_MODIFIERS = {
+    "CC": "CC",
+    "CF": "CF",
+    "FC": "CF",   # FC values merged under CF
+    "GG": "GG",
+    "FG": "FG",
+    "GF": "FG",   # GF values merged under FG
+    "FF": "FF",
+}
+_MODIFIER_ORDER = ("CC", "CF", "GG", "FG", "FF")
+
+# Defect codes that are merged into a single row in the dashboard
+_MERGED_DEFECT_CODES = {
+    "CC-": "C-",
+    "FRAME": "GLASS-FRAME",
+}
+
+# Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
+GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
+_NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
+
+
+def _base_code(code):
+    """Returns the base defect code (e.g. 'DS CF' -> 'DS')."""
+    parts = str(code or "").split()
+    return parts[0] if parts else ""
+
+
+def _normalize_defect_code(parts):
+    """Normalizes raw damage tokens into the canonical Defect Code:
+    - Merges CC- -> C- and FRAME -> GLASS-FRAME
+    - For DS and MS, attaches the canonical location modifier (CC, CF, GG, FG, FF),
+      mapping FC -> CF and GF -> FG."""
+    if not parts:
+        return ""
+    base = _MERGED_DEFECT_CODES.get(parts[0].upper(), parts[0].upper())
+    if base in _SEALANT_CODES and len(parts) > 1:
+        raw_mod = parts[1].upper().replace("-", "")
+        mod = _CANONICAL_MODIFIERS.get(raw_mod)
+        if mod:
+            return f"{base} {mod}"
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -93,17 +138,14 @@ def _split_dimension(value):
     match = _DIMENSION_TEXT.match(value) if isinstance(value, str) else None
     if not match:
         return None, ""
-    unit = re.sub(r"\s*(?:\^\s*2|2)$", "\u00b2", (match.group(2) or "").upper().strip())
+    unit = re.sub(r"\s*(?:\^\s*2|2)\$", "\u00b2", (match.group(2) or "").upper().strip())
     return float(match.group(1)), unit
 
 
 def tower_from_text(text):
     """Finds a tower in text such as a batch file name, e.g.
     'CERCA NUVEO TOWER 1- FRONT- DROP 7.xlsx' -> '1'. Returns '' when the text
-    names no tower, or names more than one (it can't tell which is meant).
-    Works in any capitalization, and with a space, dash or underscore after the word
-    ('Tower 2', 'TOWER-2', 'tower_2', 'TOWER2'); a tower can be a number or a
-    letter, optionally with a letter after the number ('3', 'A', '2B')."""
+    names no tower, or names more than one (it can't tell which is meant)."""
     found = {m.upper() for m in _TOWER_PATTERN.findall(str(text or ""))}
     return found.pop() if len(found) == 1 else ""
 
@@ -133,8 +175,6 @@ def parse_workbook(path, folder_label, filename):
         has_unit_col = len(header) > 9 and header[9] == "Whiteboard Photo"
         repair_at = (9 if has_unit_col else 8) + 5  # index of Repair Dimension; Repair Unit is the next one
 
-        # Workers sometimes forget to write the tower on the board, but the batch
-        # name usually has it ("... TOWER 1 - FRONT - DROP 7"), so it fills the gap.
         file_tower = tower_from_text(filename)
 
         rows = []
@@ -148,8 +188,6 @@ def parse_workbook(path, folder_label, filename):
             # A new block starts where the merged details cells hold a value
             if any(not _is_empty(c) for c in cells[:6]):
                 details = [_text(c) for c in cells[:6]]
-                # What is written on the board wins ("TOWER 1" is shortened to "1" so it
-                # matches the others); only a blank tower is filled in from the file name.
                 details[5] = tower_from_text(details[5]) or details[5] or file_tower
                 material = ""
 
@@ -165,19 +203,22 @@ def parse_workbook(path, folder_label, filename):
                 continue
 
             parts = damage_text.split()
-            code = parts[0] if parts else ""
+            code = _normalize_defect_code(parts)
+            base = _base_code(code)
 
-            # The dimension as a number (older files hold text such as "60 CM"), with its unit
-            number, unit_in_text = _split_dimension(cells[7])
-            unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
+            # Glass-Frame / Frame has no dimensions (uses placeholder None)
+            if code in _NO_DIMENSION_DASHBOARD_CODES:
+                number, unit, repair, repair_unit = GLASS_FRAME_DIMENSION_PLACEHOLDER, "", None, ""
+            else:
+                number, unit_in_text = _split_dimension(cells[7])
+                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
 
-            # Repair dimension: the result Excel saved in the file. A file that was never opened
-            # in Excel has none saved, so it is worked out here with the same formula.
-            repair = _number(cells[repair_at])
-            repair_unit = _text(cells[repair_at + 1])
-            if repair is None:
-                repair, calculated_unit = calculate_repair(parts, number)
-                repair_unit = repair_unit or calculated_unit
+                repair = _number(cells[repair_at])
+                repair_unit = _text(cells[repair_at + 1])
+                if repair is None:
+                    repair, calculated_unit = calculate_repair(parts, number)
+                    repair_unit = repair_unit or calculated_unit
+
             rows.append({
                 "Folder": folder_label,
                 "File": filename,
@@ -189,7 +230,7 @@ def parse_workbook(path, folder_label, filename):
                 "Tower": details[5],
                 "Material": material,
                 "Defect Code": code,
-                "Defect Type": _TYPE_BY_CODE.get(code, ""),
+                "Defect Type": _TYPE_BY_CODE.get(base, ""),
                 "Dimension": number,
                 "Unit": unit,
                 "Repair Dimension": repair,
@@ -241,13 +282,23 @@ def count_by(df, column):
     return counts.reset_index(drop=True)
 
 
-# Defect codes in the order of the Reference Data sheet, so tables list them the way people know them
-_CODE_ORDER = {code: position for position, code in enumerate(_TYPE_BY_CODE)}
+# Build the canonical display order for defect codes (including DS and MS location modifiers)
+def _build_code_order():
+    order = []
+    for row in REFERENCE_DATA[1:]:
+        code = row[0]
+        if code in ("CC-", "FRAME") or code in _CANONICAL_MODIFIERS:
+            continue
+        if code in _SEALANT_CODES:
+            for mod in _MODIFIER_ORDER:
+                order.append(f"{code} {mod}")
+            order.append(code)  # fallback if DS or MS was written without a location modifier
+        else:
+            order.append(code)
+    return {code: idx for idx, code in enumerate(order)}
 
-# Merge equivalent defect codes in the dashboard summary table (CC- -> C-)
-_MERGED_DEFECT_CODES = {
-    "CC-": "C-",
-}
+
+_CODE_ORDER = _build_code_order()
 
 DEFECT_SUMMARY_COLUMNS = [
     "Defect Code", "Defect Type", "Defects", "Board Unit", "Total Dimension",
@@ -292,36 +343,55 @@ def _normalize_repair_unit(raw_unit):
 
 
 def dimension_by_defect(df):
-    """One row per defect code (not per material): how many defects, the total dimension written
-    on the boards (converted from CM / CM² to LM / SQ LM) and the total repair dimension.
-    Merges CC- into C- so both Minor Concrete Crack codes appear as one combined row."""
+    """One row per defect code:
+    - Merges CC- into C-
+    - Merges FRAME into GLASS-FRAME and suppresses its dimensions (placeholder None, not shown in dashboard)
+    - Splits DS and MS by canonical location modifier (CC, CF [including FC], GG, FG [including GF], FF)
+    - Converts board dimensions from CM / CM² to LM / SQ LM."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
 
     work_df = df.copy()
-    work_df["Defect Code"] = work_df["Defect Code"].replace(_MERGED_DEFECT_CODES)
+    work_df["Defect Code"] = work_df["Defect Code"].apply(
+        lambda c: _normalize_defect_code(str(c or "").split())
+    )
 
     rows = []
     for code, group in work_df.groupby("Defect Code", sort=False):
+        base = _base_code(code)
+
+        if code in _NO_DIMENSION_DASHBOARD_CODES:
+            rows.append({
+                "Defect Code": code,
+                "Defect Type": _TYPE_BY_CODE.get(base, "") or UNKNOWN,
+                "Defects": len(group),
+                "Board Unit": "",
+                "Total Dimension": GLASS_FRAME_DIMENSION_PLACEHOLDER,
+                "Repair Unit": "",
+                "Total Repair Dimension": GLASS_FRAME_DIMENSION_PLACEHOLDER,
+                "Missing Dimension": 0,
+            })
+            continue
+
         dimensions = group["Dimension"].dropna()
         repairs = group["Repair Dimension"].dropna()
 
-        raw_board_unit = _most_common_text(group["Unit"]) or BOARD_UNITS.get(code, "")
+        raw_board_unit = _most_common_text(group["Unit"]) or BOARD_UNITS.get(base, "")
         raw_board_total = float(dimensions.sum()) if len(dimensions) else None
         converted_board_total, display_board_unit = _convert_board_dimension(raw_board_total, raw_board_unit)
 
-        raw_repair_unit = _most_common_text(group["Repair Unit"]) or REPAIR_UNITS.get(code, "")
+        raw_repair_unit = _most_common_text(group["Repair Unit"]) or REPAIR_UNITS.get(base, "")
         display_repair_unit = _normalize_repair_unit(raw_repair_unit)
 
         rows.append({
             "Defect Code": code,
-            "Defect Type": _TYPE_BY_CODE.get(code, "") or UNKNOWN,
+            "Defect Type": _TYPE_BY_CODE.get(base, "") or UNKNOWN,
             "Defects": len(group),
             "Board Unit": display_board_unit,
             "Total Dimension": converted_board_total,
             "Repair Unit": display_repair_unit,
             "Total Repair Dimension": float(repairs.sum()) if len(repairs) else None,
-            "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(code) else 0,
+            "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
     summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))

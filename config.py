@@ -52,6 +52,9 @@ F_SEALANT_WITH_LOCATION = (
 
 REFERENCE_SHEET_COLUMNS = 6  # how many columns (from the left) go into the Excel sheet
 
+# Placeholder for Glass-Frame / Frame unit rules until dimensions are enabled
+GLASS_FRAME_UNIT_PLACEHOLDER = ""
+
 REFERENCE_DATA = [
     ["Defect Code", "Defect Type", "Likely Cause(s)", "Justification", "Recommended Repair", "Repair Limit",
      "Board Unit", "Repair Unit", "Repair Formula", "Repair Formula (with location)"],
@@ -84,9 +87,9 @@ REFERENCE_DATA = [
     ["BG", "Broken Glass (BG)", "Unclassified (Circumstantial)", "Typically the result of impact, high wind pressure, or spontaneous breakage due to thermal stress. Often sudden and isolated.", "Replace glass and reseal edges.", "",
      "", "", "", ""],
     ["GLASS-FRAME", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works", "",
-     "CM", "L.M.", "", ""],
+     GLASS_FRAME_UNIT_PLACEHOLDER, GLASS_FRAME_UNIT_PLACEHOLDER, "", ""],
     ["FRAME", "Glass Panel still with Film", "Workmanship", "Removal skipped by previous workers", "Include in next facade works", "",
-     "CM", "L.M.", "", ""],
+     GLASS_FRAME_UNIT_PLACEHOLDER, GLASS_FRAME_UNIT_PLACEHOLDER, "", ""],
     ["CC", "Sealant Location Modifier", "-", "-", "-", 4.8, "", "", "", ""],
     ["CF", "Sealant Location Modifier", "-", "-", "-", 3.2, "", "", "", ""],
     ["FC", "Sealant Location Modifier (Same as CF)", "-", "-", "-", 3.2, "", "", "", ""],

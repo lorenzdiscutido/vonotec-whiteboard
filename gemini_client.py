@@ -35,21 +35,15 @@ MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glas
 SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
 
 # Defect codes that are written on the board WITHOUT a dimension
-NO_DIMENSION_CODES = {"NP", "BG"}
+NO_DIMENSION_CODES = {"NP", "BG", "GLASS-FRAME", "FRAME"}
 
 # FIX: Exclude modifiers from VALID_CODES so the script doesn't split "DS CC" into "DS" and "CC"
 VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODIFIERS)
 
 HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 
-# ==========================================================================
-# DEFECT UNITS now come from config.py (the "Board Unit" column of
-# REFERENCE_DATA), through defect_rules.DEFECT_UNITS. Edit them there.
-# ==========================================================================
+OTHER_DEFECT_CODES = ["BG", "GLASS-FRAME", "FRAME"]
 
-OTHER_DEFECT_CODES = ["BG"]
-
-# ==========================================================================
 
 def _wait_for_slot():
     while True:
@@ -117,11 +111,11 @@ def _extraction_prompt():
         "After the word \"DS\" or \"MS\" there should be a space, then the next characters. If there is no space, add one. "
         "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
         "INTERCHANGED MODIFIER RULE: If a sealant location modifier is written in reverse (e.g., 'FC' instead of 'CF', or 'GF' instead of 'FG'), standardizing it to 'CF' or 'FG' is preferred, but outputting 'FC' or 'GF' is also acceptable. "
-        "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. If they wrote 'Frame', extract it as 'FRAME'. "
+        "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame' or 'Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
-        "NO-DIMENSION RULE: The defect codes 'NP' (under Paint) and 'BG' (under Broken Glass) have no dimension. "
-        "Whenever you extract 'NP' or 'BG', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
+        "NO-DIMENSION RULE: The defect codes 'NP' (under Paint), 'BG' (under Broken Glass), and 'GLASS-FRAME'/'FRAME' (under With Film) have no dimension. "
+        "Whenever you extract 'NP', 'BG', 'GLASS-FRAME', or 'FRAME', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
         "Example: \"Broken Glass Damage\": [\"BG\"], \"Broken Glass Dimension\": [\"\"]. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
@@ -172,7 +166,7 @@ def get_review_response(img, parsed_data, problems):
         "Look at the photo again carefully and return the corrected JSON, using exactly the same keys "
         "and all of the rules above. Only change values that you can actually see on the board; "
         "fix anything the first reading misread, but keep entries the board genuinely shows even if "
-        "they were flagged. Do not invent entries. Return ONLY raw JSON."
+        "they were flagged. Do not invent entries. Do not return anything except raw JSON."
     )
     return _generate_text([review_prompt, img])
 
@@ -251,7 +245,7 @@ def _normalize_dimensions(parsed_data):
                 first_index = len(new_damages)
                 for g, group in enumerate(groups):
                     new_damages.append(group)
-                    new_dimensions.append((size or "") if g == 0 else "")
+                    new_dimensions.append((size or "") if g == 0 and group not in NO_DIMENSION_CODES else "")
                 
                 blanks = [
                     first_index + idx 
@@ -278,7 +272,7 @@ def _normalize_dimensions(parsed_data):
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
                 
                 if entry in NO_DIMENSION_CODES:
-                    new_damages.append(entry)
+                    new_damages.append("GLASS-FRAME" if entry == "FRAME" else entry)
                     new_dimensions.append("")
                 elif size is None or size.strip() == "" or no_number:
                     notes.append({
@@ -361,8 +355,6 @@ def find_problems(parsed_data):
             if tokens[0] not in allowed or any(c not in allowed for c in codes_in_entry):
                 problems.append((mat, f"{mat}: code '{d}' does not belong in the {mat} row", "structural"))
 
-        # Identical dimension lists across materials (only when at least one real
-        # dimension is written, so several blank no-dimension entries don't trigger it)
         if len(dim) >= 2 and any(str(s).strip() for s in dim):
             key = tuple(dim)
             if key in seen_dimension_lists:
@@ -374,9 +366,6 @@ def find_problems(parsed_data):
             else:
                 seen_dimension_lists[key] = mat
 
-        # Likely copied dimension: several defects in ONE material, all with the same dimension
-        # (units are ignored in the comparison: a copied '200' becomes '200 CM²' on some
-        # defects and '200 CM' on others, because each defect code has its own unit)
         filled_dims = [str(s).strip() for s in dim if str(s).strip()]
         sizes_without_unit = {_UNIT_SUFFIX.sub("", s).strip() for s in filled_dims}
         if len(filled_dims) >= 2 and len(sizes_without_unit) == 1:
