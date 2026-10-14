@@ -5,8 +5,8 @@ cascading "Photo folder" drill-down where every field supports instant
 type-to-search (via index=None + placeholder), and a footer that says how many
 photos the chosen folder holds and when that was last checked.
 
-Starts with no folder selected so Step 1 -> Step 2 progressive disclosure is
-strictly respected."""
+Pre-fills "01 - Projects > 04 - Execution" by default on first open, while
+keeping every level editable so users can switch to any other folder."""
 import hashlib
 import html
 import time
@@ -24,6 +24,9 @@ PLACEHOLDER_SUB = "Type to search subfolder (optional)..."
 LEVELS_PER_ROW = 2     # selectors side by side (the site box takes the first slot)
 MAX_LEVELS = 12        # safety stop for very deep folder trees
 COUNT_CACHE_SECONDS = 180
+
+# Usual starting path where whiteboard photos are stored
+DEFAULT_SOURCE_PATH = ("01 - Projects", "04 - Execution")
 
 _ICON_FOLDER = (
     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
@@ -171,13 +174,21 @@ def render_source_browser():
             label = "Photo folder" if level == 0 else f"Subfolder (level {level})"
             placeholder = PLACEHOLDER_TOP if level == 0 else PLACEHOLDER_SUB
 
+            # Pre-fill "01 - Projects" -> "04 - Execution" on initial load while still
+            # allowing the user to clear (x) or change any level freely.
+            default_index = None
+            if (
+                level < len(DEFAULT_SOURCE_PATH)
+                and selections == list(DEFAULT_SOURCE_PATH[:level])
+                and DEFAULT_SOURCE_PATH[level] in folders
+            ):
+                default_index = folders.index(DEFAULT_SOURCE_PATH[level])
+
             with columns[slot % LEVELS_PER_ROW]:
-                # index=None + placeholder enables native per-field type-to-search
-                # without needing to backspace a fake "(this folder)" option first!
                 choice = st.selectbox(
                     label,
                     list(folders),
-                    index=None,
+                    index=default_index,
                     placeholder=placeholder,
                     key=_level_key(level, current),
                 )
