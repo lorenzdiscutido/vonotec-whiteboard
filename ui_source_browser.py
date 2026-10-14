@@ -1,13 +1,12 @@
 # ui_source_browser.py
 """The folder browser used by "Import from SharePoint", drawn as one card:
-a header (folder icon, title, Connected status), a quick "Search for a folder"
-box (to jump directly to any matching folder in SharePoint), or the cascading
-"Photo folder" drill-down (each choice opens a selector for the folders inside
-it, as deep as the folders go), and a footer that says how many photos the
-chosen folder holds and when that was last checked.
+a header (folder icon, title, Connected status), the SharePoint site and a
+cascading "Photo folder" drill-down where every field supports instant
+type-to-search (via index=None + placeholder), and a footer that says how many
+photos the chosen folder holds and when that was last checked.
 
-Starts with no folder selected ("Select a folder...") so Step 1 -> Step 2
-progressive disclosure is strictly respected."""
+Starts with no folder selected so Step 1 -> Step 2 progressive disclosure is
+strictly respected."""
 import hashlib
 import html
 import time
@@ -20,10 +19,8 @@ from file_utils import load_prefs
 from settings import PHOTO_BROWSE_ROOT
 
 RECURSIVE_KEY = "src_recursive"
-SEARCH_QUERY_KEY = "src_folder_search"
-SEARCH_RESULT_KEY = "src_folder_search_pick"
-PLACEHOLDER_TOP = "Select a folder..."
-PLACEHOLDER_HERE = "(this folder)"
+PLACEHOLDER_TOP = "Type to search or select a folder..."
+PLACEHOLDER_SUB = "Type to search subfolder (optional)..."
 LEVELS_PER_ROW = 2     # selectors side by side (the site box takes the first slot)
 MAX_LEVELS = 12        # safety stop for very deep folder trees
 COUNT_CACHE_SECONDS = 180
@@ -34,7 +31,7 @@ _ICON_FOLDER = (
 )
 _ICON_IMAGE = (
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4V5Zm0 11 4.5-4.5 3.2 3.2 2.3-2.3 6 5.6M15.5 9a1 1 0 1 0 0-2 1 1 0 1 0 0 2Z"/></svg>'
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4V5Zm0 11 4.5-4.5 3.2 3.2 2.3-2.3 6 5.6M15.5 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>'
 )
 
 
@@ -46,12 +43,6 @@ def _root():
 def _cached_folders(path):
     """Subfolders of a folder, kept for a minute so clicking around stays quick."""
     return sharepoint_client.list_folders_at(list(path))
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _cached_folder_search(root_path, query_text):
-    """Folders matching `query_text` anywhere under `root_path`, cached for 60s."""
-    return sharepoint_client.search_folders_at(list(root_path), query_text)
 
 
 @st.cache_data(ttl=COUNT_CACHE_SECONDS, show_spinner=False)
@@ -89,7 +80,7 @@ def _header_html(connected):
         '<div class="source-head"><div class="source-head-left">'
         f'<span class="source-icon">{_ICON_FOLDER}</span>'
         '<div><div class="source-title">Choose a SharePoint folder</div>'
-        '<div class="source-sub">Search by folder name or browse through the folders below.</div></div>'
+        '<div class="source-sub">Click any folder field and type to search, or pick from the list.</div></div>'
         f'</div>{status}</div>'
     )
 
@@ -157,78 +148,45 @@ def render_source_browser():
             st.warning(f"Could not reach SharePoint right now: {connection_error}")
             return [], include_subfolders, 0
 
-        # Top row: SharePoint site on the left, quick folder search box on the right
-        top_cols = st.columns(LEVELS_PER_ROW, gap="medium")
-        with top_cols[0]:
+        columns = st.columns(LEVELS_PER_ROW, gap="medium")
+        with columns[0]:
             st.markdown(_site_box_html(), unsafe_allow_html=True)
-        with top_cols[1]:
-            search_query = st.text_input(
-                "Search folder by name",
-                placeholder="Type a folder name (e.g. Tower 1, Drop 7)...",
-                key=SEARCH_QUERY_KEY,
-                help="Type part of a folder name to search across SharePoint, or leave blank to browse level by level.",
-            )
 
-        cleaned_search = (search_query or "").strip()
-        if cleaned_search:
-            # Search mode: show all matching SharePoint folders in a single searchable dropdown
+        for level in range(MAX_LEVELS):
+            current = root + selections
             try:
-                with st.spinner("Searching SharePoint folders..."):
-                    matches = _cached_folder_search(tuple(root), cleaned_search)
+                folders = _cached_folders(tuple(current))
             except Exception as error:
-                st.warning(f"Could not search SharePoint folders right now: {error}")
-                matches = []
+                st.warning(f"Could not list the folders here right now: {error}")
+                break
+            if not folders:
+                if level == 0:
+                    st.caption("No folders were found to choose from.")
+                break
 
-            if not matches:
-                st.caption(f'No folders matching "{cleaned_search}" were found.')
-                path = []
-            else:
-                label_to_segments = {" / ".join(segs[len(root):] or segs): segs for segs in matches}
-                search_options = [PLACEHOLDER_TOP] + list(label_to_segments.keys())
-                picked_label = st.selectbox(
-                    f"Matching folders ({len(matches)})",
-                    search_options,
-                    index=0,
-                    key=f"{SEARCH_RESULT_KEY}_{hashlib.md5(cleaned_search.encode('utf-8')).hexdigest()[:8]}",
+            slot = level + 1  # slot 0 is the SharePoint site box
+            if slot % LEVELS_PER_ROW == 0:
+                columns = st.columns(LEVELS_PER_ROW, gap="medium")
+
+            label = "Photo folder" if level == 0 else f"Subfolder (level {level})"
+            placeholder = PLACEHOLDER_TOP if level == 0 else PLACEHOLDER_SUB
+
+            with columns[slot % LEVELS_PER_ROW]:
+                # index=None + placeholder enables native per-field type-to-search
+                # without needing to backspace a fake "(this folder)" option first!
+                choice = st.selectbox(
+                    label,
+                    list(folders),
+                    index=None,
+                    placeholder=placeholder,
+                    key=_level_key(level, current),
                 )
-                if picked_label != PLACEHOLDER_TOP and picked_label in label_to_segments:
-                    path = label_to_segments[picked_label]
-                    selections = path[len(root):]
-                else:
-                    path = []
-        else:
-            # Standard drill-down mode: cascading level-by-level dropdowns
-            # Note: Streamlit's selectbox also supports typing directly inside it to filter that level!
-            columns = st.columns(LEVELS_PER_ROW, gap="medium")
-            for level in range(MAX_LEVELS):
-                current = root + selections
-                try:
-                    folders = _cached_folders(tuple(current))
-                except Exception as error:
-                    st.warning(f"Could not list the folders here right now: {error}")
-                    break
-                if not folders:
-                    if level == 0:
-                        st.caption("No folders were found to choose from.")
-                    break
 
-                placeholder = PLACEHOLDER_TOP if level == 0 else PLACEHOLDER_HERE
-                options = [placeholder] + list(folders)
+            if not choice:
+                break
+            selections.append(choice)
 
-                if level > 0 and level % LEVELS_PER_ROW == 0:
-                    columns = st.columns(LEVELS_PER_ROW, gap="medium")
-                label = "Photo folder" if level == 0 else f"Subfolder (level {level})"
-                with columns[level % LEVELS_PER_ROW]:
-                    choice = st.selectbox(
-                        label, options, index=0, key=_level_key(level, current),
-                    )
-
-                if choice == placeholder:
-                    break
-                selections.append(choice)
-
-            path = (root + selections) if selections else []
-
+        path = (root + selections) if selections else []
         if selections:
             st.markdown(
                 f'<p class="source-path">Photos are read from: {html.escape(" / ".join(path))}</p>',
