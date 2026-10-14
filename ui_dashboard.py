@@ -20,8 +20,11 @@ The page has two parts, side by side in one card (see render_dashboard_view):
 They are separate because Streamlit does not let an auto-refreshing fragment draw
 widgets outside itself. The two share the widgets' values through st.session_state.
 (The sheet parsing itself lives in dashboard_data.py.)"""
+import io
 import html
 
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
 import streamlit as st
 
 import sharepoint_client
@@ -430,6 +433,92 @@ def _totals_lines(records, value_key, unit_key, decimals, trim):
     return [f"{_number_text(total, decimals, trim)} {unit}".strip() for unit, total in totals.items()]
 
 
+def _summary_to_excel_bytes(summary):
+    """Builds a clean, formatted Excel (.xlsx) file in memory from the Dimensions by defect
+    summary table, including the grand total rows for LM and SQ LM at the bottom."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Dimensions by Defect"
+
+    headers = [
+        "Defect Code", "Defect Type", "Defects",
+        "Total Dimension", "Unit",
+        "Total Repair Dimension", "Repair Unit",
+        "Missing Dimensions",
+    ]
+    ws.append(headers)
+
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 24
+
+    records = summary.to_dict("records")
+    for record in records:
+        tot_dim = record["Total Dimension"]
+        rep_dim = record["Total Repair Dimension"]
+        ws.append([
+            record["Defect Code"],
+            record["Defect Type"],
+            int(record["Defects"]),
+            round(float(tot_dim), 2) if tot_dim is not None and tot_dim == tot_dim else "",
+            record["Board Unit"] or "",
+            round(float(rep_dim), 2) if rep_dim is not None and rep_dim == rep_dim else "",
+            record["Repair Unit"] or "",
+            int(record["Missing Dimension"]),
+        ])
+        row_num = ws.max_row
+        ws.cell(row=row_num, column=4).number_format = "#,##0.00"
+        ws.cell(row=row_num, column=6).number_format = "#,##0.00"
+
+    # Append Grand Total rows per unit (LM and SQ LM)
+    ws.append([])
+    total_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    total_font = Font(name="Calibri", size=11, bold=True, color="0F172A")
+
+    for unit in ("LM", "SQ LM"):
+        unit_rows = [r for r in records if r["Repair Unit"] == unit or r["Board Unit"] == unit]
+        if not unit_rows:
+            continue
+        board_sum = sum(
+            float(r["Total Dimension"]) for r in unit_rows
+            if r["Board Unit"] == unit and r["Total Dimension"] is not None and r["Total Dimension"] == r["Total Dimension"]
+        )
+        repair_sum = sum(
+            float(r["Total Repair Dimension"]) for r in unit_rows
+            if r["Repair Unit"] == unit and r["Total Repair Dimension"] is not None and r["Total Repair Dimension"] == r["Total Repair Dimension"]
+        )
+        ws.append([
+            f"TOTAL ({unit})",
+            "",
+            sum(int(r["Defects"]) for r in unit_rows),
+            round(board_sum, 2),
+            unit,
+            round(repair_sum, 2),
+            unit,
+            sum(int(r["Missing Dimension"]) for r in unit_rows),
+        ])
+        row_num = ws.max_row
+        ws.cell(row=row_num, column=4).number_format = "#,##0.00"
+        ws.cell(row=row_num, column=6).number_format = "#,##0.00"
+        for col_idx in range(1, len(headers) + 1):
+            c = ws.cell(row=row_num, column=col_idx)
+            c.fill = total_fill
+            c.font = total_font
+
+    widths = {"A": 16, "B": 28, "C": 12, "D": 18, "E": 10, "F": 22, "G": 12, "H": 18}
+    for letter, width in widths.items():
+        ws.column_dimensions[letter].width = width
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def _dimension_table_html(records):
     """The per-defect table as plain HTML (see .dim-table in style.css), written without
     indentation so Markdown leaves it alone."""
@@ -458,10 +547,9 @@ def _dimension_table_html(records):
     )
 
 
-def _dimension_section(summary):
-    """A card with the total dimension and the total repair dimension of every defect code.
-    Both totals are shown in LM and SQ LM, and CC- is merged into C-. The LM and SQ LM
-    repair totals in the header are stacked on their own lines for clarity."""
+def _dimension_section(summary, scope="All"):
+    """A card with the total dimension and the total repair dimension of every defect code,
+    plus a Download button to export the table as an Excel (.xlsx) workbook."""
     records = summary.to_dict("records")
     repair_lines = _totals_lines(records, "Total Repair Dimension", "Repair Unit", 2, False)
     repair_html = "".join(
@@ -492,7 +580,21 @@ def _dimension_section(summary):
             "Board dimensions are converted from CM and CM² to LM and SQ LM. "
             "Repair dimensions are read from the Excel files (or calculated with the same formulas)."
         )
-        st.caption(" ".join(notes))
+
+        # Bottom row inside the card: caption on the left, Download Excel button on the right
+        foot_left, foot_right = st.columns([0.75, 0.25], gap="small")
+        with foot_left:
+            st.caption(" ".join(notes))
+        with foot_right:
+            safe_scope = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(scope)).strip("_") or "Summary"
+            st.download_button(
+                label="Download summary (.xlsx)",
+                data=_summary_to_excel_bytes(summary),
+                file_name=f"Dimensions_by_Defect_{safe_scope}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                key="download_dimensions_summary",
+            )
 
 
 def _chart_notes(df, hide_unknown):
@@ -743,7 +845,7 @@ def render_analytics_dashboard():
         with material_col:
             _chart_section(df, "Material", "Defects by material", hide_unknown)
         _chart_section(df, "Floor", "Defects by floor", hide_unknown)
-        _dimension_section(summary)
+        _dimension_section(summary, scope=scope)
 
     # Note about hidden unknown defects
     note = _chart_notes(df, hide_unknown)

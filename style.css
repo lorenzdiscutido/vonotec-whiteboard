@@ -136,6 +136,12 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-confirm_delete div.stButton > button:first-child:hover { background-color: #b91c1c !important; }
 .st-key-cancel_delete div.stButton > button:first-child { height: 36px !important; background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; width: auto !important; }
 .st-key-cancel_delete div.stButton > button:first-child p { color: #334155 !important; }
+/* Download summary (.xlsx) button inside the Dimensions by defect card */
+.st-key-download_dimensions_summary { display: flex !important; justify-content: flex-end !important; margin-top: 6px !important; }
+.st-key-download_dimensions_summary .stDownloadButton { width: auto !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child { height: 36px !important; padding: 0 14px !important; width: auto !important; background-color: #ffffff !important; border: 1px solid #cbd8ed !important; box-shadow: none !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child p { color: #1e3a8a !important; font-size: 12.5px !important; font-weight: 700 !important; white-space: nowrap !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child:hover { background-color: #f2f6fd !important; border-color: #2f5597 !important; }
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
 .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
 .st-key-action_buttons div[data-testid="stColumn"], .st-key-action_buttons div[data-testid="column"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
