@@ -351,11 +351,11 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 .rs-failed { color: #dc2626; }
 .rs-sep { color: #cbd5e1; }
 .rs-list { display: flex; flex-direction: column; gap: 6px; }
-.rs-row { background: #ffffff; border: 1px solid #e3e9ef; border-left-width: 3px; border-radius: 8px; padding: 0; }
-.rs-row-added { border-left-color: #16865b; }
-.rs-row-review { border-left-color: #f97316; background: #fffaf5; }
-.rs-row-skipped { border-left-color: #94a3b8; }
-.rs-row-failed { border-left-color: #dc2626; background: #fff7f7; }
+.rs-row { background: #ffffff; border: 1px solid #e3e9ef; border-radius: 8px; padding: 0; }
+.rs-row-added { background: #f3fbf7; border-color: #d1fae5; }
+.rs-row-review { background: #fffaf5; border-color: #fed7aa; }
+.rs-row-skipped { background: #f8fafc; border-color: #e2e8f0; }
+.rs-row-failed { background: #fff7f7; border-color: #fecaca; }
 .rs-head { display: flex; align-items: center; gap: 9px; padding: 8px 10px; list-style: none; cursor: default; }
 details.rs-row > summary.rs-head { cursor: pointer; }
 details.rs-row > summary::-webkit-details-marker { display: none; }
