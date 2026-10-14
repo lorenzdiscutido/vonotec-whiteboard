@@ -8,13 +8,15 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 
-from config import REFERENCE_DATA, REFERENCE_SHEET_COLUMNS, MATERIAL_RULES
-from defect_rules import BOARD_UNITS, repair_rule
+from config import (
+    REFERENCE_DATA, REFERENCE_SHEET_COLUMNS, MATERIAL_RULES,
+    F_CRACK, F_SURFACE, F_PAINT, F_GASKET, F_SEALANT,
+)
 from gemini_client import MATERIALS, VALID_CODES
 from image_utils import prepare_excel_image
 
-# The Reference Data sheet range used by the lookup formulas (column F = Repair Limit)
-REFERENCE_RANGE = "'Reference Data'!$A:$F"
+# The Reference Data sheet range used by the lookup formulas (columns A-H: descriptions + units)
+REFERENCE_RANGE = "'Reference Data'!$A:$H"
 
 
 # ---------------------------------------------------------------------------
@@ -22,12 +24,19 @@ REFERENCE_RANGE = "'Reference Data'!$A:$F"
 # ---------------------------------------------------------------------------
 
 def _populate_reference_sheet(wb):
-    ws_ref = wb.create_sheet(title="Reference Data")
+    """Creates or refreshes the Reference Data sheet with columns A-H so VLOOKUP
+    formulas on Whiteboard Data can dynamically resolve units as well as causes/repairs."""
+    if "Reference Data" in wb.sheetnames:
+        ws_ref = wb["Reference Data"]
+        ws_ref.delete_rows(1, ws_ref.max_row)
+    else:
+        ws_ref = wb.create_sheet(title="Reference Data")
+
     header_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
 
     for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
-        ws_ref.append(row_values[:REFERENCE_SHEET_COLUMNS])  # the app-only rule columns stay out of Excel
+        ws_ref.append(row_values[:REFERENCE_SHEET_COLUMNS])  # columns A-H go into Excel
         for col_idx in range(1, REFERENCE_SHEET_COLUMNS + 1):
             cell = ws_ref.cell(row=row_idx, column=col_idx)
             if row_idx == 1:
@@ -37,13 +46,13 @@ def _populate_reference_sheet(wb):
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
 
-    for letter, width in {"A": 15, "B": 26, "C": 24, "D": 45, "E": 40, "F": 18, "G": 15}.items():
+    for letter, width in {"A": 15, "B": 26, "C": 24, "D": 45, "E": 40, "F": 18, "G": 14, "H": 14}.items():
         ws_ref.column_dimensions[letter].width = width
     ws_ref.row_dimensions[1].height = 28
 
 
 # ---------------------------------------------------------------------------
-# Dimension helper
+# Dimension & Dynamic Formula helpers
 # ---------------------------------------------------------------------------
 
 def split_dimension(text):
@@ -59,6 +68,49 @@ def split_dimension(text):
     if number.is_integer():
         number = int(number)
     return number, (match.group(2) or "").upper()
+
+
+def _base_code_expr(row):
+    """Excel expression that extracts the first word (base defect code) from $G{row}."""
+    return f'LEFT(TRIM($G{row}), FIND(" ", TRIM($G{row})&" ") - 1)'
+
+
+def _modifier_expr(row):
+    """Excel expression that extracts the second word (location modifier, if any) from $G{row},
+    removing any hyphen (so C-F becomes CF)."""
+    trimmed = f"TRIM($G{row})"
+    return f'SUBSTITUTE(TRIM(MID({trimmed}, FIND(" ", {trimmed}&" ") + 1, 20)), "-", "")'
+
+
+def _dynamic_repair_formula(row):
+    """Builds a live Excel formula for Repair Dimension (Column O) that watches both
+    $G{row} (Damage) and $H{row} (Dimension):
+    - If $G{row} is cleared/empty OR $H{row} is not a number, returns "" (blank).
+    - If $G{row} is edited or typed manually (e.g. C-, US, DP, DG, DS CC, MS FG),
+      automatically applies that defect code's repair formula and repair limit."""
+    h_cell = f"$H{row}"
+    base = _base_code_expr(row)
+    mod = _modifier_expr(row)
+
+    crack_expr = F_CRACK.format(h=h_cell)
+    surface_expr = F_SURFACE.format(h=h_cell)
+    paint_expr = F_PAINT.format(h=h_cell)
+    gasket_expr = F_GASKET.format(h=h_cell)
+    sealant_plain = F_SEALANT.format(h=h_cell)
+
+    # Dynamic VLOOKUP for sealant location modifier limit (falls back to plain sealant formula if no modifier)
+    mod_limit = f"VLOOKUP({mod}, {REFERENCE_RANGE}, 6, FALSE)"
+    sealant_with_mod = f"MROUND(MIN(({h_cell}*8/100), {mod_limit}), 0.05)"
+    sealant_expr = f"IFERROR({sealant_with_mod}, {sealant_plain})"
+
+    return (
+        f'=IF(OR(TRIM($G{row})="", NOT(ISNUMBER({h_cell}))), "", '
+        f'IF(OR({base}="CC-", {base}="C-", {base}="CC+", {base}="C+"), {crack_expr}, '
+        f'IF(OR({base}="BH", {base}="US"), {surface_expr}, '
+        f'IF(OR({base}="DP", {base}="FP", {base}="BP"), {paint_expr}, '
+        f'IF({base}="DG", {gasket_expr}, '
+        f'IF(OR({base}="DS", {base}="MS"), {sealant_expr}, ""))))))'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -170,35 +222,36 @@ def _write_data_row(ws, row, g_val, h_val, material, flagged_materials, lay):
 
     parts = str(g_val).split() if g_val else []
     base_code = parts[0] if parts else ""
+    lookup = _base_code_expr(row)
 
-    # Dimension: a real number, with the unit (from the defect code) in its own cell
+    # Column H (Dimension): plain manual-entry cell (no formula), with dynamic Unit formula in Column I
     if lay.has_unit_col:
         number, _ = split_dimension(h_val)
         ws.cell(row=row, column=8).value = number
-        ws.cell(row=row, column=lay.unit_col).value = BOARD_UNITS.get(base_code, "")
+        ws.cell(row=row, column=lay.unit_col).value = (
+            f'=IF(TRIM($G{row})="", "", IFERROR(VLOOKUP({lookup}, {REFERENCE_RANGE}, 7, FALSE), ""))'
+        )
     else:
         ws.cell(row=row, column=8).value = h_val
 
-    # Lookup columns (cause, justification, repair, findings)
-    lookup = f'LEFT($G{row}, FIND(" ", $G{row}&" ") - 1)'
+    # Lookup columns K-N (cause, justification, repair, findings) watching $G{row}
     for offset, vlookup_col in ((1, 3), (2, 4), (3, 5), (4, 2)):
         ws.cell(row=row, column=lay.photo_col + offset).value = (
-            f'=IFERROR(VLOOKUP({lookup}, {REFERENCE_RANGE}, {vlookup_col}, FALSE), "")'
+            f'=IF(TRIM($G{row})="", "", IFERROR(VLOOKUP({lookup}, {REFERENCE_RANGE}, {vlookup_col}, FALSE), ""))'
         )
 
-    # Repair dimension + unit
-    repair_formula, repair_unit = "", ""
-    if parts and lay.has_unit_col:
-        h_cell = f"$H{row}"
-        raw_formula, repair_unit = repair_rule(parts, h_cell)
-        if raw_formula:
-            repair_formula = f'=IF(ISNUMBER({h_cell}), {raw_formula}, "")'
-
+    # Column O (Repair Dimension) & Column P (Repair Unit): dynamically linked to $G{row} and $H{row}
     cell_repair = ws.cell(row=row, column=lay.photo_col + 5)
-    cell_repair.value = repair_formula
-    if repair_formula:
+    cell_repair_unit = ws.cell(row=row, column=lay.photo_col + 6)
+    if lay.has_unit_col:
+        cell_repair.value = _dynamic_repair_formula(row)
         cell_repair.number_format = "0.00"
-    ws.cell(row=row, column=lay.photo_col + 6).value = repair_unit
+        cell_repair_unit.value = (
+            f'=IF(TRIM($G{row})="", "", IFERROR(VLOOKUP({lookup}, {REFERENCE_RANGE}, 8, FALSE), ""))'
+        )
+    else:
+        cell_repair.value = ""
+        cell_repair_unit.value = ""
 
     # Red font: the material was flagged, or the code doesn't belong in this row
     is_invalid = material in flagged_materials
@@ -216,8 +269,8 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
-        if "Reference Data" not in wb.sheetnames:
-            _populate_reference_sheet(wb)
+        # Always ensure Reference Data has the latest 8 columns (including Board Unit & Repair Unit)
+        _populate_reference_sheet(wb)
         lay = _layout(ws["J1"].value == "Whiteboard Photo")
     else:
         wb, ws = _create_master_workbook()

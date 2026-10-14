@@ -1,3 +1,4 @@
+# config.py
 INCOMING_FOLDER = r"C:\Users\Vonotec\OneDrive - Vonotec (1)\Automation"
 PROCESSED_LOG = "processed_files_log.txt"
 GEMINI_API_KEY = ""
@@ -40,9 +41,9 @@ F_SEALANT_WITH_LOCATION = (
 # ==========================================================================
 # REFERENCE DATA: one row per defect code.
 #
-# Columns A-F are copied into the "Reference Data" sheet of every Excel file
-# (the lookup formulas read them). Columns G onward are rules for the app only
-# and are NOT written to Excel:
+# Columns A-H are copied into the "Reference Data" sheet of every Excel file
+# so live VLOOKUP formulas can read both the descriptions (B-F) and units (G-H).
+# Columns I onward are rules for the app only and are NOT written to Excel:
 #   G Board Unit                     unit of the dimension written on the board
 #   H Repair Unit                    unit of the calculated repair dimension
 #   I Repair Formula                 template ("" = no calculated repair dimension)
@@ -50,7 +51,7 @@ F_SEALANT_WITH_LOCATION = (
 #                                    the defect (DS / MS only)
 # ==========================================================================
 
-REFERENCE_SHEET_COLUMNS = 6  # how many columns (from the left) go into the Excel sheet
+REFERENCE_SHEET_COLUMNS = 8  # Columns A-H (including Board Unit and Repair Unit) go into the Excel sheet
 
 # Placeholder for Glass-Frame / Frame unit rules until dimensions are enabled
 GLASS_FRAME_UNIT_PLACEHOLDER = ""
