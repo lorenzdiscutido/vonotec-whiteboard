@@ -46,7 +46,7 @@ _TOWER_PATTERN = re.compile(
 _TYPE_BY_CODE = {row[0]: row[1] for row in REFERENCE_DATA[1:]}
 
 # Sealant codes that carry location modifiers (CC, CF/FC -> CF, GG, FG/GF -> FG, FF)
-_SEALANT_CODES = {"DS", "MS"}
+_SEALANT_CODES = ("DS", "MS")
 _CANONICAL_MODIFIERS = {
     "CC": "CC",
     "CF": "CF",
@@ -75,19 +75,51 @@ def _base_code(code):
     return parts[0] if parts else ""
 
 
+def _clean_token(token):
+    return str(token or "").upper().strip()
+
+
+def _canonical_modifier(token):
+    """Returns the canonical sealant modifier ('CC', 'CF', 'GG', 'FG', 'FF') if `token` is one, else None."""
+    cleaned = _clean_token(token).replace("-", "")
+    return _CANONICAL_MODIFIERS.get(cleaned)
+
+
 def _normalize_defect_code(parts):
     """Normalizes raw damage tokens into the canonical Defect Code:
     - Merges CC- -> C- and FRAME -> GLASS-FRAME
+    - Handles slash-written sealant codes like 'DS/MS CC' or 'MS/DS CF' by picking the first sealant code
     - For DS and MS, attaches the canonical location modifier (CC, CF, GG, FG, FF),
-      mapping FC -> CF and GF -> FG."""
+      mapping FC -> CF and GF -> FG.
+    - Returns None if the row is a standalone location modifier (e.g. stray 'CC' or 'FC')."""
     if not parts:
-        return ""
-    base = _MERGED_DEFECT_CODES.get(parts[0].upper(), parts[0].upper())
-    if base in _SEALANT_CODES and len(parts) > 1:
-        raw_mod = parts[1].upper().replace("-", "")
-        mod = _CANONICAL_MODIFIERS.get(raw_mod)
-        if mod:
-            return f"{base} {mod}"
+        return None
+
+    first = _clean_token(parts[0])
+    # If written with a slash like "DS/MS" or "MS/DS", take the first valid sealant code
+    if "/" in first:
+        slash_parts = [p.strip() for p in first.split("/") if p.strip()]
+        if slash_parts and slash_parts[0] in _SEALANT_CODES:
+            first = slash_parts[0]
+
+    # Standalone location modifier (e.g. stray "CC" or "FC" row from an older split)
+    if _canonical_modifier(first) is not None and len(parts) == 1:
+        return None
+
+    # Handle compact strings like "DSCC", "MSCF", "MSFC"
+    for s_code in _SEALANT_CODES:
+        if first.startswith(s_code) and len(first) > len(s_code):
+            mod = _canonical_modifier(first[len(s_code):])
+            if mod:
+                return f"{s_code} {mod}"
+
+    base = _MERGED_DEFECT_CODES.get(first, first)
+    if base in _SEALANT_CODES:
+        for token in parts[1:]:
+            mod = _canonical_modifier(token)
+            if mod:
+                return f"{base} {mod}"
+        return base
     return base
 
 
@@ -203,7 +235,30 @@ def parse_workbook(path, folder_label, filename):
                 continue
 
             parts = damage_text.split()
+
+            # Check if this row is a stray standalone sealant location modifier (e.g. "CC" or "FC"
+            # that an older batch split onto the row right below "DS" or "MS").
+            if len(parts) == 1 and _canonical_modifier(parts[0]) is not None:
+                mod = _canonical_modifier(parts[0])
+                if (
+                    rows
+                    and rows[-1]["Material"] == material
+                    and rows[-1]["Defect Code"] in _SEALANT_CODES
+                ):
+                    # Re-attach this modifier to the preceding bare DS or MS row and recalculate repair
+                    prev = rows[-1]
+                    prev["Defect Code"] = f"{prev['Defect Code']} {mod}"
+                    recalc_repair, recalc_unit = calculate_repair(prev["Defect Code"].split(), prev["Dimension"])
+                    if recalc_repair is not None:
+                        prev["Repair Dimension"] = recalc_repair
+                    if recalc_unit:
+                        prev["Repair Unit"] = recalc_unit
+                # Never add a standalone modifier ("CC", "FC", etc.) as its own defect row
+                continue
+
             code = _normalize_defect_code(parts)
+            if not code:
+                continue
             base = _base_code(code)
 
             # Glass-Frame / Frame has no dimensions (uses placeholder None)
@@ -216,7 +271,8 @@ def parse_workbook(path, folder_label, filename):
                 repair = _number(cells[repair_at])
                 repair_unit = _text(cells[repair_at + 1])
                 if repair is None:
-                    repair, calculated_unit = calculate_repair(parts, number)
+                    # Use normalized code tokens so DS/MS + canonical modifier always calculates a repair dimension
+                    repair, calculated_unit = calculate_repair(code.split(), number)
                     repair_unit = repair_unit or calculated_unit
 
             rows.append({
@@ -346,7 +402,8 @@ def dimension_by_defect(df):
     """One row per defect code:
     - Merges CC- into C-
     - Merges FRAME into GLASS-FRAME and suppresses its dimensions (placeholder None, not shown in dashboard)
-    - Splits DS and MS by canonical location modifier (CC, CF [including FC], GG, FG [including GF], FF)
+    - Always includes all 5 location modifiers (CC, CF, GG, FG, FF) for both DS and MS when Sealant is included
+    - Drops any stray standalone location modifier rows (CC, FC, etc.)
     - Converts board dimensions from CM / CM² to LM / SQ LM."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
@@ -355,20 +412,52 @@ def dimension_by_defect(df):
     work_df["Defect Code"] = work_df["Defect Code"].apply(
         lambda c: _normalize_defect_code(str(c or "").split())
     )
+    # Remove any stray standalone modifiers that returned None
+    work_df = work_df[work_df["Defect Code"].notna() & (work_df["Defect Code"] != "")]
+
+    grouped = {code: group for code, group in work_df.groupby("Defect Code", sort=False)}
+
+    # Ensure all 5 location modifiers (CC, CF, GG, FG, FF) are always listed for DS and MS
+    # whenever Sealant defects are present in the filtered data
+    has_sealant = (work_df["Material"] == "Sealant").any() or any(
+        _base_code(c) in _SEALANT_CODES for c in grouped
+    )
+    all_codes = set(grouped.keys())
+    if has_sealant:
+        for s_code in _SEALANT_CODES:
+            for mod in _MODIFIER_ORDER:
+                all_codes.add(f"{s_code} {mod}")
 
     rows = []
-    for code, group in work_df.groupby("Defect Code", sort=False):
+    for code in all_codes:
         base = _base_code(code)
+        group = grouped.get(code)
 
         if code in _NO_DIMENSION_DASHBOARD_CODES:
             rows.append({
                 "Defect Code": code,
                 "Defect Type": _TYPE_BY_CODE.get(base, "") or UNKNOWN,
-                "Defects": len(group),
+                "Defects": len(group) if group is not None else 0,
                 "Board Unit": "",
                 "Total Dimension": GLASS_FRAME_DIMENSION_PLACEHOLDER,
                 "Repair Unit": "",
                 "Total Repair Dimension": GLASS_FRAME_DIMENSION_PLACEHOLDER,
+                "Missing Dimension": 0,
+            })
+            continue
+
+        if group is None or group.empty:
+            # 0-count row for a DS/MS location modifier that had no occurrences in this batch/filter
+            _, display_board_unit = _convert_board_dimension(0.0, BOARD_UNITS.get(base, "CM"))
+            display_repair_unit = _normalize_repair_unit(REPAIR_UNITS.get(base, "L.M."))
+            rows.append({
+                "Defect Code": code,
+                "Defect Type": _TYPE_BY_CODE.get(base, "") or UNKNOWN,
+                "Defects": 0,
+                "Board Unit": display_board_unit,
+                "Total Dimension": 0.0,
+                "Repair Unit": display_repair_unit,
+                "Total Repair Dimension": 0.0,
                 "Missing Dimension": 0,
             })
             continue

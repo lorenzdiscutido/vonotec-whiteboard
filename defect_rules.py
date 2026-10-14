@@ -28,6 +28,17 @@ _REPAIR_RULES = {
     for row in REFERENCE_DATA[1:]
 }
 
+# Standardize sealant location modifiers so FC uses CF and GF uses FG
+_MODIFIER_ALIASES = {
+    "CC": "CC",
+    "CF": "CF",
+    "FC": "CF",
+    "GG": "GG",
+    "FG": "FG",
+    "GF": "FG",
+    "FF": "FF",
+}
+
 
 def _build_defect_units():
     """(material, [codes], unit) groups, used by the Gemini prompt and the unit fixer.
@@ -50,10 +61,11 @@ def repair_rule(parts, h_cell):
     `parts` is the damage text split into words ('DS CC' -> ['DS', 'CC']) and
     `h_cell` is the cell holding the board dimension. The formula is "" when the
     defect has no calculated repair dimension."""
-    code = parts[0]
+    code = parts[0].upper() if parts else ""
     unit, formula, formula_with_location = _REPAIR_RULES.get(code, ("", "", ""))
 
-    modifier = parts[1] if len(parts) > 1 else None
+    raw_mod = parts[1].upper().replace("-", "") if len(parts) > 1 else None
+    modifier = _MODIFIER_ALIASES.get(raw_mod) if raw_mod else None
     if modifier and formula_with_location:
         return formula_with_location.format(h=h_cell, modifier=modifier), unit
     return (formula.format(h=h_cell) if formula else ""), unit
@@ -72,10 +84,6 @@ _REPAIR_LIMITS = {
 # ---------------------------------------------------------------------------
 # The repair formulas, worked out in Python
 # ---------------------------------------------------------------------------
-# The Excel files hold the repair formulas, but a file that was never opened in Excel has no
-# saved result for them. The dashboard then works the result out here, from the SAME formula
-# text in config.py, so a formula is still edited in one place only. Only the three Excel
-# functions those formulas use are needed: ROUNDUP, MROUND and IF.
 
 _LIMIT_LOOKUP = re.compile(r"VLOOKUP\(\"([^\"]+)\",\s*'Reference Data'!\$A:\$F,\s*6,\s*FALSE\)")
 
@@ -106,9 +114,8 @@ _EXCEL_FUNCTIONS = {
 def calculate_repair(parts, number):
     """Python twin of the Excel repair formula: returns (repair_dimension, repair_unit).
     `parts` is the damage text split into words ('DS CC' -> ['DS', 'CC']) and `number` the
-    board dimension as a number. The dimension is None when there is nothing to calculate
-    (no formula for this defect, no dimension, or a location code that has no limit)."""
-    code = parts[0] if parts else ""
+    board dimension as a number."""
+    code = parts[0].upper() if parts else ""
     unit = REPAIR_UNITS.get(code, "")
     if not parts or number is None:
         return None, unit
@@ -121,4 +128,4 @@ def calculate_repair(parts, number):
         value = eval(expression, {"__builtins__": {}}, _EXCEL_FUNCTIONS)  # config.py text + numbers only
         return round(float(value), 2), unit
     except (KeyError, ArithmeticError, SyntaxError, NameError, TypeError, ValueError):
-        return None, unit  # Excel would show an error here too
+        return None, unit

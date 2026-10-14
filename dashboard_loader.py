@@ -25,12 +25,15 @@ from settings import ENABLE_SHAREPOINT_SYNC
 # What the Folder column shows for files that sit directly in the landing folder
 MAIN_FOLDER_COLUMN = "(Main folder)"
 
+# Bump this whenever dashboard_data.py parsing rules change so in-memory cached files re-parse automatically
+PARSER_VERSION = 3
+
 # A new background check starts at most this often, however many clicks happen
 WARMUP_MIN_GAP_SECONDS = 60
 # Files read at the same time during the warm-up (kept small to be kind to SharePoint)
 WARMUP_WORKERS = 4
 
-# (subfolder, filename, modified) -> (rows, error_text)
+# (subfolder, filename, modified, PARSER_VERSION) -> (rows, error_text)
 _store = {}
 _store_lock = threading.Lock()
 _key_locks = {}  # one lock per file version, so two readers never download the same file twice
@@ -46,7 +49,7 @@ _warm_lock = threading.Lock()
 def is_loaded(subfolder, filename, modified):
     """True if this version of the file is already in memory."""
     with _store_lock:
-        return (subfolder, filename, modified) in _store
+        return (subfolder, filename, modified, PARSER_VERSION) in _store
 
 
 def _download_and_parse(subfolder, filename):
@@ -65,7 +68,7 @@ def get_file_rows(subfolder, filename, modified):
     """The defect rows of one batch file, as (rows, error_text). Downloads the
     file only if this version isn't in memory yet; if the warm-up is downloading
     it right now, waits for that instead of downloading it a second time."""
-    key = (subfolder, filename, modified)
+    key = (subfolder, filename, modified, PARSER_VERSION)
     with _store_lock:
         if key in _store:
             return _store[key]
@@ -104,7 +107,7 @@ def _warm_up():
         with ThreadPoolExecutor(max_workers=WARMUP_WORKERS) as pool:
             list(pool.map(_load_one, keys))
 
-        current = set(keys)
+        current = {(sub, name, mod, PARSER_VERSION) for sub, name, mod in keys}
         with _store_lock:
             for stale in [k for k in _store if k not in current]:
                 del _store[stale]
