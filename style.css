@@ -56,9 +56,8 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 /* ---------- Inner Cards ---------- */
 .st-key-save_settings, .st-key-save_settings_muted, .st-key-file_card, [class*="st-key-chart_"] { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 10px !important; }
 .st-key-save_settings, .st-key-save_settings_muted { padding: 14px 16px !important; margin-top: 12px !important; }
-/* Step 1 not done yet: Save settings is muted but still editable */
-.st-key-save_settings_muted { opacity: 0.55; background: #f8fafc !important; transition: opacity .2s ease; }
-.st-key-save_settings_muted:hover, .st-key-save_settings_muted:focus-within { opacity: 0.85; }
+/* Step 1 not done yet: Save settings is strictly locked until photos or a SharePoint folder are chosen */
+.st-key-save_settings_muted { opacity: 0.5 !important; background: #f8fafc !important; pointer-events: none !important; user-select: none !important; transition: opacity .2s ease; }
 .st-key-file_card { padding: 14px 16px !important; margin-top: 18px !important; }
 [class*="st-key-chart_"] { border-radius: 9px !important; box-shadow: 0 2px 10px rgba(30,58,138,.025); padding: 8px 6px 4px; }
 

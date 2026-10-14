@@ -1,13 +1,12 @@
 # ui_source_browser.py
-"""The folder browser used by "Process from SharePoint", drawn as one card:
+"""The folder browser used by "Import from SharePoint", drawn as one card:
 a header (folder icon, title, Connected status), the SharePoint site and a
 cascading "Photo folder" drill-down (each choice opens a selector for the
 folders inside it, as deep as the folders go), and a footer that says how many
 photos the chosen folder holds and when that was last checked.
 
-It is separate from the "Save settings" folder, which is only where the Excel
-file goes. The last location used is remembered in user_prefs.json (saved by
-app.py when a batch starts) and pre-fills the selectors the next time."""
+Starts with no folder selected ("Select a folder...") so Step 1 -> Step 2
+progressive disclosure is strictly respected."""
 import hashlib
 import html
 import time
@@ -53,14 +52,6 @@ def _cached_photo_count(path, recursive):
     return len(images), len({image["folder"] for image in images}), time.time()
 
 
-def _saved_path():
-    """The last photo folder used, from user_prefs.json (a list of folder names), or []."""
-    saved = load_prefs().get("photo_source_path")
-    if not isinstance(saved, list):
-        return []
-    return [part for part in saved if isinstance(part, str)]
-
-
 def _level_key(level, current_path):
     """A selector's widget key includes the folders above it, so when a higher
     selector changes, every selector below it starts fresh instead of keeping a
@@ -101,11 +92,13 @@ def _site_box_html():
     )
 
 
-def _footer_html(path, has_selection, recursive):
+def _footer_html_and_count(path, has_selection, recursive):
+    """Returns (footer_html, photo_count)."""
     if not has_selection:
         return (
             '<div class="source-footer"><span class="source-count">'
-            f'{_ICON_IMAGE}Choose a folder above to see how many photos it holds.</span></div>'
+            f'{_ICON_IMAGE}Choose a folder above to see how many photos it holds.</span></div>',
+            0,
         )
     try:
         with st.spinner("Counting photos..."):
@@ -113,7 +106,8 @@ def _footer_html(path, has_selection, recursive):
     except Exception:
         return (
             '<div class="source-footer"><span class="source-count">'
-            f'{_ICON_IMAGE}Could not count the photos right now.</span></div>'
+            f'{_ICON_IMAGE}Could not count the photos right now.</span></div>',
+            0,
         )
 
     if count == 0:
@@ -125,19 +119,18 @@ def _footer_html(path, has_selection, recursive):
     return (
         '<div class="source-footer">'
         f'<span class="source-count">{_ICON_IMAGE}{label}</span>'
-        f'<span class="source-updated">Last updated {_ago(counted_at)}</span></div>'
+        f'<span class="source-updated">Last updated {_ago(counted_at)}</span></div>',
+        count,
     )
 
 
 def render_source_browser():
-    """Draws the folder card. Returns (folder_path, include_subfolders): the chosen
-    folder as a list of folder names from the top of the document library ([] if
-    none is chosen yet), and whether photos in the folders below it should be
-    included too."""
+    """Draws the folder card. Returns (folder_path, include_subfolders, photo_count):
+    the chosen folder as a list of folder names from the top of the document library
+    ([] if none is chosen yet), whether photos in subfolders are included, and how many
+    photos were found in the selection."""
     prefs = load_prefs()
     root = _root()
-    saved = _saved_path()
-    saved_below_root = saved[len(root):] if saved[:len(root)] == root else []
     include_subfolders = bool(prefs.get("include_subfolders", False))
 
     # Reaching the top-level folder list is what "Connected" means
@@ -153,7 +146,7 @@ def render_source_browser():
 
         if connection_error is not None:
             st.warning(f"Could not reach SharePoint right now: {connection_error}")
-            return [], include_subfolders
+            return [], include_subfolders, 0
 
         columns = st.columns(LEVELS_PER_ROW, gap="medium")
         with columns[0]:
@@ -174,28 +167,20 @@ def render_source_browser():
             placeholder = PLACEHOLDER_TOP if level == 0 else PLACEHOLDER_HERE
             options = [placeholder] + list(folders)
 
-            # Pre-fill from the remembered location, but only while it still matches
-            # what is chosen above this selector and the folder still exists.
-            default_index = 0
-            if (saved_below_root[:level] == selections
-                    and level < len(saved_below_root)
-                    and saved_below_root[level] in folders):
-                default_index = options.index(saved_below_root[level])
-
             slot = level + 1  # slot 0 is the SharePoint site box
             if slot % LEVELS_PER_ROW == 0:
                 columns = st.columns(LEVELS_PER_ROW, gap="medium")
             label = "Photo folder" if level == 0 else f"Subfolder (level {level})"
             with columns[slot % LEVELS_PER_ROW]:
                 choice = st.selectbox(
-                    label, options, index=default_index, key=_level_key(level, current),
+                    label, options, index=0, key=_level_key(level, current),
                 )
 
             if choice == placeholder:
                 break
             selections.append(choice)
 
-        path = root + selections
+        path = (root + selections) if selections else []
         if selections:
             st.markdown(
                 f'<p class="source-path">Photos are read from: {html.escape(" / ".join(path))}</p>',
@@ -210,6 +195,7 @@ def render_source_browser():
                  "(up to 300 folders).",
         )
 
-        st.markdown(_footer_html(path, bool(selections), include_subfolders), unsafe_allow_html=True)
+        footer_html, photo_count = _footer_html_and_count(path, bool(selections), include_subfolders)
+        st.markdown(footer_html, unsafe_allow_html=True)
 
-    return path, include_subfolders
+    return path, include_subfolders, photo_count

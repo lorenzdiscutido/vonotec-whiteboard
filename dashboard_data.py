@@ -244,6 +244,11 @@ def count_by(df, column):
 # Defect codes in the order of the Reference Data sheet, so tables list them the way people know them
 _CODE_ORDER = {code: position for position, code in enumerate(_TYPE_BY_CODE)}
 
+# Merge equivalent defect codes in the dashboard summary table (CC- -> C-)
+_MERGED_DEFECT_CODES = {
+    "CC-": "C-",
+}
+
 DEFECT_SUMMARY_COLUMNS = [
     "Defect Code", "Defect Type", "Defects", "Board Unit", "Total Dimension",
     "Repair Unit", "Total Repair Dimension", "Missing Dimension",
@@ -259,26 +264,62 @@ def _most_common_text(values):
     return max(counts, key=counts.get) if counts else ""
 
 
+def _convert_board_dimension(total_value, raw_unit):
+    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQ LM (/ 10,000)."""
+    unit_clean = (raw_unit or "").upper().strip()
+    if total_value is None:
+        if unit_clean == "CM":
+            return None, "LM"
+        if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
+            return None, "SQ LM"
+        return None, raw_unit
+
+    if unit_clean == "CM":
+        return float(total_value) / 100.0, "LM"
+    if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
+        return float(total_value) / 10000.0, "SQ LM"
+    return float(total_value), raw_unit
+
+
+def _normalize_repair_unit(raw_unit):
+    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQ LM) so both columns match."""
+    unit_clean = (raw_unit or "").upper().strip()
+    if unit_clean in ("L.M.", "L.M", "LM"):
+        return "LM"
+    if unit_clean in ("SQ.M.", "SQ.M", "SQM", "SQ M", "SQ LM", "SQ.L.M."):
+        return "SQ LM"
+    return raw_unit
+
+
 def dimension_by_defect(df):
     """One row per defect code (not per material): how many defects, the total dimension written
-    on the boards and the total repair dimension. The two totals are in different units (CM and
-    L.M., or CM\u00b2 and SQ.M.), so each row carries its own units. A total is None when no
-    defect of that code has one (NP and BG are written without a dimension).
-    'Missing Dimension' counts defects that should have had a dimension but have none."""
+    on the boards (converted from CM / CM² to LM / SQ LM) and the total repair dimension.
+    Merges CC- into C- so both Minor Concrete Crack codes appear as one combined row."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
 
+    work_df = df.copy()
+    work_df["Defect Code"] = work_df["Defect Code"].replace(_MERGED_DEFECT_CODES)
+
     rows = []
-    for code, group in df.groupby("Defect Code", sort=False):
+    for code, group in work_df.groupby("Defect Code", sort=False):
         dimensions = group["Dimension"].dropna()
         repairs = group["Repair Dimension"].dropna()
+
+        raw_board_unit = _most_common_text(group["Unit"]) or BOARD_UNITS.get(code, "")
+        raw_board_total = float(dimensions.sum()) if len(dimensions) else None
+        converted_board_total, display_board_unit = _convert_board_dimension(raw_board_total, raw_board_unit)
+
+        raw_repair_unit = _most_common_text(group["Repair Unit"]) or REPAIR_UNITS.get(code, "")
+        display_repair_unit = _normalize_repair_unit(raw_repair_unit)
+
         rows.append({
             "Defect Code": code,
             "Defect Type": _TYPE_BY_CODE.get(code, "") or UNKNOWN,
             "Defects": len(group),
-            "Board Unit": _most_common_text(group["Unit"]) or BOARD_UNITS.get(code, ""),
-            "Total Dimension": float(dimensions.sum()) if len(dimensions) else None,
-            "Repair Unit": _most_common_text(group["Repair Unit"]) or REPAIR_UNITS.get(code, ""),
+            "Board Unit": display_board_unit,
+            "Total Dimension": converted_board_total,
+            "Repair Unit": display_repair_unit,
             "Total Repair Dimension": float(repairs.sum()) if len(repairs) else None,
             "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(code) else 0,
         })

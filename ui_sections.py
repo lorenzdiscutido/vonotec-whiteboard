@@ -182,11 +182,6 @@ def status_message(text):
 # Uploader: hide the empty-state chrome once photos are chosen
 # ---------------------------------------------------------------------------
 
-# Injected only while at least one photo is selected. It hides the round upload icon
-# (::before), the "PNG or JPG ..." text (::after) and the instruction text, and turns the
-# native browse button (which style.css stretches invisibly over the whole empty box)
-# into a small "+ Add more" button, so more photos can still be added. The chips' own
-# delete (x) and pagination buttons are not touched.
 _UPLOADER_FILLED_CSS = (
     "<style>"
     "[data-testid='stFileUploaderDropzone']::before, "
@@ -225,14 +220,11 @@ PREVIEW_PIXELS = 240      # longest side of a thumbnail
 
 @st.cache_data(show_spinner=False, max_entries=300)
 def _thumbnail_bytes(name, size, file_id, _data):
-    """A small JPEG of one uploaded photo, or None if it can't be read. Phone
-    photos are large, so only this small copy is sent to the browser. It is made
-    once per photo: the cache is keyed by name, size and id; the photo's own bytes
-    (_data, underscore = not part of the key) are only used the first time."""
+    """A small JPEG of one uploaded photo, or None if it can't be read."""
     try:
         with Image.open(io.BytesIO(_data)) as img:
-            img.draft("RGB", (PREVIEW_PIXELS * 2, PREVIEW_PIXELS * 2))  # fast, rough decode for JPEGs
-            img = ImageOps.exif_transpose(img)  # phones store "rotated" photos with a flag
+            img.draft("RGB", (PREVIEW_PIXELS * 2, PREVIEW_PIXELS * 2))
+            img = ImageOps.exif_transpose(img)
             img.thumbnail((PREVIEW_PIXELS, PREVIEW_PIXELS))
             out = io.BytesIO()
             img.convert("RGB").save(out, format="JPEG", quality=80)
@@ -252,8 +244,7 @@ def _format_size(num_bytes):
 
 
 def render_photo_previews(uploaded_files):
-    """A count and a grid of small previews of the selected photos, so people can
-    check they picked the right ones before extracting."""
+    """A count and a grid of small previews of the selected photos."""
     if not uploaded_files:
         return
 
@@ -272,8 +263,6 @@ def render_photo_previews(uploaded_files):
                     else:
                         st.caption("(no preview)")
 
-    # Every photo is shown. More than one row scrolls inside a fixed-height box,
-    # so a big batch doesn't make the page endlessly long.
     if len(photos) > PREVIEW_COLUMNS:
         with st.container(height=PREVIEW_SCROLL_HEIGHT, border=False, key="thumbnail_scroll_gallery"):
             draw_grid()
@@ -286,8 +275,7 @@ def render_photo_previews(uploaded_files):
 # ---------------------------------------------------------------------------
 
 def refresh_folder_list():
-    """Reads the current subfolders from SharePoint. On failure the app carries
-    on with an empty list (main folder + creating a new folder still work)."""
+    """Reads the current subfolders from SharePoint."""
     try:
         st.session_state.sp_folders = sharepoint_client.list_subfolders()
         st.session_state.sp_folders_error = False
@@ -297,8 +285,8 @@ def refresh_folder_list():
         st.session_state.sp_folders_error = True
 
 
-def render_folder_picker():
-    """Returns (folder_choice, new_folder_raw)."""
+def render_folder_picker(disabled=False):
+    """Returns (folder_choice, new_folder_raw). Locked when `disabled=True` (before Step 1 is done)."""
     if not ENABLE_SHAREPOINT_SYNC:
         return MAIN_FOLDER_LABEL, ""
 
@@ -318,11 +306,16 @@ def render_folder_picker():
         options,
         index=options.index(default) if default in options else 0,
         key="folder_choice_input",
+        disabled=disabled,
     )
 
     new_folder_raw = ""
     if folder_choice == NEW_FOLDER_LABEL:
-        new_folder_raw = st.text_input("Name for the new folder", key="new_folder_name_input")
+        new_folder_raw = st.text_input(
+            "Name for the new folder",
+            key="new_folder_name_input",
+            disabled=disabled,
+        )
     return folder_choice, new_folder_raw
 
 
@@ -335,7 +328,6 @@ def resolve_subfolder(folder_choice, new_folder_raw):
         typed = sharepoint_client.sanitize_folder_name(new_folder_raw)
         if not typed:
             return "", False, "Please enter a name for the new folder before extracting."
-        # A name matching an existing folder (ignoring capitals) just uses that folder
         match = next((f for f in st.session_state.sp_folders if f.lower() == typed.lower()), None)
         return (match or typed), match is None, None
 
@@ -360,50 +352,47 @@ PROCESS_VERB = "Extract"
 
 def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, batch_name_raw, remote):
     """Returns (photos_missing, destination_missing): a short sentence for each thing that is
-    still missing, or "" when it is fine. The Process button stays disabled until both are ""."""
+    still missing, or "" when it is fine. The Extract button stays disabled until both are ""."""
     photos_missing = ""
-    if remote and not source_chosen:
-        photos_missing = "Select a SharePoint folder to continue"
-    elif not remote and not photo_count:
-        photos_missing = "Add at least one photo to continue"
+    if remote:
+        if not source_chosen:
+            photos_missing = "Select a SharePoint folder to continue."
+        elif photo_count <= 0:
+            photos_missing = "No whiteboard photos found in the selected folder."
+    else:
+        if photo_count <= 0:
+            photos_missing = "Upload at least one whiteboard photo to continue."
+
     destination_missing = ""
     if folder_choice == NEW_FOLDER_LABEL and not (new_folder_raw or "").strip():
-        destination_missing = "Enter a name for the new folder"
+        destination_missing = "Enter a name for the new folder."
     elif not (batch_name_raw or "").strip():
-        destination_missing = "Enter a batch name"
+        destination_missing = "Enter a batch name to continue."
     return photos_missing, destination_missing
 
 
-def _process_label(photo_count, remote, running=False, done=False):
-    """The Extract button's text: "Extracting 24 photos..." while a batch runs, "Extract again"
-    once one has finished, otherwise "Extract 24 photos" (or the generic text before any photo)."""
+def _process_label(photo_count, source_chosen, remote, running=False, done=False):
+    """Dynamic CTA button label following workflow progress."""
     if running:
-        if remote:
-            return "Extracting SharePoint photos\u2026"
         if photo_count:
-            return f"Extracting {photo_count} photo{'s' if photo_count != 1 else ''}\u2026"
+            return f"Extracting {photo_count:,} photo{'s' if photo_count != 1 else ''}\u2026"
         return "Extracting\u2026"
     if done:
         return "Extract again"
-    if remote:
-        return f"{PROCESS_VERB} SharePoint photos"  # the count is only known once the folder is listed
-    if photo_count:
-        return f"{PROCESS_VERB} {photo_count} photo{'s' if photo_count != 1 else ''}"
+    if remote and not source_chosen:
+        return "Select a folder to continue"
+    if not remote and photo_count <= 0:
+        return "Upload photos to continue"
+    if photo_count > 0:
+        return f"{PROCESS_VERB} {photo_count:,} photo{'s' if photo_count != 1 else ''}"
     return PROCESS_BUTTON_LABEL
 
 
-def render_action_buttons(photo_count=0, blocked_reason="", remote=False, running=False, done=False):
-    """The sticky action footer (style.css pins it to the bottom of the left panel): the
-    Process button, whose text carries the context ("Process 16 photos"), then a lower-emphasis
-    Clear button. The Process button is disabled while `blocked_reason` is not empty, and the
-    reason is shown above it. While `running` is True both buttons are disabled and the Extract
-    button reads "Extracting..."; `done` turns its text into "Extract again".
-    The primary action sits at the right edge, with Clear to its left.
-    Returns (process_clicked, clear_clicked)."""
+def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="", remote=False, running=False, done=False):
+    """The sticky action footer: primary action aligned to the right edge with requirement text above it."""
     with st.container(key="action_buttons"):
-        label = _process_label(photo_count, remote, running, done)
+        label = _process_label(photo_count, source_chosen, remote, running, done)
         process_disabled = bool(blocked_reason) or running
-        # A different key while running lets style.css show the disabled button more clearly
         if blocked_reason:
             st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
         if remote:
@@ -415,7 +404,12 @@ def render_action_buttons(photo_count=0, blocked_reason="", remote=False, runnin
         else:
             clear_col, process_col = st.columns(2, gap="small")
             with clear_col:
-                clear_clicked = st.button("Clear All Photos", type="primary", key="clear_photos", disabled=running)
+                clear_clicked = st.button(
+                    "Clear All Photos",
+                    type="primary",
+                    key="clear_photos",
+                    disabled=running or photo_count <= 0,
+                )
             with process_col:
                 process_clicked = st.button(
                     label, type="primary", key="extract_data_running" if running else "extract_data",
@@ -425,9 +419,7 @@ def render_action_buttons(photo_count=0, blocked_reason="", remote=False, runnin
 
 
 def file_management_title_html(label, folder):
-    """The heading of the file card: a small label over "Generated workbook", then the
-    batch name and folder (which can be long) in lighter gray. Both are escaped,
-    since they come from what people typed."""
+    """The heading of the file card."""
     folder_note = f' in folder "{html.escape(str(folder))}"' if folder else ""
     return (
         '<p class="eyebrow">File management</p>'

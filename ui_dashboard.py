@@ -1,3 +1,4 @@
+# ui_dashboard.py
 """The "Analytics Dashboard" tab: charts of defect frequency by Tower, Floor
 and Material (with the exact value on each bar), and a table of the total dimension and
 total repair dimension per defect, built by reading the batch Excel files straight from SharePoint.
@@ -256,7 +257,7 @@ def _largest_by_unit(records, value_key, unit_key):
 
 
 def _totals_text(records, value_key, unit_key, decimals, trim):
-    """'123.45 L.M. · 56.78 SQ.M.': the grand total of a column, one figure per unit."""
+    """'123.45 LM · 56.78 SQ LM': the grand total of a column, one figure per unit."""
     totals = {}
     for record in records:
         value = record[value_key]
@@ -279,7 +280,7 @@ def _dimension_table_html(records):
             f'<td class="dim-count">{record["Defects"]:,}</td>'
             '<td class="dim-cell">'
             + _dimension_cell(record["Total Dimension"], record["Board Unit"],
-                              board_largest.get(record["Board Unit"]), "dim-bar-board", 2, True)
+                              board_largest.get(record["Board Unit"]), "dim-bar-board", 2, False)
             + '</td><td class="dim-cell">'
             + _dimension_cell(record["Total Repair Dimension"], record["Repair Unit"],
                               repair_largest.get(record["Repair Unit"]), "dim-bar-repair", 2, False)
@@ -294,10 +295,8 @@ def _dimension_table_html(records):
 
 
 def _dimension_section(df):
-    """A card with the total dimension and the total repair dimension of every defect code. A
-    table rather than a chart: the two totals are in different units (CM and L.M., CM\u00b2 and
-    SQ.M.), so one shared axis would compare things that cannot be compared. The thin bars only
-    compare totals that share a unit."""
+    """A card with the total dimension and the total repair dimension of every defect code.
+    Both totals are shown in LM and SQ LM, and CC- is merged into C-."""
     summary = dimension_by_defect(df)
     records = summary.to_dict("records")
     repair_total = _totals_text(records, "Total Repair Dimension", "Repair Unit", 2, False)
@@ -306,7 +305,7 @@ def _dimension_section(df):
         st.markdown(
             '<div class="chart-title"><div>'
             '<div class="chart-name">Dimensions by defect</div>'
-            '<div class="chart-sub">Total dimension and total repair dimension for each defect code</div>'
+            '<div class="chart-sub">Total dimension and total repair dimension for each defect code (in LM and SQ LM)</div>'
             '</div><div style="text-align:right;">'
             + (f'<span class="chart-total">Repair total: {html.escape(repair_total)}</span>' if repair_total else "")
             + "</div></div>",
@@ -324,8 +323,8 @@ def _dimension_section(df):
                 f"{missing:,} defect(s) were written without a dimension, so they add nothing to the totals."
             )
         notes.append(
-            "Repair dimensions are read from the Excel files. For a file that was never opened in Excel, "
-            "they are worked out here with the same formulas."
+            "Board dimensions are converted from CM and CM² to LM and SQ LM. "
+            "Repair dimensions are read from the Excel files (or calculated with the same formulas)."
         )
         st.caption(" ".join(notes))
 
@@ -511,10 +510,6 @@ def render_analytics_dashboard():
         return
 
     # --- Render Active Filter Chips ---
-    # We construct the HTML for the chips and clear button.
-    # Note: Streamlit doesn't natively support clearing other widgets via HTML buttons, 
-    # so we display them visually, and users can use the standard sidebar inputs or 
-    # a st.button to clear them.
     active_filters = []
     
     selected_towers = st.session_state.get(_filter_key("tower", scope)) or []
@@ -564,11 +559,6 @@ def render_analytics_dashboard():
 
     # --- Summary / KPI Cards ---
     total_col, files_col, folders_col = st.columns(3)
-    
-    # We use HTML inside metric help or container if we want secondary context, 
-    # or just use Streamlit's metric delta for the secondary line.
-    # Note: For pure formatting without deltas changing color, custom HTML is best, 
-    # but Streamlit's native metric is easiest if we don't have historical data to compare to.
     total_col.metric("Defects", f"{len(df):,}")
     files_col.metric("Excel files read", f"{files_read:,}")
     folders_col.metric("Folders", f"{df['Folder'].nunique():,}")
