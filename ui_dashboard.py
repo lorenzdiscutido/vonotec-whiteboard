@@ -1,13 +1,14 @@
 # ui_dashboard.py
 """The "Analytics Dashboard" tab, structured around the Engineering Overview +
-Bill of Quantities + Location Analysis layout:
+Repair Quantity Summary + Location Analysis layout:
 
   1. ENGINEERING OVERVIEW ("Facade defect dashboard")
      - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQ LM), Missing dimensions
      - Collapsible warm-amber review banner ("X records need review") when dimensions are missing
-  2. BILL OF QUANTITIES ("Dimensions by defect")
+  2. REPAIR QUANTITY SUMMARY ("Dimensions by defect")
      - Header with "Download summary XLSX" button on the top right
-     - Table with pill badges for Defect Code, Description, Count, Board Dimensions,
+     - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQ LM) rows,
+       with pill badges for Defect Code, Description, Count, Board Dimensions,
        Linear Repair (LM), Area Repair (SQ LM), Data Health, and a Portfolio Total footer row
   3. LOCATION ANALYSIS ("Where are the defects located?")
      - Defects by material beside Defects by tower, then Defects by floor across the width
@@ -294,7 +295,7 @@ def _render_missing_dimensions_queue(df):
 
 
 # ---------------------------------------------------------------------------
-# Section 2: Bill of Quantities ("Dimensions by defect" table + Excel export)
+# Section 2: Repair Quantity Summary ("Dimensions by defect" table + Excel export)
 # ---------------------------------------------------------------------------
 
 def _number_text(value, decimals=2, trim=False):
@@ -309,10 +310,10 @@ def _number_text(value, decimals=2, trim=False):
 
 def _summary_to_excel_bytes(summary):
     """Builds a clean, formatted Excel (.xlsx) file in memory from the Dimensions by defect
-    summary table, matching the Bill of Quantities columns and Portfolio total footer."""
+    summary table, matching the Repair Quantity Summary columns and Portfolio total footer."""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Dimensions by Defect"
+    ws.title = "Repair Quantity Summary"
 
     headers = [
         "Defect Code", "Description", "Count",
@@ -416,7 +417,7 @@ def _data_health_html(record):
 
 
 def _dimension_table_html(records):
-    """Builds the Bill of Quantities HTML table matching the Figma mockup:
+    """Builds the Repair Quantity Summary HTML table:
     DEFECT | DESCRIPTION | COUNT | BOARD DIMENSIONS | LINEAR REPAIR LM | AREA REPAIR SQ LM | DATA HEALTH
     plus a sticky Portfolio total footer row."""
     body = ""
@@ -498,7 +499,7 @@ def _dimension_table_html(records):
 
 
 def _dimension_section(summary, scope="All"):
-    """Draws the Bill of Quantities ('Dimensions by defect') card with the Download summary
+    """Draws the Repair Quantity Summary ('Dimensions by defect') card with the Download summary
     button in the top-right header and the full engineering table below."""
     records = summary.to_dict("records")
     safe_scope = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(scope)).strip("_") or "Summary"
@@ -508,9 +509,9 @@ def _dimension_section(summary, scope="All"):
         with head_left:
             st.markdown(
                 '<div class="boq-header">'
-                '<p class="eyebrow">Bill of quantities</p>'
+                '<p class="eyebrow">Repair quantity summary</p>'
                 '<div class="chart-name">Dimensions by defect</div>'
-                '<div class="chart-sub">Repair quantities grouped by engineering defect code (converted to LM and SQ LM)</div>'
+                '<div class="chart-sub">Repair quantities grouped by engineering defect code (Linear LM first, then Area SQ LM)</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -519,7 +520,7 @@ def _dimension_section(summary, scope="All"):
                 st.download_button(
                     label="\u2913 Download summary  XLSX",
                     data=_summary_to_excel_bytes(summary),
-                    file_name=f"Dimensions_by_Defect_{safe_scope}.xlsx",
+                    file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary",
                     key="download_dimensions_summary",
@@ -607,7 +608,7 @@ def _bar_chart(counts, column):
 
 
 def _chart_badge_text(counts, column):
-    """Contextual right-hand badge for each chart card (matching image_4c7eb7.png):
+    """Contextual right-hand badge for each chart card:
     - Material: '177 total'
     - Tower: '3 towers'
     - Floor: 'Floor 11 is highest'"""
@@ -673,7 +674,7 @@ def _chart_notes(df, hide_unknown):
 
 
 def _render_raw_audit_log(df):
-    """Draws the bottom 'Raw audit log' card matching image_4c7eb7.png."""
+    """Draws the bottom 'Raw audit log' card."""
     ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [c for c in df.columns if c not in TABLE_COLUMNS]
     shown = df[ordered].head(DATA_TABLE_MAX_ROWS)
     table = shown.to_html(
@@ -771,7 +772,7 @@ def render_dashboard_controls():
 
 
 # ---------------------------------------------------------------------------
-# Main area: Engineering Overview -> Bill of Quantities -> Location Analysis -> Raw Audit Log
+# Main area: Engineering Overview -> Repair Quantity Summary -> Location Analysis -> Raw Audit Log
 # ---------------------------------------------------------------------------
 
 @st.fragment(run_every=DASHBOARD_REFRESH_SECONDS)
@@ -863,7 +864,7 @@ def render_analytics_dashboard():
     # 2. Warm-Amber Collapsible Review Banner (when dimensions are missing)
     _render_missing_dimensions_queue(df)
 
-    # 3. Primary Centerpiece: Bill of Quantities ("Dimensions by defect")
+    # 3. Primary Centerpiece: Repair Quantity Summary ("Dimensions by defect")
     _dimension_section(summary, scope=scope)
 
     # 4. Secondary Section: Location Analysis ("Where are the defects located?")

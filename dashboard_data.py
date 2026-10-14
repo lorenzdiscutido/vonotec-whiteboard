@@ -177,7 +177,7 @@ def _split_dimension(value):
     match = _DIMENSION_TEXT.match(value) if isinstance(value, str) else None
     if not match:
         return None, ""
-    unit = re.sub(r"\s*(?:\^\s*2|2)\$", "\u00b2", (match.group(2) or "").upper().strip())
+    unit = re.sub(r"\s*(?:\^\s*2|2)$", "\u00b2", (match.group(2) or "").upper().strip())
     return float(match.group(1)), unit
 
 
@@ -382,18 +382,35 @@ def count_by(df, column):
     return counts.reset_index(drop=True)
 
 
-# Build the canonical display order for defect codes (including DS and MS location modifiers)
+# Build the canonical display order for defect codes:
+#   1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
+#   2. All Square Meter (SQ.M. -> SQ LM) defects second (BH, US, DP, FP, BP)
+#   3. Non-dimensional defects last (NP, BG, GLASS-FRAME)
 def _build_code_order():
-    order = []
+    linear_codes = []
+    area_codes = []
+    other_codes = []
+
     for row in REFERENCE_DATA[1:]:
         code = row[0]
         if code in ("CC-", "FRAME") or code in _CANONICAL_MODIFIERS:
             continue
+
+        rep_unit = (REPAIR_UNITS.get(code, "") or "").upper().strip()
+        if rep_unit in ("L.M.", "L.M", "LM"):
+            bucket = linear_codes
+        elif rep_unit in ("SQ.M.", "SQ.M", "SQM", "SQ M", "SQ LM", "SQ.L.M."):
+            bucket = area_codes
+        else:
+            bucket = other_codes
+
         if code in _SEALANT_CODES:
             for mod in _MODIFIER_ORDER:
-                order.append(f"{code} {mod}")
+                bucket.append(f"{code} {mod}")
         else:
-            order.append(code)
+            bucket.append(code)
+
+    order = linear_codes + area_codes + other_codes
     return {code: idx for idx, code in enumerate(order)}
 
 
@@ -441,13 +458,18 @@ def _normalize_repair_unit(raw_unit):
     return raw_unit
 
 
+def _unit_group_rank(repair_unit):
+    """Secondary sort rank so LM rows always precede SQ LM rows, which precede non-dimensional rows."""
+    if repair_unit == "LM":
+        return 0
+    if repair_unit == "SQ LM":
+        return 1
+    return 2
+
+
 def dimension_by_defect(df):
-    """One row per defect code:
-    - Merges CC- into C-
-    - Merges FRAME into GLASS-FRAME and suppresses its dimensions (placeholder None, not shown in dashboard)
-    - Always includes all 5 location modifiers (CC, CF, GG, FG, FF) for both DS and MS when Sealant is included
-    - Excludes bare DS/MS without a location modifier and stray standalone modifiers (CC, FC, etc.)
-    - Converts board dimensions from CM / CM² to LM / SQ LM."""
+    """One row per defect code, ordered with all Linear Meter (LM) defects first,
+    then Square Meter (SQ LM) defects, then non-dimensional defects."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
 
@@ -522,5 +544,10 @@ def dimension_by_defect(df):
             "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
+    summary["_unit_rank"] = summary["Repair Unit"].map(_unit_group_rank)
     summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))
-    return summary.sort_values(["_order", "Defect Code"]).drop(columns="_order").reset_index(drop=True)
+    return (
+        summary.sort_values(["_unit_rank", "_order", "Defect Code"])
+        .drop(columns=["_unit_rank", "_order"])
+        .reset_index(drop=True)
+    )
