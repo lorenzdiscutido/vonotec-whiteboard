@@ -12,9 +12,15 @@
     ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
     dashboard_data.py    reads the batch Excel files into a table for the dashboard
     dashboard_loader.py  downloads those files in the background so the dashboard is ready
+    auto_watcher.py      auto-extract: watches the "Whiteboard Photos" folder in SharePoint
+    auto_naming.py       which Excel file a photo belongs to, from its folder
+    ui_auto_watch.py     the auto-extract status card (Pause switch, latest activity)
+    write_lock.py        keeps a manual batch and the watcher off the same Excel file
 
-Photos can come from two places: uploaded from this device, or already sitting in any
-SharePoint folder ("Import from SharePoint"). Both end up in the same batch loop.
+Photos can come from three places: uploaded from this device, already sitting in any
+SharePoint folder ("Import from SharePoint"), or uploaded by coworkers to the watched
+"Whiteboard Photos" folder, which the background watcher handles with nobody clicking.
+The first two end up in the same batch loop.
 """
 import os
 import datetime
@@ -23,6 +29,7 @@ import traceback
 
 import streamlit as st
 
+import auto_watcher
 import sharepoint_client
 import ui_components
 from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
@@ -35,7 +42,8 @@ from ui_sections import (
     hide_uploader_chrome_if_filled, process_blockers,
 )
 from ui_source_browser import render_source_browser
-from ui_dashboard import render_dashboard_view
+from ui_auto_watch import render_auto_watch_card
+from ui_dashboard import render_dashboard_view, render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Extraction"
@@ -55,6 +63,12 @@ view = ui_components.render_header([VIEW_EXTRACTION, VIEW_DASHBOARD])
 # --- DASHBOARD DATA ---
 start_warmup_if_due()
 
+# --- AUTO-EXTRACT ---
+# Start the background watcher of the "Whiteboard Photos" folder (once per app process;
+# later calls do nothing). It runs whichever view is open, and keeps running for as long
+# as the app stays awake.
+auto_watcher.start_if_due()
+
 _KEEP_ALIVE_PREFIXES = (
     "photo_source", "batch_name_input", "folder_choice_input",
     "new_folder_name_input", "src_recursive", "src_lv_",
@@ -65,7 +79,10 @@ for _key in list(st.session_state.keys()):
 
 if view == VIEW_DASHBOARD:
     st.session_state.batch_running = False
-    render_dashboard_view()
+    with st.sidebar:
+        render_dashboard_controls()
+    with st.container(key="analytics"):
+        render_analytics_dashboard()
     st.stop()
 
 init_session_state()
@@ -216,7 +233,8 @@ form_col, results_col = st.columns([11, 9], gap="large")
 with form_col:
     with st.container(key="form_panel"):
         ui_components.section_heading(
-            "Input source", "Choose where to import photos from",
+            "Input source",
+            "Choose where to import photos from",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
 
@@ -367,6 +385,7 @@ with results_col:
 
         render_file_management()
         render_pending_syncs()
+        render_auto_watch_card()
 
         # Contextual footer tip: explains how to resolve flagged rows after extraction
         report_files = (st.session_state.get("batch_report") or {}).get("files") or []

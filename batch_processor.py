@@ -17,6 +17,7 @@ from extraction import extract_data
 from excel_writer import write_parsed_data_to_excel
 from file_utils import load_processed_log, save_processed_log
 from settings import ENABLE_SHAREPOINT_SYNC
+from write_lock import lock_for
 
 
 @dataclass
@@ -91,25 +92,35 @@ def _review_message(filename, parsed_data):
     )
 
 
-def _record_added(outcome, name, parsed_data, sync_failed):
-    """Adds the row for a photo that reached the Excel file: "review" when its data row was
-    highlighted red for manual checking, otherwise "added" (with the FYI note, if any)."""
-    notes = parsed_data.get("Review Notes", [])
-    flagged = bool(notes) and bool(parsed_data.get("Flagged Materials"))
-    extra = f" (+{len(notes) - 1} more)" if len(notes) > 1 else ""
+def _record_added(outcome, filename, parsed_data, sync_failed):
+    """Adds a finished photo's row to `outcome.files` for the Batch results list."""
+    notes = list(parsed_data.get("Review Notes") or [])
+    flagged = list(parsed_data.get("Flagged Materials") or [])
+    sync_note = "Saved locally; SharePoint sync is still pending." if sync_failed else ""
+
     if flagged:
-        status, reason = "review", f"Row highlighted red in Excel: {notes[0]}{extra}"
-    elif notes:
-        status, reason = "added", f"Added. FYI: {notes[0]}{extra}"
+        reason = notes[0] if notes else f"Check {', '.join(flagged)} in the Excel file"
+        if len(notes) > 1:
+            reason += f" (+{len(notes) - 1} more)"
+        detail_lines = [
+            "Added to the Excel file with one or more rows highlighted in RED for manual validation:",
+            *[f"- {n}" for n in notes],
+        ]
+        if sync_note:
+            detail_lines.append(sync_note)
+        outcome.add_file(filename, "review", reason, "\n".join(detail_lines))
+        return
+
+    if notes:
+        reason = f"Added — note: {notes[0]}"
+        detail = "\n".join(["Added to the Excel file (nothing highlighted red):", *[f"- {n}" for n in notes]])
     else:
-        status, reason = "added", "Added to the Excel file"
-    details = "\n".join(notes)
-    if sync_failed:
-        reason += " (SharePoint sync pending)"
-        details = (details + "\n" if details else "") + (
-            "Saved locally, but syncing to SharePoint failed just now. It is retried after the next "
-            "photo, or you can push it from 'Pending syncs'.")
-    outcome.add_file(name, status, reason, details)
+        reason = "Added to the Excel file"
+        detail = ""
+    if sync_note:
+        reason = f"{reason} (SharePoint sync pending)"
+        detail = f"{detail}\n{sync_note}".strip()
+    outcome.add_file(filename, "added", reason, detail)
 
 
 def _process_photo(uploaded_file, file_bytes, output_path, subfolder, outcome):
@@ -160,8 +171,27 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
     """Processes every photo into output_path.
 
     on_progress(index, total, filename, finished) is called before (finished=False)
-    and after (finished=True) each photo, so the UI can update its progress bar."""
+    and after (finished=True) each photo, so the UI can update its progress bar.
+
+    The auto-extract watcher (auto_watcher.py) may be writing the same Excel file; only one
+    of the two can at a time, so if the file is busy this returns right away with a message
+    and nothing is processed."""
     outcome = BatchOutcome()
+    lock = lock_for(output_path)
+    if not lock.acquire(blocking=False):
+        outcome.notice(
+            "error",
+            f"'{os.path.basename(output_path)}' is being updated by the auto-extract right now. "
+            "Please try again in a couple of minutes. Nothing was processed."
+        )
+        return outcome
+    try:
+        return _run_batch_locked(outcome, uploaded_files, output_path, subfolder, creating_new_folder, on_progress)
+    finally:
+        lock.release()
+
+
+def _run_batch_locked(outcome, uploaded_files, output_path, subfolder, creating_new_folder, on_progress):
     remote_filename = os.path.basename(output_path)
     total = len(uploaded_files)
 
@@ -200,7 +230,8 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
             outcome.messages.append(("warning", f"Skipping '{uploaded_file.name}' - already processed."))
             outcome.add_file(
                 uploaded_file.name, "skipped", "Already processed",
-                "This photo's content matches one processed before (duplicates are matched by content, not by file name).")
+                "This photo's content matches one processed before (duplicates are matched by content, not by file name)."
+            )
             outcome.skipped += 1
             notify(i, uploaded_file.name, finished=True)
             continue
