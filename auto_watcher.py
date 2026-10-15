@@ -5,23 +5,7 @@ photo to the right Excel file, with nobody clicking anything.
     Whiteboard Photos / Project Name / [Tower #] / Elevation / Drop / photo.jpg
         -> <Excel landing folder> / Project Name / Project Name - Tower # - Elevation - Drop.xlsx
     (the naming rule lives in auto_naming.py)
-
-How it runs: one background thread, started by app.py (start_if_due), checks the folder
-every AUTO_WATCH_INTERVAL_SECONDS. It lives inside the Streamlit process, so it only runs
-while the app is awake; after a sleep it simply catches up on everything uploaded meanwhile.
-
-Safety rules (each one answers a way data could otherwise be lost or doubled):
-  * The Excel file is pulled fresh from SharePoint right before each photo is added, so
-    corrections people made in Excel are never overwritten by an old local copy.
-  * A photo counts as processed only AFTER the upload of its Excel file succeeded. If the
-    upload fails, the local copy is thrown away and the photo is tried again next check.
-  * Which photos are done is kept in SharePoint (auto_watch_state.json), not on the app's
-    disk, so a restart never re-adds old photos.
-  * A photo modified in the last AUTO_WATCH_SETTLE_SECONDS is skipped until the next check.
-  * A manual batch and the watcher never write the same Excel file at once (write_lock.py).
-
-The Pause switch and the "retry failed photos" request come from the app's status card
-(ui_auto_watch.py) through auto_watch_control.json, so only one side writes each file."""
+"""
 import collections
 import datetime
 import hashlib
@@ -64,10 +48,14 @@ AUTO_WATCH_STATE_FILE = getattr(_settings_mod, "AUTO_WATCH_STATE_FILE", "auto_wa
 AUTO_WATCH_CONTROL_FILE = getattr(_settings_mod, "AUTO_WATCH_CONTROL_FILE", "auto_watch_control.json")
 LOCAL_BATCH_DIR = getattr(_settings_mod, "LOCAL_BATCH_DIR", "local_batches")
 
-THREAD_NAME = "auto-watcher"
+# Bumping THREAD_NAME replaces any older background thread left over from a previous hot-reload
+THREAD_NAME = "auto-watcher-v2"
 _LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=8))   # times shown in the app are Manila time
 _SELECT = "$select=id,name,size,lastModifiedDateTime,file,folder&$top=200"
 _RETRYABLE_STATUS = {423, 429, 503, 504}
+
+_wake_event = threading.Event()
+_force_settle = {"skip_wait": False}
 
 # ---------------------------------------------------------------------------
 # What the status card shows
@@ -78,14 +66,19 @@ _status = {
     "state": "starting",        # starting | idle | scanning | working | paused | error
     "paused": False,
     "last_check": "",           # text, Manila time
+    "next_check_at": 0.0,       # unix timestamp of the next scheduled check
     "waiting": 0,               # photos seen but still too fresh to read
+    "waiting_ready_in": 0,      # seconds until the newest waiting photo settles
     "processed_session": 0,     # photos added since the app started
     "failed": 0,                # photos set aside after repeated failures
     "error": "",                # why the last check could not run, if it could not
-    "current_index": 0,         # 1-based index of the photo currently being processed in this cycle
+    "current_index": 0,         # 1-based index of the photo currently being processed
     "current_total": 0,         # total settled photos queued in this cycle
     "current_photo": "",        # filename of the photo currently being processed
     "current_file": "",         # target .xlsx filename currently being updated
+    "last_cycle_done": 0,       # how many photos were processed in the most recent active cycle
+    "last_cycle_total": 0,      # total photos in the most recent active cycle
+    "last_cycle_time": "",      # Manila time when the most recent active cycle finished
 }
 _events = collections.deque(maxlen=12)   # newest last: {"time", "level", "text"}
 
@@ -112,14 +105,19 @@ def get_status():
     return snapshot
 
 
+def trigger_check_now(skip_settle=True):
+    """Wakes the background watcher immediately (and optionally bypasses the 2-minute
+    settle wait for currently uploaded photos so the user sees immediate progress)."""
+    if skip_settle:
+        _force_settle["skip_wait"] = True
+    _wake_event.set()
+
+
 # ---------------------------------------------------------------------------
 # Small JSON files kept in the Excel landing folder in SharePoint
 # ---------------------------------------------------------------------------
 
 def _json_download(remote_name):
-    """The JSON stored in the landing folder under this name, or None if it is not there
-    yet. Raises when SharePoint cannot be reached, so a network hiccup is never mistaken
-    for "no file" (which would make the watcher start over)."""
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "data.json")
         if not sharepoint_client.download_file(remote_name, path, ""):
@@ -129,8 +127,6 @@ def _json_download(remote_name):
 
 
 def _json_upload(remote_name, data):
-    """Saves JSON into the landing folder, replacing the previous version. Retries the
-    short "file is locked / busy" answers SharePoint gives right after a write."""
     payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
     response = None
     for attempt in range(sharepoint_client.MAX_UPLOAD_ATTEMPTS):
@@ -166,8 +162,6 @@ def _state_load():
 
 
 def _state_save(state):
-    """Saved after every photo. Retried a few times: if it still fails, the photo that was
-    just added could be added again on the next check, so the caller stops the check."""
     last_error = None
     for attempt in range(3):
         try:
@@ -180,8 +174,6 @@ def _state_save(state):
 
 
 def _control_load():
-    """{"paused", "retry_failed"}. If SharePoint cannot be reached, the last known pause
-    state is kept instead of guessing."""
     try:
         data = _json_download(AUTO_WATCH_CONTROL_FILE)
     except Exception:
@@ -192,18 +184,18 @@ def _control_load():
 
 
 def set_paused(paused):
-    """Called by the app's Pause switch. Raises if SharePoint cannot be reached."""
     control = _control_load()
     control["paused"] = bool(paused)
     _json_upload(AUTO_WATCH_CONTROL_FILE, control)
     _set_status(paused=bool(paused), state="paused" if paused else "idle")
+    _wake_event.set()
 
 
 def request_retry_failed():
-    """Called by the app's "Retry failed photos" button; the next check picks it up."""
     control = _control_load()
     control["retry_failed"] = True
     _json_upload(AUTO_WATCH_CONTROL_FILE, control)
+    _wake_event.set()
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +207,6 @@ _ensured_folders = set()
 
 
 def _ensure_photo_root():
-    """Creates "Whiteboard Photos" if it is not there yet, so people can find it."""
     if _root_checked["done"]:
         return
     parent, name = list(AUTO_WATCH_PHOTO_ROOT[:-1]), AUTO_WATCH_PHOTO_ROOT[-1]
@@ -224,8 +215,6 @@ def _ensure_photo_root():
 
 
 def _scan_photos():
-    """Every photo below the photo root. Returns (photos, hit_folder_limit); each photo is
-    {"id", "name", "relative" (folder names below the root), "modified"}."""
     root = list(AUTO_WATCH_PHOTO_ROOT)
     queue, walked, photos, capped = [root], 0, [], False
     while queue:
@@ -244,7 +233,7 @@ def _scan_photos():
             if not name.lower().endswith(sharepoint_client.IMAGE_EXTENSIONS):
                 continue
             if not item.get("size"):
-                continue  # an empty file is an upload that has only just started
+                continue
             photos.append({
                 "id": item["id"],
                 "name": name,
@@ -254,22 +243,20 @@ def _scan_photos():
     return photos, capped
 
 
-def _is_settled(modified_iso):
-    """False while the photo is newer than AUTO_WATCH_SETTLE_SECONDS (maybe still uploading)."""
+def _seconds_until_settled(modified_iso):
+    """Returns 0 when settled, or the positive number of seconds remaining until settled."""
     if not modified_iso:
-        return True
+        return 0
     try:
         modified = datetime.datetime.fromisoformat(modified_iso.replace("Z", "+00:00"))
     except ValueError:
-        return True
+        return 0
     age = (datetime.datetime.now(datetime.timezone.utc) - modified).total_seconds()
-    return age >= AUTO_WATCH_SETTLE_SECONDS
+    remaining = AUTO_WATCH_SETTLE_SECONDS - age
+    return max(0, int(remaining))
 
 
 def _group_by_excel_file(photos):
-    """{(subfolder, filename) lowercased: {"subfolder", "filename", "photos"}}. Capitals are
-    ignored when deciding which photos share a file, and the spelling used is the one of
-    the oldest photo, so a file never gets renamed because of a later photo."""
     groups = {}
     for photo in photos:
         subfolder, filename = target_for_folder(
@@ -314,8 +301,6 @@ def _record_failure(state, photo, error_text):
 
 
 def _fresh_local_copy(local_path, filename, subfolder):
-    """Makes local_path the current SharePoint copy of the Excel file (or removes it when
-    the file does not exist there yet, so a brand-new workbook is started)."""
     if os.path.exists(local_path):
         os.remove(local_path)
     sharepoint_client.download_file(filename, local_path, subfolder)
@@ -328,8 +313,6 @@ def _remove_local(local_path):
 
 
 def _process_photo(photo, group, local_path, state, known_hashes, local_log):
-    """Returns "done", "duplicate", "failed", "retry" (a network problem: nothing was
-    recorded) or "upload_failed" (the caller must stop working on this Excel file)."""
     filename, subfolder = group["filename"], group["subfolder"]
 
     try:
@@ -338,7 +321,7 @@ def _process_photo(photo, group, local_path, state, known_hashes, local_log):
         _event("warning", f"{photo['name']}: could not be downloaded right now ({error}); will retry")
         return "retry"
     if data is None:
-        return "retry"  # deleted meanwhile
+        return "retry"
 
     file_hash = hashlib.sha256(data).hexdigest()
     if file_hash in known_hashes or file_hash in local_log:
@@ -352,8 +335,6 @@ def _process_photo(photo, group, local_path, state, known_hashes, local_log):
         f.write(data)
 
     try:
-        # The slow part (Gemini) comes first; the Excel file is pulled fresh only after it,
-        # so the time between "latest copy" and "uploaded" is a few seconds.
         try:
             parsed = extract_data(temp_path)
         except Exception as error:
@@ -386,7 +367,7 @@ def _process_photo(photo, group, local_path, state, known_hashes, local_log):
                 file=f"{subfolder}/{filename}" if subfolder else filename, flagged=flagged)
         known_hashes.add(file_hash)
         local_log.append(file_hash)
-        save_processed_log(local_log)   # so the manual tools also skip this photo
+        save_processed_log(local_log)
 
         if flagged:
             _event("warning", f"Added {photo['name']} to {filename}. Some rows are highlighted red for review.")
@@ -408,7 +389,6 @@ def _ensure_output_folder(subfolder):
 
 
 def _process_group(group, pending, state, known_hashes, local_log, progress_counter):
-    """Adds the pending photos of one Excel file. Returns how many were added."""
     subfolder, filename = group["subfolder"], group["filename"]
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
@@ -437,7 +417,7 @@ def _process_group(group, pending, state, known_hashes, local_log, progress_coun
                 with _status_lock:
                     _status["processed_session"] += 1
             elif result == "upload_failed":
-                break   # later photos would carry this one's rows into the next upload
+                break
     finally:
         _remove_local(local_path)
         lock.release()
@@ -449,6 +429,9 @@ def _process_group(group, pending, state, known_hashes, local_log, progress_coun
 # ---------------------------------------------------------------------------
 
 def _cycle():
+    skip_settle = _force_settle["skip_wait"]
+    _force_settle["skip_wait"] = False
+
     _ensure_photo_root()
     control = _control_load()
     _set_status(paused=control["paused"])
@@ -478,13 +461,15 @@ def _cycle():
     if capped:
         _event("warning", f"The photo folder has more than {AUTO_WATCH_MAX_FOLDERS} folders; the deepest ones were not checked")
 
-    todo_ids, waiting = set(), 0
+    todo_ids, waiting, max_wait_rem = set(), 0, 0
     for photo in photos:
         entry = state["items"].get(photo["id"], {})
         if entry.get("status") in ("done", "duplicate", "gave_up"):
             continue
-        if not _is_settled(photo["modified"]):
+        rem = 0 if skip_settle else _seconds_until_settled(photo["modified"])
+        if rem > 0:
             waiting += 1
+            max_wait_rem = max(max_wait_rem, rem)
             continue
         todo_ids.add(photo["id"])
 
@@ -495,13 +480,15 @@ def _cycle():
     _set_status(
         state="working" if total_todo > 0 else "idle",
         waiting=waiting,
-        current_index=0,
+        waiting_ready_in=max_wait_rem,
+        current_index=1 if total_todo > 0 else 0,
         current_total=total_todo,
         current_photo="",
         current_file="",
     )
 
     progress_counter = {"done": 0, "total": total_todo}
+    added_this_cycle = 0
     groups = _group_by_excel_file(photos)
     for index, key in enumerate(sorted(groups)):
         group = groups[key]
@@ -510,24 +497,37 @@ def _cycle():
         if not pending:
             continue
         if index > 0 and _control_load()["paused"]:
-            break   # paused while this check was running
-        _process_group(group, pending, state, known_hashes, local_log, progress_counter)
+            break
+        added_this_cycle += _process_group(group, pending, state, known_hashes, local_log, progress_counter)
 
     failed = sum(1 for e in state["items"].values() if e.get("status") in ("failed", "gave_up"))
+    extra_summary = {}
+    if total_todo > 0:
+        extra_summary = {
+            "last_cycle_done": progress_counter["done"],
+            "last_cycle_total": total_todo,
+            "last_cycle_time": _now_local_text(),
+        }
     _set_status(
         state="paused" if _control_load()["paused"] else "idle",
         waiting=waiting,
+        waiting_ready_in=max_wait_rem,
         failed=failed,
         last_check=_now_local_text(),
         current_index=0,
         current_total=0,
         current_photo="",
         current_file="",
+        **extra_summary,
     )
 
 
 def _loop():
-    while True:
+    this_thread = threading.current_thread()
+    while getattr(this_thread, " name", THREAD_NAME) == THREAD_NAME:
+        # Stop gracefully if a newer version of auto_watcher replaced this thread
+        if this_thread.name != THREAD_NAME:
+            return
         try:
             _cycle()
         except Exception as error:
@@ -541,19 +541,25 @@ def _loop():
                 current_photo="",
                 current_file="",
             )
-        time.sleep(AUTO_WATCH_INTERVAL_SECONDS)
+        _set_status(next_check_at=time.time() + AUTO_WATCH_INTERVAL_SECONDS)
+        _wake_event.wait(timeout=AUTO_WATCH_INTERVAL_SECONDS)
+        _wake_event.clear()
 
 
 _start_lock = threading.Lock()
 
 
 def start_if_due():
-    """Starts the background thread unless it is already running. Cheap to call on every
-    page run. Returns True if a new thread was started."""
+    """Starts the background thread unless the current version is already running.
+    If an older thread from a previous hot-reload is running, renames it so it exits."""
     if not (ENABLE_SHAREPOINT_SYNC and ENABLE_AUTO_WATCH):
         return False
     with _start_lock:
-        if any(t.name == THREAD_NAME and t.is_alive() for t in threading.enumerate()):
-            return False
+        for t in threading.enumerate():
+            if t.name == THREAD_NAME and t.is_alive():
+                return False
+            if t.name.startswith("auto-watcher") and t.is_alive():
+                t.name = "auto-watcher-retired"
         threading.Thread(target=_loop, name=THREAD_NAME, daemon=True).start()
+        _wake_event.set()
         return True

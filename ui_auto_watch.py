@@ -1,10 +1,12 @@
 # ui_auto_watch.py
 """The small status card for the auto-extract watcher (auto_watcher.py): is it running,
 when it last looked, live progress bar ("Processing X of Y photos") when active,
-a Pause switch and a "Retry failed photos" button.
+a "Scan & process now" button to bypass the 2-minute wait, a Pause switch, and
+a "Retry failed photos" button.
 
-It is a "fragment", so it refreshes itself every few seconds without reloading the page."""
+It is a "fragment", so it refreshes itself every 3 seconds without reloading the page."""
 import importlib
+import time
 import streamlit as st
 
 import auto_watcher
@@ -14,6 +16,11 @@ import settings as _settings_mod
 # Hot-reload safeguard if Streamlit Cloud cached an older settings.py in memory
 if not hasattr(_settings_mod, "ENABLE_AUTO_WATCH"):
     importlib.reload(_settings_mod)
+
+# Also reload auto_watcher if it came from an older module version without trigger_check_now
+if not hasattr(auto_watcher, "trigger_check_now"):
+    importlib.reload(auto_watcher)
+    auto_watcher.start_if_due()
 
 ENABLE_SHAREPOINT_SYNC = getattr(_settings_mod, "ENABLE_SHAREPOINT_SYNC", True)
 ENABLE_AUTO_WATCH = getattr(_settings_mod, "ENABLE_AUTO_WATCH", True)
@@ -30,8 +37,8 @@ ERROR_KEY = "auto_watch_action_error"
 _STATE_TEXT = {
     "starting": "Starting...",
     "idle": "Running. Waiting for new photos",
-    "scanning": "Running. Scanning SharePoint folders for new photos...",
-    "working": "Running. Reading photos now",
+    "scanning": "Running. Scanning SharePoint folders...",
+    "working": "Running. Extracting photos now",
     "paused": "Paused",
     "error": "Could not check the folder",
 }
@@ -46,13 +53,12 @@ def _on_pause_change():
         st.session_state[ERROR_KEY] = f"Could not change the pause setting: {error}"
 
 
-@st.fragment(run_every=4)
+@st.fragment(run_every=3)
 def render_auto_watch_card():
     if not (ENABLE_SHAREPOINT_SYNC and ENABLE_AUTO_WATCH):
         return
 
     status = auto_watcher.get_status()
-    # Follow the real state, so the switch is right even if someone else paused it
     st.session_state[PAUSE_KEY] = bool(status["paused"])
 
     with st.container(border=True, key="auto_watch_card"):
@@ -66,9 +72,19 @@ def render_auto_watch_card():
         curr_total = int(status.get("current_total") or 0)
         curr_photo = status.get("current_photo") or ""
         curr_file = status.get("current_file") or ""
+        waiting = int(status.get("waiting") or 0)
+        last_done = int(status.get("last_cycle_done") or 0)
+        last_total = int(status.get("last_cycle_total") or 0)
+        last_time = status.get("last_cycle_time") or ""
+        next_check_at = float(status.get("next_check_at") or 0.0)
+        secs_to_next = max(0, int(next_check_at - time.time())) if next_check_at else 0
 
         if status["state"] == "working" and curr_total > 0:
             state_line = f"Status: Processing {curr_idx} of {curr_total} photo(s)"
+        elif status["state"] == "idle" and waiting > 0:
+            state_line = f"Status: {waiting} new photo(s) queued — waiting for upload settle timer ({secs_to_next}s to next check)"
+        elif status["state"] == "idle" and secs_to_next > 0:
+            state_line = f'Status: {_STATE_TEXT["idle"]} (next check in {secs_to_next}s)'
         else:
             state_line = f'Status: {_STATE_TEXT.get(status["state"], status["state"])}'
 
@@ -76,19 +92,31 @@ def render_auto_watch_card():
         if status["last_check"]:
             lines.append(f'Last check: {status["last_check"]} (Manila time)')
         lines.append(f'Added since the app started: {status["processed_session"]}')
-        if status["waiting"]:
-            lines.append(f'Waiting for upload to finish (2-min settle rule): {status["waiting"]} photo(s)')
+        if last_total > 0 and status["state"] != "working":
+            lines.append(f'Last batch completed: {last_done} of {last_total} photo(s) at {last_time}')
         st.caption("  \n".join(lines))
 
-        # Live progress bar while actively extracting photos or scanning
+        # --- LIVE PROGRESS BAR STATES ---
         if status["state"] == "scanning":
-            st.progress(0.0, text="Scanning SharePoint folders for new photos...")
+            st.progress(0.05, text="Scanning SharePoint folders for new photos...")
         elif status["state"] == "working" and curr_total > 0:
-            fraction = min(max((curr_idx - 1) / curr_total, 0.05), 1.0)
+            fraction = min(max(curr_idx / curr_total, 0.08), 1.0)
             target_note = f" → {curr_file}" if curr_file else ""
+            photo_note = f": {curr_photo}" if curr_photo else "..."
             st.progress(
                 fraction,
-                text=f"Extracting {curr_idx} of {curr_total}: {curr_photo}{target_note}",
+                text=f"Processing {curr_idx} of {curr_total} photo(s){photo_note}{target_note}",
+            )
+        elif status["state"] == "idle" and waiting > 0:
+            wait_frac = min(max(1.0 - (secs_to_next / max(AUTO_WATCH_INTERVAL_SECONDS, 1)), 0.1), 0.95)
+            st.progress(
+                wait_frac,
+                text=f"Queued {waiting} photo(s) — auto-starting in ~{secs_to_next}s (or click 'Process now' below)",
+            )
+        elif last_total > 0 and status["state"] == "idle":
+            st.progress(
+                1.0,
+                text=f"Completed {last_done} of {last_total} photo(s) ({last_time})",
             )
 
         if status["error"]:
@@ -96,16 +124,28 @@ def render_auto_watch_card():
         if st.session_state.get(ERROR_KEY):
             st.error(st.session_state[ERROR_KEY])
 
-        st.toggle("Pause auto-extract", key=PAUSE_KEY, on_change=_on_pause_change,
-                  help="Stops new photos from being read. Photos stay in the folder and are "
-                       "picked up when you switch it back on.")
+        ctrl_col1, ctrl_col2 = st.columns([1.4, 1.6], gap="small")
+        with ctrl_col1:
+            st.toggle(
+                "Pause auto-extract",
+                key=PAUSE_KEY,
+                on_change=_on_pause_change,
+                help="Stops new photos from being read. Photos stay in the folder and are "
+                     "picked up when you switch it back on.",
+            )
+        with ctrl_col2:
+            if not status["paused"] and status["state"] not in ("working", "scanning"):
+                btn_label = f"Process {waiting} waiting now" if waiting > 0 else "Check folder now"
+                if st.button(btn_label, type="primary", key="auto_watch_check_now"):
+                    auto_watcher.trigger_check_now(skip_settle=True)
+                    st.rerun()
 
         if status["failed"]:
             st.warning(f'{status["failed"]} photo(s) could not be processed and were set aside.')
             if st.button("Retry failed photos", type="primary", key="auto_watch_retry"):
                 try:
                     auto_watcher.request_retry_failed()
-                    st.info("They will be tried again on the next check.")
+                    st.info("They will be tried again right now.")
                 except Exception as error:
                     st.error(f"Could not request a retry: {error}")
 
