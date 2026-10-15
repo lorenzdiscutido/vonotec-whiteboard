@@ -1,6 +1,7 @@
 # ui_auto_watch.py
 """The small status card for the auto-extract watcher (auto_watcher.py): is it running,
-when it last looked, what it did, a Pause switch and a "Retry failed photos" button.
+when it last looked, live progress bar ("Processing X of Y photos") when active,
+a Pause switch and a "Retry failed photos" button.
 
 It is a "fragment", so it refreshes itself every few seconds without reloading the page."""
 import importlib
@@ -29,6 +30,7 @@ ERROR_KEY = "auto_watch_action_error"
 _STATE_TEXT = {
     "starting": "Starting...",
     "idle": "Running. Waiting for new photos",
+    "scanning": "Running. Scanning SharePoint folders for new photos...",
     "working": "Running. Reading photos now",
     "paused": "Paused",
     "error": "Could not check the folder",
@@ -44,7 +46,7 @@ def _on_pause_change():
         st.session_state[ERROR_KEY] = f"Could not change the pause setting: {error}"
 
 
-@st.fragment(run_every=15)
+@st.fragment(run_every=4)
 def render_auto_watch_card():
     if not (ENABLE_SHAREPOINT_SYNC and ENABLE_AUTO_WATCH):
         return
@@ -60,13 +62,34 @@ def render_auto_watch_card():
             f"Excel file by themselves, about every {AUTO_WATCH_INTERVAL_SECONDS // 60} minutes."
         )
 
-        lines = [f'Status: {_STATE_TEXT.get(status["state"], status["state"])}']
+        curr_idx = int(status.get("current_index") or 0)
+        curr_total = int(status.get("current_total") or 0)
+        curr_photo = status.get("current_photo") or ""
+        curr_file = status.get("current_file") or ""
+
+        if status["state"] == "working" and curr_total > 0:
+            state_line = f"Status: Processing {curr_idx} of {curr_total} photo(s)"
+        else:
+            state_line = f'Status: {_STATE_TEXT.get(status["state"], status["state"])}'
+
+        lines = [state_line]
         if status["last_check"]:
             lines.append(f'Last check: {status["last_check"]} (Manila time)')
         lines.append(f'Added since the app started: {status["processed_session"]}')
         if status["waiting"]:
-            lines.append(f'Waiting for upload to finish: {status["waiting"]} photo(s)')
+            lines.append(f'Waiting for upload to finish (2-min settle rule): {status["waiting"]} photo(s)')
         st.caption("  \n".join(lines))
+
+        # Live progress bar while actively extracting photos or scanning
+        if status["state"] == "scanning":
+            st.progress(0.0, text="Scanning SharePoint folders for new photos...")
+        elif status["state"] == "working" and curr_total > 0:
+            fraction = min(max((curr_idx - 1) / curr_total, 0.05), 1.0)
+            target_note = f" → {curr_file}" if curr_file else ""
+            st.progress(
+                fraction,
+                text=f"Extracting {curr_idx} of {curr_total}: {curr_photo}{target_note}",
+            )
 
         if status["error"]:
             st.error(f'The last check failed: {status["error"]}. It tries again automatically.')

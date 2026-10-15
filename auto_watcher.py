@@ -75,13 +75,17 @@ _RETRYABLE_STATUS = {423, 429, 503, 504}
 
 _status_lock = threading.Lock()
 _status = {
-    "state": "starting",        # starting | idle | working | paused | error
+    "state": "starting",        # starting | idle | scanning | working | paused | error
     "paused": False,
     "last_check": "",           # text, Manila time
     "waiting": 0,               # photos seen but still too fresh to read
     "processed_session": 0,     # photos added since the app started
     "failed": 0,                # photos set aside after repeated failures
     "error": "",                # why the last check could not run, if it could not
+    "current_index": 0,         # 1-based index of the photo currently being processed in this cycle
+    "current_total": 0,         # total settled photos queued in this cycle
+    "current_photo": "",        # filename of the photo currently being processed
+    "current_file": "",         # target .xlsx filename currently being updated
 }
 _events = collections.deque(maxlen=12)   # newest last: {"time", "level", "text"}
 
@@ -403,7 +407,7 @@ def _ensure_output_folder(subfolder):
     _ensured_folders.add(subfolder.casefold())
 
 
-def _process_group(group, pending, state, known_hashes, local_log):
+def _process_group(group, pending, state, known_hashes, local_log, progress_counter):
     """Adds the pending photos of one Excel file. Returns how many were added."""
     subfolder, filename = group["subfolder"], group["filename"]
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
@@ -413,14 +417,25 @@ def _process_group(group, pending, state, known_hashes, local_log):
     lock = lock_for(local_path)
     if not lock.acquire(blocking=False):
         _event("info", f"{filename} is being updated by a manual batch; its new photos wait for the next check")
+        progress_counter["done"] += len(pending)
         return 0
     added = 0
     try:
         _ensure_output_folder(subfolder)
         for photo in pending:
+            progress_counter["done"] += 1
+            _set_status(
+                state="working",
+                current_index=progress_counter["done"],
+                current_total=progress_counter["total"],
+                current_photo=photo["name"],
+                current_file=filename,
+            )
             result = _process_photo(photo, group, local_path, state, known_hashes, local_log)
             if result == "done":
                 added += 1
+                with _status_lock:
+                    _status["processed_session"] += 1
             elif result == "upload_failed":
                 break   # later photos would carry this one's rows into the next upload
     finally:
@@ -438,7 +453,10 @@ def _cycle():
     control = _control_load()
     _set_status(paused=control["paused"])
     if control["paused"]:
-        _set_status(state="paused", error="", last_check=_now_local_text())
+        _set_status(
+            state="paused", error="", last_check=_now_local_text(),
+            current_index=0, current_total=0, current_photo="", current_file="",
+        )
         return
 
     state = _state_load()
@@ -452,7 +470,10 @@ def _cycle():
         control["retry_failed"] = False
         _json_upload(AUTO_WATCH_CONTROL_FILE, control)
 
-    _set_status(state="working", error="")
+    _set_status(
+        state="scanning", error="",
+        current_index=0, current_total=0, current_photo="", current_file="",
+    )
     photos, capped = _scan_photos()
     if capped:
         _event("warning", f"The photo folder has more than {AUTO_WATCH_MAX_FOLDERS} folders; the deepest ones were not checked")
@@ -470,8 +491,18 @@ def _cycle():
     known_hashes = {e["hash"] for e in state["items"].values() if e.get("hash")}
     local_log = list(load_processed_log())
 
+    total_todo = len(todo_ids)
+    _set_status(
+        state="working" if total_todo > 0 else "idle",
+        waiting=waiting,
+        current_index=0,
+        current_total=total_todo,
+        current_photo="",
+        current_file="",
+    )
+
+    progress_counter = {"done": 0, "total": total_todo}
     groups = _group_by_excel_file(photos)
-    added_total = 0
     for index, key in enumerate(sorted(groups)):
         group = groups[key]
         pending = sorted((p for p in group["photos"] if p["id"] in todo_ids),
@@ -480,13 +511,19 @@ def _cycle():
             continue
         if index > 0 and _control_load()["paused"]:
             break   # paused while this check was running
-        added_total += _process_group(group, pending, state, known_hashes, local_log)
+        _process_group(group, pending, state, known_hashes, local_log, progress_counter)
 
     failed = sum(1 for e in state["items"].values() if e.get("status") in ("failed", "gave_up"))
-    with _status_lock:
-        _status["processed_session"] += added_total
-    _set_status(state="paused" if _control_load()["paused"] else "idle",
-                waiting=waiting, failed=failed, last_check=_now_local_text())
+    _set_status(
+        state="paused" if _control_load()["paused"] else "idle",
+        waiting=waiting,
+        failed=failed,
+        last_check=_now_local_text(),
+        current_index=0,
+        current_total=0,
+        current_photo="",
+        current_file="",
+    )
 
 
 def _loop():
@@ -495,8 +532,15 @@ def _loop():
             _cycle()
         except Exception as error:
             traceback.print_exc()
-            _set_status(state="error", error=f"{type(error).__name__}: {error}"[:300],
-                        last_check=_now_local_text())
+            _set_status(
+                state="error",
+                error=f"{type(error).__name__}: {error}"[:300],
+                last_check=_now_local_text(),
+                current_index=0,
+                current_total=0,
+                current_photo="",
+                current_file="",
+            )
         time.sleep(AUTO_WATCH_INTERVAL_SECONDS)
 
 
