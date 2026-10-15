@@ -25,6 +25,7 @@ The Pause switch and the "retry failed photos" request come from the app's statu
 import collections
 import datetime
 import hashlib
+import importlib
 import json
 import os
 import tempfile
@@ -37,16 +38,31 @@ import requests
 
 import sharepoint_client
 import sync_tracker
+import settings as _settings_mod
 from auto_naming import target_for_folder
 from excel_writer import write_parsed_data_to_excel
 from extraction import extract_data
 from file_utils import load_processed_log, save_processed_log, sanitize_batch_filename
-from settings import (
-    ENABLE_SHAREPOINT_SYNC, ENABLE_AUTO_WATCH, AUTO_WATCH_PHOTO_ROOT,
-    AUTO_WATCH_INTERVAL_SECONDS, AUTO_WATCH_SETTLE_SECONDS, AUTO_WATCH_MAX_FOLDERS,
-    AUTO_WATCH_MAX_ATTEMPTS, AUTO_WATCH_STATE_FILE, AUTO_WATCH_CONTROL_FILE, LOCAL_BATCH_DIR,
-)
 from write_lock import lock_for
+
+# Hot-reload safeguard if Streamlit Cloud cached an older settings.py in memory
+if not hasattr(_settings_mod, "ENABLE_AUTO_WATCH"):
+    importlib.reload(_settings_mod)
+
+ENABLE_SHAREPOINT_SYNC = getattr(_settings_mod, "ENABLE_SHAREPOINT_SYNC", True)
+ENABLE_AUTO_WATCH = getattr(_settings_mod, "ENABLE_AUTO_WATCH", True)
+AUTO_WATCH_PHOTO_ROOT = getattr(
+    _settings_mod,
+    "AUTO_WATCH_PHOTO_ROOT",
+    ["07 - Employee Folders (to be reviewed)", "Lorenz", "Whiteboard Photos"],
+)
+AUTO_WATCH_INTERVAL_SECONDS = getattr(_settings_mod, "AUTO_WATCH_INTERVAL_SECONDS", 120)
+AUTO_WATCH_SETTLE_SECONDS = getattr(_settings_mod, "AUTO_WATCH_SETTLE_SECONDS", 120)
+AUTO_WATCH_MAX_FOLDERS = getattr(_settings_mod, "AUTO_WATCH_MAX_FOLDERS", 2000)
+AUTO_WATCH_MAX_ATTEMPTS = getattr(_settings_mod, "AUTO_WATCH_MAX_ATTEMPTS", 3)
+AUTO_WATCH_STATE_FILE = getattr(_settings_mod, "AUTO_WATCH_STATE_FILE", "auto_watch_state.json")
+AUTO_WATCH_CONTROL_FILE = getattr(_settings_mod, "AUTO_WATCH_CONTROL_FILE", "auto_watch_control.json")
+LOCAL_BATCH_DIR = getattr(_settings_mod, "LOCAL_BATCH_DIR", "local_batches")
 
 THREAD_NAME = "auto-watcher"
 _LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=8))   # times shown in the app are Manila time

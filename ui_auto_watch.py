@@ -3,13 +3,25 @@
 when it last looked, what it did, a Pause switch and a "Retry failed photos" button.
 
 It is a "fragment", so it refreshes itself every few seconds without reloading the page."""
+import importlib
 import streamlit as st
 
 import auto_watcher
 import ui_components
-from settings import (
-    ENABLE_SHAREPOINT_SYNC, ENABLE_AUTO_WATCH, AUTO_WATCH_PHOTO_ROOT, AUTO_WATCH_INTERVAL_SECONDS,
+import settings as _settings_mod
+
+# Hot-reload safeguard if Streamlit Cloud cached an older settings.py in memory
+if not hasattr(_settings_mod, "ENABLE_AUTO_WATCH"):
+    importlib.reload(_settings_mod)
+
+ENABLE_SHAREPOINT_SYNC = getattr(_settings_mod, "ENABLE_SHAREPOINT_SYNC", True)
+ENABLE_AUTO_WATCH = getattr(_settings_mod, "ENABLE_AUTO_WATCH", True)
+AUTO_WATCH_PHOTO_ROOT = getattr(
+    _settings_mod,
+    "AUTO_WATCH_PHOTO_ROOT",
+    ["07 - Employee Folders (to be reviewed)", "Lorenz", "Whiteboard Photos"],
 )
+AUTO_WATCH_INTERVAL_SECONDS = getattr(_settings_mod, "AUTO_WATCH_INTERVAL_SECONDS", 120)
 
 PAUSE_KEY = "auto_watch_pause_toggle"
 ERROR_KEY = "auto_watch_action_error"
