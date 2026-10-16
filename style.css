@@ -561,4 +561,4 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .st-key-auto_watch_strip div[data-testid="stToggle"] label > div:first-of-type { align-self: center !important; margin: 0 !important; }
 .st-key-auto_watch_strip div[data-testid="stToggle"] label > div:not(:first-of-type) { display: flex !important; align-items: center !important; align-self: center !important; height: 30px !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; }
 .st-key-auto_watch_strip div[data-testid="stToggle"] label > div:not(:first-of-type) * { display: flex !important; align-items: center !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; line-height: 1 !important; }
-.st-key-auto_watch_strip div[data-testid="stToggle"] label > div:not(:first-of-type) { transform: translateY(2px) !important; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] label > div:not(:first-of-type) { transform: translateY(10px) !important; }
