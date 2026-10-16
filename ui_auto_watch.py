@@ -29,7 +29,6 @@ AUTO_WATCH_INTERVAL_SECONDS = getattr(_settings_mod, "AUTO_WATCH_INTERVAL_SECOND
 ENABLED_KEY = "auto_watch_enabled_toggle"
 ERROR_KEY = "auto_watch_action_error"
 _LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=8))
-_LEVEL_MARK = {"success": "Added", "info": "Note", "warning": "Check", "error": "Problem"}
 
 
 def _short_monitored_path(parts):
@@ -38,7 +37,6 @@ def _short_monitored_path(parts):
         return "SharePoint"
     cleaned = []
     for p in parts:
-        # Strip leading '07 - ' prefix and parenthetical notes for a cleaner strip subtitle
         label = p.split(" - ", 1)[-1] if " - " in p and p[:2].isdigit() else p
         if "(" in label:
             label = label.split("(")[0].strip()
@@ -52,7 +50,7 @@ def _relative_last_check(status):
     """Computes a friendly 'Last checked X minutes ago' string."""
     next_at = float(status.get("next_check_at") or 0.0)
     if status.get("state") in ("scanning", "working"):
-        return "Checking now…"
+        return "Checking now\u2026"
     if next_at > 0:
         last_ts = next_at - AUTO_WATCH_INTERVAL_SECONDS
         elapsed = max(0, int(time.time() - last_ts))
@@ -62,7 +60,7 @@ def _relative_last_check(status):
         return f"Last checked {mins} minute{'s' if mins != 1 else ''} ago"
     if status.get("last_check"):
         return f"Last checked {status['last_check']}"
-    return "Starting monitor…"
+    return "Starting monitor\u2026"
 
 
 def _on_enabled_change():
@@ -94,22 +92,22 @@ def render_auto_watch_strip():
     monitored_label = _short_monitored_path(AUTO_WATCH_PHOTO_ROOT)
     if not is_enabled:
         dot_class = "paused"
-        sub_text = f"Paused · Monitoring {monitored_label}"
+        sub_text = f"Paused \u00b7 Monitoring {monitored_label}"
     elif state == "error":
         dot_class = "error"
-        sub_text = f"Connection issue · Retrying {monitored_label}"
+        sub_text = f"Connection issue \u00b7 Retrying {monitored_label}"
     elif state == "working" and curr_total > 0:
         dot_class = "active"
-        sub_text = f"Extracting {curr_idx} of {curr_total} photo(s) · {monitored_label}"
+        sub_text = f"Extracting {curr_idx} of {curr_total} photo(s) \u00b7 {monitored_label}"
     elif state == "scanning":
         dot_class = "active"
-        sub_text = f"Scanning folders · {monitored_label}"
+        sub_text = f"Scanning folders \u00b7 {monitored_label}"
     elif waiting > 0:
         dot_class = "active"
-        sub_text = f"Active · {waiting} new photo(s) queued in {monitored_label}"
+        sub_text = f"Active \u00b7 {waiting} new photo(s) queued in {monitored_label}"
     else:
         dot_class = "active"
-        sub_text = f"Active · Monitoring {monitored_label}"
+        sub_text = f"Active \u00b7 Monitoring {monitored_label}"
 
     last_checked_str = _relative_last_check(status)
 
@@ -157,13 +155,13 @@ def render_auto_watch_strip():
                 disabled=not is_enabled or busy,
                 use_container_width=True,
             ):
-                auto_watcher.trigger_check_now(skip_settle=True)
+                if hasattr(auto_watcher, "trigger_check_now"):
+                    auto_watcher.trigger_check_now(skip_settle=True)
                 st.rerun()
 
-        # Live progress bar when actively extracting or when failed photos need retry
         if state == "working" and curr_total > 0:
             fraction = min(max(curr_idx / curr_total, 0.08), 1.0)
-            target_note = f" → {curr_file}" if curr_file else ""
+            target_note = f" \u2192 {curr_file}" if curr_file else ""
             photo_note = f": {curr_photo}" if curr_photo else ""
             st.progress(fraction, text=f"Processing {curr_idx} of {curr_total}{photo_note}{target_note}")
 
@@ -182,5 +180,4 @@ def render_auto_watch_strip():
                     st.rerun()
 
 
-# Backwards-compatible alias in case anything still imports render_auto_watch_card
 render_auto_watch_card = render_auto_watch_strip

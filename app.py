@@ -10,6 +10,7 @@ import streamlit as st
 import auto_watcher
 import sharepoint_client
 import ui_components
+import ui_auto_watch
 from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
 from file_utils import sanitize_batch_filename, load_prefs, save_prefs
 from batch_processor import run_batch, BatchOutcome
@@ -20,9 +21,14 @@ from ui_sections import (
     hide_uploader_chrome_if_filled, process_blockers,
 )
 from ui_source_browser import render_source_browser
-from ui_auto_watch import render_auto_watch_strip
 from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
+
+# Hot-reload safeguards so Streamlit Cloud never fails on cached modules
+if not hasattr(ui_auto_watch, "render_auto_watch_strip"):
+    importlib.reload(ui_auto_watch)
+if not hasattr(ui_components, "render_locked_save_settings"):
+    importlib.reload(ui_components)
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
@@ -49,7 +55,7 @@ auto_watcher.start_if_due()
 
 _KEEP_ALIVE_PREFIXES = (
     "photo_source", "batch_name_input", "folder_choice_input",
-    "new_folder_name_input", "src_recursive", "src_lv_", "out_lv_", "out_new_",
+    "new_folder_name_input", "src_recursive", "src_lv_", "subfolder_choice_lv", "new_subfolder_name_lv",
 )
 for _key in list(st.session_state.keys()):
     if isinstance(_key, str) and _key.startswith(_KEEP_ALIVE_PREFIXES):
@@ -201,7 +207,10 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
 stepper_slot = st.empty()
 
 # 2. Dedicated SharePoint Auto-Extract status strip above the workspace
-render_auto_watch_strip()
+if hasattr(ui_auto_watch, "render_auto_watch_strip"):
+    ui_auto_watch.render_auto_watch_strip()
+elif hasattr(ui_auto_watch, "render_auto_watch_card"):
+    ui_auto_watch.render_auto_watch_card()
 
 # 3. 55/45 split workspace
 form_col, results_col = st.columns([11, 9], gap="large")
@@ -278,7 +287,8 @@ with form_col:
                              "and you can change it.",
                     )
         else:
-            ui_components.render_locked_save_settings()
+            if hasattr(ui_components, "render_locked_save_settings"):
+                ui_components.render_locked_save_settings()
             folder_choice = st.session_state.get("last_folder_choice", MAIN_FOLDER_LABEL)
             new_folder_raw = ""
             batch_name_raw = st.session_state.get("batch_name_input", "")
@@ -372,7 +382,10 @@ with results_col:
 
         report_files = (st.session_state.get("batch_report") or {}).get("files") or []
         review_count = sum(1 for f in report_files if f.get("status") == "review")
-        ui_components.render_tip(
-            completed=bool(st.session_state.batch_results),
-            review_count=review_count,
-        )
+        try:
+            ui_components.render_tip(
+                completed=bool(st.session_state.batch_results),
+                review_count=review_count,
+            )
+        except TypeError:
+            ui_components.render_tip()

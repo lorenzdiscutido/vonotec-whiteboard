@@ -528,3 +528,6 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .output-pill-icon.blue { background: #e8eefb; }
 .output-pill-icon.amber { background: #fef3c7; }
 .output-pill-text { font-size: 12.5px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.status-badge.waiting, .sec-badge.waiting { background: #f8fafc !important; color: #64748b !important; border: 1px solid #dce3eb !important; }
+.status-badge.waiting > span, .sec-badge.waiting .sec-badge-dot { background: #94a3b8 !important; }
