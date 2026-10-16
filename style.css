@@ -493,11 +493,11 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 
 /* --- SharePoint Auto-Extract Top Status Strip (Aligned & Uniform) --- */
 .st-key-auto_watch_strip { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; padding: 11px 20px !important; margin: 0 auto 14px auto !important; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important; }
-.st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 14px !important; width: 100% !important; min-height: 38px !important; margin: 0 !important; }
-.st-key-auto_watch_strip [data-testid="stColumn"] { display: flex !important; align-items: center !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
-.st-key-auto_watch_strip [data-testid="stColumn"] > div, .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stVerticalBlock"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stElementContainer"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { display: flex !important; align-items: center !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
-.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) [data-testid="stElementContainer"] { flex: 1 1 auto !important; justify-content: flex-start !important; width: 100% !important; }
-.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(2), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(3), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(4) { flex: 0 0 auto !important; width: auto !important; justify-content: flex-end !important; }
+.st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 18px !important; width: 100% !important; margin: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] { min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stVerticalBlock"] { gap: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) { flex: 1 1 0 !important; width: auto !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(n+2) { flex: 0 0 auto !important; width: auto !important; }
 .aw-strip-brand { display: flex; align-items: center; gap: 12px; margin: 0; padding: 0; }
 .aw-strip-icon-wrap { position: relative; width: 36px; height: 36px; border-radius: 9px; background: #ecfdf5; border: 1px solid #d1fae5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .aw-strip-dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; background: #16a34a; }
@@ -541,3 +541,4 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 
 .status-badge.waiting, .sec-badge.waiting { background: #f8fafc !important; color: #64748b !important; border: 1px solid #dce3eb !important; }
 .status-badge.waiting > span, .sec-badge.waiting .sec-badge-dot { background: #94a3b8 !important; }
+@media (max-width: 760px) { .st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 10px 16px !important; } .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; } }

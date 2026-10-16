@@ -21,7 +21,7 @@ from ui_sections import (
     hide_uploader_chrome_if_filled, process_blockers,
 )
 from ui_source_browser import render_source_browser
-from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
+from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
 
 # Hot-reload safeguards so Streamlit Cloud never fails on cached modules
@@ -63,10 +63,7 @@ for _key in list(st.session_state.keys()):
 
 if view == VIEW_DASHBOARD:
     st.session_state.batch_running = False
-    with st.sidebar:
-        render_dashboard_controls()
-    with st.container(key="analytics"):
-        render_analytics_dashboard()
+    render_dashboard_view()
     st.stop()
 
 init_session_state()
