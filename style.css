@@ -546,3 +546,12 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .status-badge.waiting, .sec-badge.waiting { background: #f8fafc !important; color: #64748b !important; border: 1px solid #dce3eb !important; }
 .status-badge.waiting > span, .sec-badge.waiting .sec-badge-dot { background: #94a3b8 !important; }
 @media (max-width: 760px) { .st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 10px 16px !important; } .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) { flex: 1 1 100% !important; } }
+/* --- Auto-Extract strip: every item centred on one horizontal line --- */
+.st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { align-items: center !important; min-height: 38px !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] { align-self: center !important; height: 38px !important; display: flex !important; align-items: center !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) { height: auto !important; min-height: 38px !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] > div, .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stVerticalBlock"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stElementContainer"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { display: flex !important; align-items: center !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; line-height: 1 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) > div, .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) [data-testid="stVerticalBlock"], .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) [data-testid="stElementContainer"], .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) [data-testid="stMarkdownContainer"] { height: auto !important; }
+.st-key-auto_watch_strip .aw-strip-checked { height: 30px; line-height: 30px; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] label > div:first-of-type { margin-top: 0 !important; margin-bottom: 0 !important; align-self: center !important; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] label p { line-height: 30px !important; }
