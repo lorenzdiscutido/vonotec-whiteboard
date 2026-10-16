@@ -1,27 +1,5 @@
 # app.py
-"""Main flow of the Whiteboard AI web app. Everything else lives in:
-    settings.py          switches and constants
-    file_utils.py        processed-photo log, filename cleanup
-    extraction.py        Gemini reading + review pass
-    excel_writer.py      master Excel file (layout, units, repair formulas)
-    batch_processor.py   the per-photo batch loop
-    ui_sections.py       session state, folder picker, file management, pending syncs
-    ui_source_browser.py folder card for "Import from SharePoint"
-    sync_tracker.py      remembers which batch files reached SharePoint
-    ui_components.py     CSS and header
-    ui_dashboard.py      the Analytics Dashboard view (charts from the SharePoint Excel files)
-    dashboard_data.py    reads the batch Excel files into a table for the dashboard
-    dashboard_loader.py  downloads those files in the background so the dashboard is ready
-    auto_watcher.py      auto-extract: watches the "Whiteboard Photos" folder in SharePoint
-    auto_naming.py       which Excel file a photo belongs to, from its folder
-    ui_auto_watch.py     the auto-extract status card (Pause switch, latest activity)
-    write_lock.py        keeps a manual batch and the watcher off the same Excel file
-
-Photos can come from three places: uploaded from this device, already sitting in any
-SharePoint folder ("Import from SharePoint"), or uploaded by coworkers to the watched
-"Whiteboard Photos" folder, which the background watcher handles with nobody clicking.
-The first two end up in the same batch loop.
-"""
+"""Main flow of the Whiteboard AI web app."""
 import os
 import datetime
 import importlib
@@ -42,16 +20,19 @@ from ui_sections import (
     hide_uploader_chrome_if_filled, process_blockers,
 )
 from ui_source_browser import render_source_browser
-from ui_auto_watch import render_auto_watch_card
-from ui_dashboard import render_dashboard_view, render_analytics_dashboard, render_dashboard_controls
+from ui_auto_watch import render_auto_watch_strip
+from ui_dashboard import render_analytics_dashboard, render_dashboard_controls
 from dashboard_loader import start_warmup_if_due
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
 
-# Parallel wording: both options describe the same stage (bringing photos in)
-SOURCE_LOCAL = "Upload from device"
+SOURCE_LOCAL = "Device upload"
 SOURCE_SHAREPOINT = "Import from SharePoint"
+
+# Normalize legacy session value if user switches from an older session
+if st.session_state.get("photo_source") in ("Upload Local Photos", "Upload from device"):
+    st.session_state["photo_source"] = SOURCE_LOCAL
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="VONOTEC Whiteboard Extractor", layout="wide")
@@ -64,14 +45,11 @@ view = ui_components.render_header([VIEW_EXTRACTION, VIEW_DASHBOARD])
 start_warmup_if_due()
 
 # --- AUTO-EXTRACT ---
-# Start the background watcher of the "Whiteboard Photos" folder (once per app process;
-# later calls do nothing). It runs whichever view is open, and keeps running for as long
-# as the app stays awake.
 auto_watcher.start_if_due()
 
 _KEEP_ALIVE_PREFIXES = (
     "photo_source", "batch_name_input", "folder_choice_input",
-    "new_folder_name_input", "src_recursive", "src_lv_",
+    "new_folder_name_input", "src_recursive", "src_lv_", "out_lv_", "out_new_",
 )
 for _key in list(st.session_state.keys()):
     if isinstance(_key, str) and _key.startswith(_KEEP_ALIVE_PREFIXES):
@@ -109,8 +87,6 @@ class RemoteFile:
 
 
 def _prepare_output(batch_name_raw, folder_choice, new_folder_raw):
-    """Checks the batch name and folder. Returns (filename, subfolder,
-    creating_new_folder, error_message); error_message is None when all is well."""
     filename = sanitize_batch_filename(batch_name_raw)
     if not filename:
         return None, "", False, "Please enter a name for this batch before extracting."
@@ -121,7 +97,6 @@ def _prepare_output(batch_name_raw, folder_choice, new_folder_raw):
 
 
 def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro=None):
-    """Runs the batch for `files`, then stores the messages and resets the uploader."""
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
     output_path = os.path.join(local_dir, filename)
@@ -174,9 +149,8 @@ def _fail(kind, text):
 
 
 def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
-    """Local photos: validates the form, then runs the batch."""
     if not files:
-        _fail("error", "Please select at least one photo before processing.")
+        _fail("error", "Please select at least one photo before extracting.")
         return
 
     filename, subfolder, creating_new_folder, error = _prepare_output(
@@ -190,7 +164,6 @@ def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
 
 
 def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders):
-    """SharePoint photos: lists the photos in the folder opened in the browser, then runs the batch."""
     filename, subfolder, creating_new_folder, error = _prepare_output(
         batch_name_raw, folder_choice, new_folder_raw
     )
@@ -224,12 +197,16 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
     _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro)
 
 
+# 1. Global 3-step workflow stepper slot
 stepper_slot = st.empty()
 
-# 55/45 split gives the results and review list plenty of horizontal room
+# 2. Dedicated SharePoint Auto-Extract status strip above the workspace
+render_auto_watch_strip()
+
+# 3. 55/45 split workspace
 form_col, results_col = st.columns([11, 9], gap="large")
 
-# --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
+# --- LEFT: PHOTO SOURCE, UPLOADER AND PROGRESSIVE SAVE SETTINGS ---
 with form_col:
     with st.container(key="form_panel"):
         ui_components.section_heading(
@@ -254,7 +231,8 @@ with form_col:
             source_path, include_subfolders, remote_photo_count = render_source_browser()
         else:
             ui_components.subsection_heading(
-                "Upload whiteboard photos", "Drop photos here or browse your device. JPG and PNG are supported.",
+                "Upload whiteboard photos",
+                "Drop whiteboard photos here or click Browse files. Supports JPG and PNG up to 200 MB per file.",
             )
             uploaded_files = st.file_uploader(
                 "Choose whiteboard images...",
@@ -281,24 +259,29 @@ with form_col:
                 st.session_state.batch_name_folder_marker = folder_marker
                 st.session_state.batch_name_input = source_path[-1]
 
-        # Step 1 strict gate: Save settings is locked until photos are uploaded or a SharePoint folder with photos is chosen
+        # Progressive disclosure: Save settings stays in a compact locked card until Step 1 has photos
         active_photo_count = remote_photo_count if remote_mode else len(uploaded_files or [])
         photos_gate_open = (bool(source_path) and remote_photo_count > 0) if remote_mode else bool(uploaded_files)
 
-        with st.container(border=True, key="save_settings" if photos_gate_open else "save_settings_muted"):
-            ui_components.card_heading("Output preferences", "Save settings")
-            folder_column, name_column = st.columns(2, gap="medium")
-            with folder_column:
-                folder_choice, new_folder_raw = render_folder_picker(disabled=not photos_gate_open)
-            with name_column:
-                batch_name_raw = st.text_input(
-                    "Batch name",
-                    key="batch_name_input",
-                    disabled=not photos_gate_open,
-                    help="This becomes the Excel file name, both here and in SharePoint. "
-                         "With 'Import from SharePoint' it starts as the chosen folder's name, "
-                         "and you can change it.",
-                )
+        if photos_gate_open:
+            with st.container(border=True, key="save_settings"):
+                ui_components.card_heading("Output preferences", "Save settings")
+                folder_column, name_column = st.columns(2, gap="medium")
+                with folder_column:
+                    folder_choice, new_folder_raw = render_folder_picker(disabled=False)
+                with name_column:
+                    batch_name_raw = st.text_input(
+                        "Batch name",
+                        key="batch_name_input",
+                        help="This becomes the Excel file name, both here and in SharePoint. "
+                             "With 'Import from SharePoint' it starts as the chosen folder's name, "
+                             "and you can change it.",
+                    )
+        else:
+            ui_components.render_locked_save_settings()
+            folder_choice = st.session_state.get("last_folder_choice", MAIN_FOLDER_LABEL)
+            new_folder_raw = ""
+            batch_name_raw = st.session_state.get("batch_name_input", "")
 
         photos_missing, destination_missing = process_blockers(
             active_photo_count, bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
@@ -323,8 +306,7 @@ with form_col:
         extract_clicked = running and not remote_mode
         fetch_clicked = running and remote_mode
 
-# Fill the stepper now that the form's state is known:
-# Once a batch has completed (batch_done), all 3 steps show as completed (green checkmarks).
+# Fill the stepper now that the form's state is known
 _done = set()
 if batch_done:
     _done = {1, 2, 3}
@@ -344,7 +326,7 @@ if clear_clicked:
     st.session_state.batch_report = None
     st.rerun()
 
-# --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
+# --- RIGHT: RESULTS, DOWNLOAD / DELETE, PENDING SYNCS ---
 with results_col:
     with st.container(key="results_panel"):
         if uploaded_files:
@@ -355,8 +337,10 @@ with results_col:
             badge = ("Extracting", "processing")
         elif st.session_state.batch_results:
             badge = ("Complete", "complete")
-        else:
+        elif photos_gate_open:
             badge = ("Ready", "ready")
+        else:
+            badge = ("Waiting for photos", "waiting")
         ui_components.section_heading("Output", "Batch results", badge)
 
         last_file = st.session_state.last_output_path
@@ -385,22 +369,10 @@ with results_col:
 
         render_file_management()
         render_pending_syncs()
-        render_auto_watch_card()
 
-        # Contextual footer tip: explains how to resolve flagged rows after extraction
         report_files = (st.session_state.get("batch_report") or {}).get("files") or []
         review_count = sum(1 for f in report_files if f.get("status") == "review")
-        try:
-            ui_components.render_tip(
-                completed=bool(st.session_state.batch_results),
-                review_count=review_count,
-            )
-        except TypeError:
-            importlib.reload(ui_components)
-            try:
-                ui_components.render_tip(
-                    completed=bool(st.session_state.batch_results),
-                    review_count=review_count,
-                )
-            except TypeError:
-                ui_components.render_tip()
+        ui_components.render_tip(
+            completed=bool(st.session_state.batch_results),
+            review_count=review_count,
+        )

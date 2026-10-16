@@ -523,6 +523,7 @@ def remember_new_folder(subfolder):
 # ---------------------------------------------------------------------------
 
 PROCESS_VERB = "Extract"
+PROCESS_BUTTON_LABEL = "Select photos to continue"
 
 
 def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, batch_name_raw, remote):
@@ -530,23 +531,17 @@ def process_blockers(photo_count, source_chosen, folder_choice, new_folder_raw, 
     still missing, or "" when it is fine. The Extract button stays disabled until both are ""."""
     photos_missing = ""
     if remote:
-        if not source_chosen:
-            photos_missing = "Select a SharePoint folder to continue."
-        elif photo_count <= 0:
-            photos_missing = "No whiteboard photos found in the selected folder."
+        if not source_chosen or photo_count <= 0:
+            photos_missing = "Select a SharePoint folder to continue"
     else:
         if photo_count <= 0:
-            photos_missing = "Upload at least one whiteboard photo to continue."
+            photos_missing = "Select whiteboard photos to continue"
 
     destination_missing = ""
-    if folder_choice == NEW_FOLDER_LABEL:
-        if not _sanitize_relative_segments(new_folder_raw):
-            destination_missing = "Enter a name for the new folder."
-    elif isinstance(folder_choice, str) and folder_choice.endswith(f"/{NEW_SUBFOLDER_LABEL}"):
-        if not _sanitize_relative_segments(new_folder_raw):
-            destination_missing = "Enter a name for the new subfolder."
-    if not destination_missing and not (batch_name_raw or "").strip():
-        destination_missing = "Enter a batch name to continue."
+    if folder_choice == NEW_FOLDER_LABEL and not (new_folder_raw or "").strip():
+        destination_missing = "Enter a name for the new folder"
+    elif not (batch_name_raw or "").strip():
+        destination_missing = "Enter a batch name"
     return photos_missing, destination_missing
 
 
@@ -558,42 +553,35 @@ def _process_label(photo_count, source_chosen, remote, running=False, done=False
         return "Extracting\u2026"
     if done:
         return f"Re-extract {photo_count:,} photo{'s' if photo_count != 1 else ''}" if photo_count > 0 else "Start new extraction"
-    if remote and not source_chosen:
-        return "Select a folder to continue"
-    if not remote and photo_count <= 0:
-        return "Upload photos to continue"
-    if photo_count > 0:
-        return f"{PROCESS_VERB} {photo_count:,} photo{'s' if photo_count != 1 else ''}"
-    return PROCESS_BUTTON_LABEL
+    if photo_count <= 0 or (remote and not source_chosen):
+        return "Select photos to continue"
+    return f"{PROCESS_VERB} {photo_count:,} photo{'s' if photo_count != 1 else ''}"
 
 
 def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="", remote=False, running=False, done=False):
-    """The sticky action footer: primary action aligned to the right edge with requirement text above it."""
+    """Bottom action bar: left-side source-aware instruction or Clear action, right-side primary CTA."""
     with st.container(key="action_buttons"):
-        label = _process_label(photo_count, source_chosen, remote, running, done)
-        process_disabled = bool(blocked_reason) or running
-        if blocked_reason:
-            st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
-        if remote:
+        label = _process_label(photo_count, source_chosen, remote, running=running, done=done)
+        left_col, right_col = st.columns([1.35, 1.15], vertical_alignment="center")
+        clear_clicked = False
+        with left_col:
+            if blocked_reason:
+                st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
+            elif not remote and photo_count > 0:
+                clear_clicked = st.button("Clear selected photos", type="secondary", key="clear_photos")
+            elif remote and source_chosen and photo_count > 0:
+                st.markdown(
+                    f'<p class="footer-hint ready-hint">{photo_count:,} SharePoint photo{"s" if photo_count != 1 else ""} ready to extract</p>',
+                    unsafe_allow_html=True,
+                )
+        with right_col:
             process_clicked = st.button(
-                label, type="primary", key="fetch_folder_running" if running else "fetch_folder",
-                disabled=process_disabled,
+                label,
+                type="primary",
+                key="fetch_folder" if remote else "extract_data",
+                disabled=bool(blocked_reason) or running,
+                use_container_width=True,
             )
-            clear_clicked = False
-        else:
-            clear_col, process_col = st.columns(2, gap="small")
-            with clear_col:
-                clear_clicked = st.button(
-                    "Clear All Photos",
-                    type="primary",
-                    key="clear_photos",
-                    disabled=running or photo_count <= 0,
-                )
-            with process_col:
-                process_clicked = st.button(
-                    label, type="primary", key="extract_data_running" if running else "extract_data",
-                    disabled=process_disabled,
-                )
     return process_clicked, clear_clicked
 
 

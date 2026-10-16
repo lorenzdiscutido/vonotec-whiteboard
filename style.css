@@ -490,3 +490,41 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .audit-drawer-body { padding: 0 18px 16px 18px; border-top: 1px solid #edf1f5; }
 .audit-cap-note { margin: 8px 0 0 0 !important; color: #64748b !important; font-size: 12px !important; }
 .boq-chevron { transition: transform 0.18s ease; }
+
+/* --- SharePoint Auto-Extract Top Status Strip --- */
+.st-key-auto_watch_strip { background: #ffffff !important; border: 1px solid #dce3eb !important; border-radius: 12px !important; padding: 10px 18px !important; margin: 0 auto 16px auto !important; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important; }
+.aw-strip-brand { display: flex; align-items: center; gap: 12px; }
+.aw-strip-icon-wrap { position: relative; width: 36px; height: 36px; border-radius: 9px; background: #ecfdf5; border: 1px solid #d1fae5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.aw-strip-dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; background: #16a34a; }
+.aw-strip-dot.paused { background: #94a3b8; }
+.aw-strip-dot.error { background: #dc2626; }
+.aw-strip-title { font-size: 13.5px; font-weight: 700; color: #0f172a; line-height: 1.25; }
+.aw-strip-sub { font-size: 12px; font-weight: 500; color: #64748b; line-height: 1.35; }
+.aw-strip-checked { text-align: right; font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
+.st-key-auto_watch_strip [data-testid="stCheckbox"] label { flex-direction: row-reverse !important; gap: 8px !important; font-size: 12.5px !important; font-weight: 600 !important; color: #1e293b !important; }
+.st-key-auto_watch_check_now button { background: #ffffff !important; color: #1e293b !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; font-size: 12.5px !important; font-weight: 600 !important; height: 34px !important; padding: 0 12px !important; box-shadow: none !important; }
+.st-key-auto_watch_check_now button:hover:not(:disabled) { background: #f8fafc !important; border-color: #94a3b8 !important; }
+
+/* --- Compact Locked Save Settings Card (Step 2 Progressive Disclosure) --- */
+.locked-save-card { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin: 14px 0 18px 0; }
+.locked-save-left { display: flex; align-items: center; gap: 12px; }
+.locked-save-icon { width: 36px; height: 36px; border-radius: 9px; background: #eef2f6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.locked-save-title { font-size: 14px; font-weight: 700; color: #334155; line-height: 1.25; }
+.locked-save-sub { font-size: 12.5px; font-weight: 500; color: #64748b; margin-top: 2px; }
+.locked-step-pill { font-size: 11.5px; font-weight: 700; color: #64748b; background: #eef2f6; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+
+/* --- Waiting for Photos Badge & Consolidated Empty Results --- */
+.sec-badge.waiting { background: #f8fafc; color: #64748b; border: 1px solid #dce3eb; }
+.sec-badge.waiting .sec-badge-dot { background: #94a3b8; }
+.empty-results-card { display: flex; align-items: flex-start; gap: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
+.empty-results-icon { width: 40px; height: 40px; border-radius: 10px; background: #e8eefb; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.empty-results-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+.empty-results-sub { font-size: 13px; font-weight: 500; color: #64748b; margin: 0; line-height: 1.5; }
+.output-includes-box { background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.output-includes-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: #64748b; text-transform: uppercase; margin-bottom: 10px; }
+.output-includes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.output-pill-item { display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 9px 11px; }
+.output-pill-icon { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.output-pill-icon.blue { background: #e8eefb; }
+.output-pill-icon.amber { background: #fef3c7; }
+.output-pill-text { font-size: 12.5px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

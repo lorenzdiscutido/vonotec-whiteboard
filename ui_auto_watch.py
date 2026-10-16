@@ -1,23 +1,18 @@
 # ui_auto_watch.py
-"""The small status card for the auto-extract watcher (auto_watcher.py): is it running,
-when it last looked, live progress bar ("Processing X of Y photos") when active,
-a "Scan & process now" button to bypass the 2-minute wait, a Pause switch, and
-a "Retry failed photos" button.
-
-It is a "fragment", so it refreshes itself every 3 seconds without reloading the page."""
+"""Dedicated horizontal status strip for SharePoint Auto-Extract (auto_watcher.py)
+positioned above the main workspace, matching the enterprise Figma layout."""
+import datetime
+import html
 import importlib
 import time
 import streamlit as st
 
 import auto_watcher
-import ui_components
 import settings as _settings_mod
 
-# Hot-reload safeguard if Streamlit Cloud cached an older settings.py in memory
 if not hasattr(_settings_mod, "ENABLE_AUTO_WATCH"):
     importlib.reload(_settings_mod)
 
-# Also reload auto_watcher if it came from an older module version without trigger_check_now
 if not hasattr(auto_watcher, "trigger_check_now"):
     importlib.reload(auto_watcher)
     auto_watcher.start_if_due()
@@ -31,125 +26,161 @@ AUTO_WATCH_PHOTO_ROOT = getattr(
 )
 AUTO_WATCH_INTERVAL_SECONDS = getattr(_settings_mod, "AUTO_WATCH_INTERVAL_SECONDS", 120)
 
-PAUSE_KEY = "auto_watch_pause_toggle"
+ENABLED_KEY = "auto_watch_enabled_toggle"
 ERROR_KEY = "auto_watch_action_error"
-
-_STATE_TEXT = {
-    "starting": "Starting...",
-    "idle": "Running. Waiting for new photos",
-    "scanning": "Running. Scanning SharePoint folders...",
-    "working": "Running. Extracting photos now",
-    "paused": "Paused",
-    "error": "Could not check the folder",
-}
+_LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=8))
 _LEVEL_MARK = {"success": "Added", "info": "Note", "warning": "Check", "error": "Problem"}
 
 
-def _on_pause_change():
+def _short_monitored_path(parts):
+    """Formats the watched folder path into a clean display label."""
+    if not parts:
+        return "SharePoint"
+    cleaned = []
+    for p in parts:
+        # Strip leading '07 - ' prefix and parenthetical notes for a cleaner strip subtitle
+        label = p.split(" - ", 1)[-1] if " - " in p and p[:2].isdigit() else p
+        if "(" in label:
+            label = label.split("(")[0].strip()
+        cleaned.append(label)
+    if len(cleaned) >= 2:
+        return f"{cleaned[0]} / {cleaned[-1]}"
+    return " / ".join(cleaned)
+
+
+def _relative_last_check(status):
+    """Computes a friendly 'Last checked X minutes ago' string."""
+    next_at = float(status.get("next_check_at") or 0.0)
+    if status.get("state") in ("scanning", "working"):
+        return "Checking now…"
+    if next_at > 0:
+        last_ts = next_at - AUTO_WATCH_INTERVAL_SECONDS
+        elapsed = max(0, int(time.time() - last_ts))
+        if elapsed < 45:
+            return "Last checked just now"
+        mins = max(1, elapsed // 60)
+        return f"Last checked {mins} minute{'s' if mins != 1 else ''} ago"
+    if status.get("last_check"):
+        return f"Last checked {status['last_check']}"
+    return "Starting monitor…"
+
+
+def _on_enabled_change():
     try:
-        auto_watcher.set_paused(bool(st.session_state.get(PAUSE_KEY)))
+        enabled = bool(st.session_state.get(ENABLED_KEY, True))
+        auto_watcher.set_paused(not enabled)
         st.session_state.pop(ERROR_KEY, None)
     except Exception as error:
-        st.session_state[ERROR_KEY] = f"Could not change the pause setting: {error}"
+        st.session_state[ERROR_KEY] = f"Could not update Auto-Extract state: {error}"
 
 
-@st.fragment(run_every=3)
-def render_auto_watch_card():
+@st.fragment(run_every=4)
+def render_auto_watch_strip():
+    """Renders the full-width SharePoint Auto-Extract status strip above the workspace."""
     if not (ENABLE_SHAREPOINT_SYNC and ENABLE_AUTO_WATCH):
         return
 
     status = auto_watcher.get_status()
-    st.session_state[PAUSE_KEY] = bool(status["paused"])
+    is_enabled = not bool(status.get("paused", False))
+    st.session_state[ENABLED_KEY] = is_enabled
 
-    with st.container(border=True, key="auto_watch_card"):
-        ui_components.card_heading("Auto-extract", "SharePoint photo watcher")
-        st.caption(
-            f'Watching: {" / ".join(AUTO_WATCH_PHOTO_ROOT)}. New photos are read and added to the right '
-            f"Excel file by themselves, about every {AUTO_WATCH_INTERVAL_SECONDS // 60} minutes."
-        )
+    curr_idx = int(status.get("current_index") or 0)
+    curr_total = int(status.get("current_total") or 0)
+    curr_photo = status.get("current_photo") or ""
+    curr_file = status.get("current_file") or ""
+    waiting = int(status.get("waiting") or 0)
+    state = status.get("state", "idle")
 
-        curr_idx = int(status.get("current_index") or 0)
-        curr_total = int(status.get("current_total") or 0)
-        curr_photo = status.get("current_photo") or ""
-        curr_file = status.get("current_file") or ""
-        waiting = int(status.get("waiting") or 0)
-        last_done = int(status.get("last_cycle_done") or 0)
-        last_total = int(status.get("last_cycle_total") or 0)
-        last_time = status.get("last_cycle_time") or ""
-        next_check_at = float(status.get("next_check_at") or 0.0)
-        secs_to_next = max(0, int(next_check_at - time.time())) if next_check_at else 0
+    monitored_label = _short_monitored_path(AUTO_WATCH_PHOTO_ROOT)
+    if not is_enabled:
+        dot_class = "paused"
+        sub_text = f"Paused · Monitoring {monitored_label}"
+    elif state == "error":
+        dot_class = "error"
+        sub_text = f"Connection issue · Retrying {monitored_label}"
+    elif state == "working" and curr_total > 0:
+        dot_class = "active"
+        sub_text = f"Extracting {curr_idx} of {curr_total} photo(s) · {monitored_label}"
+    elif state == "scanning":
+        dot_class = "active"
+        sub_text = f"Scanning folders · {monitored_label}"
+    elif waiting > 0:
+        dot_class = "active"
+        sub_text = f"Active · {waiting} new photo(s) queued in {monitored_label}"
+    else:
+        dot_class = "active"
+        sub_text = f"Active · Monitoring {monitored_label}"
 
-        if status["state"] == "working" and curr_total > 0:
-            state_line = f"Status: Processing {curr_idx} of {curr_total} photo(s)"
-        elif status["state"] == "idle" and waiting > 0:
-            state_line = f"Status: {waiting} new photo(s) queued — waiting for upload settle timer ({secs_to_next}s to next check)"
-        elif status["state"] == "idle" and secs_to_next > 0:
-            state_line = f'Status: {_STATE_TEXT["idle"]} (next check in {secs_to_next}s)'
-        else:
-            state_line = f'Status: {_STATE_TEXT.get(status["state"], status["state"])}'
+    last_checked_str = _relative_last_check(status)
 
-        lines = [state_line]
-        if status["last_check"]:
-            lines.append(f'Last check: {status["last_check"]} (Manila time)')
-        lines.append(f'Added since the app started: {status["processed_session"]}')
-        if last_total > 0 and status["state"] != "working":
-            lines.append(f'Last batch completed: {last_done} of {last_total} photo(s) at {last_time}')
-        st.caption("  \n".join(lines))
+    with st.container(border=True, key="auto_watch_strip"):
+        col_left, col_meta, col_toggle, col_btn = st.columns([4.8, 2.2, 1.9, 1.1], vertical_alignment="center")
 
-        # --- LIVE PROGRESS BAR STATES ---
-        if status["state"] == "scanning":
-            st.progress(0.05, text="Scanning SharePoint folders for new photos...")
-        elif status["state"] == "working" and curr_total > 0:
+        with col_left:
+            st.markdown(
+                f'<div class="aw-strip-brand">'
+                f'  <div class="aw-strip-icon-wrap">'
+                f'    <span class="aw-strip-dot {dot_class}"></span>'
+                f'    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                f'      <polygon points="12 2 2 7 12 12 22 7 12 2"/>'
+                f'      <polyline points="2 12 12 17 22 12"/>'
+                f'      <polyline points="2 17 12 22 22 17"/>'
+                f'    </svg>'
+                f'  </div>'
+                f'  <div class="aw-strip-text">'
+                f'    <div class="aw-strip-title">SharePoint Auto-Extract</div>'
+                f'    <div class="aw-strip-sub">{html.escape(sub_text)}</div>'
+                f'  </div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        with col_meta:
+            st.markdown(
+                f'<div class="aw-strip-checked">{html.escape(last_checked_str)}</div>',
+                unsafe_allow_html=True,
+            )
+
+        with col_toggle:
+            st.toggle(
+                "Auto-Extract enabled",
+                key=ENABLED_KEY,
+                on_change=_on_enabled_change,
+                help="Automatically extracts new whiteboard photos uploaded to the monitored SharePoint folder.",
+            )
+
+        with col_btn:
+            busy = state in ("scanning", "working")
+            if st.button(
+                "Check now",
+                key="auto_watch_check_now",
+                disabled=not is_enabled or busy,
+                use_container_width=True,
+            ):
+                auto_watcher.trigger_check_now(skip_settle=True)
+                st.rerun()
+
+        # Live progress bar when actively extracting or when failed photos need retry
+        if state == "working" and curr_total > 0:
             fraction = min(max(curr_idx / curr_total, 0.08), 1.0)
             target_note = f" → {curr_file}" if curr_file else ""
-            photo_note = f": {curr_photo}" if curr_photo else "..."
-            st.progress(
-                fraction,
-                text=f"Processing {curr_idx} of {curr_total} photo(s){photo_note}{target_note}",
-            )
-        elif status["state"] == "idle" and waiting > 0:
-            wait_frac = min(max(1.0 - (secs_to_next / max(AUTO_WATCH_INTERVAL_SECONDS, 1)), 0.1), 0.95)
-            st.progress(
-                wait_frac,
-                text=f"Queued {waiting} photo(s) — auto-starting in ~{secs_to_next}s (or click 'Process now' below)",
-            )
-        elif last_total > 0 and status["state"] == "idle":
-            st.progress(
-                1.0,
-                text=f"Completed {last_done} of {last_total} photo(s) ({last_time})",
-            )
+            photo_note = f": {curr_photo}" if curr_photo else ""
+            st.progress(fraction, text=f"Processing {curr_idx} of {curr_total}{photo_note}{target_note}")
 
-        if status["error"]:
-            st.error(f'The last check failed: {status["error"]}. It tries again automatically.')
+        if status.get("error"):
+            st.error(f"Last check failed: {status['error']}. Retrying automatically.")
         if st.session_state.get(ERROR_KEY):
             st.error(st.session_state[ERROR_KEY])
 
-        ctrl_col1, ctrl_col2 = st.columns([1.4, 1.6], gap="small")
-        with ctrl_col1:
-            st.toggle(
-                "Pause auto-extract",
-                key=PAUSE_KEY,
-                on_change=_on_pause_change,
-                help="Stops new photos from being read. Photos stay in the folder and are "
-                     "picked up when you switch it back on.",
-            )
-        with ctrl_col2:
-            if not status["paused"] and status["state"] not in ("working", "scanning"):
-                btn_label = f"Process {waiting} waiting now" if waiting > 0 else "Check folder now"
-                if st.button(btn_label, type="primary", key="auto_watch_check_now"):
-                    auto_watcher.trigger_check_now(skip_settle=True)
+        if status.get("failed"):
+            f_col1, f_col2 = st.columns([4, 1], vertical_alignment="center")
+            with f_col1:
+                st.warning(f"{status['failed']} photo(s) could not be processed after 3 attempts.")
+            with f_col2:
+                if st.button("Retry failed", key="auto_watch_retry", use_container_width=True):
+                    auto_watcher.request_retry_failed()
                     st.rerun()
 
-        if status["failed"]:
-            st.warning(f'{status["failed"]} photo(s) could not be processed and were set aside.')
-            if st.button("Retry failed photos", type="primary", key="auto_watch_retry"):
-                try:
-                    auto_watcher.request_retry_failed()
-                    st.info("They will be tried again right now.")
-                except Exception as error:
-                    st.error(f"Could not request a retry: {error}")
 
-        if status["events"]:
-            st.caption("Latest activity")
-            for event in status["events"][:6]:
-                st.caption(f'{event["time"]}  |  {_LEVEL_MARK.get(event["level"], "Note")}: {event["text"]}')
+# Backwards-compatible alias in case anything still imports render_auto_watch_card
+render_auto_watch_card = render_auto_watch_strip

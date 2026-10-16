@@ -1,85 +1,73 @@
 # ui_components.py
+"""Shared visual building blocks: top header bar, 3-stage workflow stepper,
+section/card headings, compact locked Save settings state, empty results preview,
+and contextual extraction tips."""
 import base64
 import html
-from pathlib import Path
 import streamlit as st
-
-# Inline icons (the same paths the design uses)
-_ICON_LAYERS = (
-    '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4"/></svg>'
-)
-_ICON_SPARK = (
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3ZM5 15l.7 2.3L8 18.5l-2.3 1.2L5 22l-.7-2.3L2 18.5l2.3-1.2L5 15Zm14-3 .7 2.3 2.3 1.2-2.3 1.2L19 19l-.7-2.3-2.3-1.2 2.3-1.2L19 12Z"/></svg>'
-)
-
-# Gray file icon on the right of the "Save settings" card heading
-_ICON_FILE = (
-    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ba8b9" '
-    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
-)
-
-# The "?" icon of the Help link in the header
-_ICON_HELP = (
-    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>'
-    '<path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9M12 17h.01"/></svg>'
-)
-
-# The how-to text that opens from the Help link.
-_HELP_HTML = (
-    '<div class="help-title">How to use the whiteboard extractor</div>'
-    '<p>Add whiteboard photos from your device or from a SharePoint folder. The AI extracts the data '
-    'and appends it to the Master Excel file.</p>'
-    '<ol>'
-    '<li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>'
-    '<li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>'
-    '<li>Click the <b>Extract</b> button.</li>'
-    '<li>Follow the progress, results and download on the right. The <b>Dashboard</b> picks up the new data by itself.</li>'
-    '</ol>'
-)
 
 
 def load_local_css(file_name="style.css"):
-    """Injects the external CSS file into the Streamlit app layout and strips non-breaking spaces."""
-    css_path = Path(__file__).with_name(file_name)
-    if not css_path.exists():
-        css_path = Path(file_name)
+    """Injects the external CSS file into the Streamlit app layout."""
     try:
-        css = css_path.read_text(encoding="utf-8").replace("\u00a0", " ")
-        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-    except OSError:
+        with open(file_name, encoding="utf-8") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
         pass
 
 
-def _brand_html():
-    """The logo, a thin divider and the product name (left of the header bar)."""
-    logo_path = Path(__file__).with_name("vonotec.png")
-    if not logo_path.exists():
-        logo_path = Path("vonotec.png")
-    try:
-        logo_base64 = base64.b64encode(logo_path.read_bytes()).decode()
-        logo = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
-    except OSError:
-        logo = '<span class="brand-text">VONOTEC</span>'
-    return f'<div class="brand">{logo}<span class="product-name">Whiteboard AI</span></div>'
+_HELP_STEPS = (
+    ("1. Select photos", "Choose <b>Device upload</b> to drop photos from your computer, or <b>Import from SharePoint</b> to pick a project folder."),
+    ("2. Save destination", "Once photos are selected, Step 2 unlocks. Pick the SharePoint output folder and review the Excel workbook name."),
+    ("3. Extract data", "Click <b>Extract photos</b>. Review any flagged items on the right and download the generated Master Log."),
+)
+
+
+def _help_popover_html():
+    items = "".join(
+        f'<div class="help-step"><div class="help-step-title">{title}</div>'
+        f'<div class="help-step-body">{body}</div></div>'
+        for title, body in _HELP_STEPS
+    )
+    return (
+        '<details class="help-popover">'
+        '<summary class="help-trigger">'
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>'
+        '<line x1="12" y1="17" x2="12.01" y2="17"/>'
+        '</svg>'
+        '<span>Help</span>'
+        '</summary>'
+        f'<div class="help-panel"><div class="help-panel-head">How Whiteboard AI works</div>{items}</div>'
+        '</details>'
+    )
 
 
 def render_header(views):
-    """One white header card with three equal columns: the brand on the left,
-    the view switch (a radio, drawn as two pills) in the middle and the
-    tagline on the right."""
-    with st.container(key="top_app_header"):
-        try:
-            col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
-        except TypeError:
-            col_left, col_center, col_right = st.columns([1, 1, 1])
+    """Renders the 3-column enterprise top header card and returns the selected view."""
+    logo_html = ""
+    try:
+        with open("vonotec.png", "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode()
+        logo_html = f'<img src="data:image/png;base64,{logo_b64}" class="brand-logo" alt="VONOTEC">'
+    except FileNotFoundError:
+        logo_html = '<span class="brand-fallback">VONOTEC</span>'
 
+    with st.container(key="top_app_header"):
+        col_left, col_center, col_right = st.columns([1.15, 1.1, 1.15], vertical_alignment="center")
         with col_left:
-            st.markdown(_brand_html(), unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="header-brand">'
+                f'{logo_html}'
+                f'<span class="brand-divider"></span>'
+                f'<span class="brand-product">Whiteboard AI</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         with col_center:
-            view = st.radio(
+            chosen = st.radio(
                 "View",
                 views,
                 horizontal=True,
@@ -88,163 +76,202 @@ def render_header(views):
             )
         with col_right:
             st.markdown(
-                '<div class="header-right">'
-                '<span class="header-tagline">Data Extraction and Master Log Automator</span>'
-                f'<details class="help-pop"><summary>{_ICON_HELP}Help</summary>'
-                f'<div class="help-panel">{_HELP_HTML}</div></details>'
-                '</div>',
+                f'<div class="header-right">'
+                f'<span class="header-tagline">Data Extraction &amp; Master Log Automator</span>'
+                f'{_help_popover_html()}'
+                f'</div>',
                 unsafe_allow_html=True,
             )
-    return view
+    return chosen
 
 
-WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
-
-
-def render_stepper(done, current):
-    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
+def render_stepper(done_steps, current_step):
+    """Draws the 3-step horizontal progress stepper above the workspace."""
+    steps = [
+        (1, "Select photos"),
+        (2, "Save destination"),
+        (3, "Extract data"),
+    ]
     parts = []
-    for number, label in enumerate(WORKFLOW_STEPS, start=1):
-        state = "done" if number in done else ("current" if number == current else "todo")
-        mark = "&#10003;" if state == "done" else str(number)
-        parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
-    st.markdown(
-        '<div class="workflow-stepper">' + '<span class="wf-arrow">&rarr;</span>'.join(parts) + '</div>',
-        unsafe_allow_html=True,
-    )
+    for num, label in steps:
+        if num in done_steps:
+            state_cls = "done"
+            badge_inner = "&#10003;"
+        elif num == current_step:
+            state_cls = "active"
+            badge_inner = str(num)
+        else:
+            state_cls = "upcoming"
+            badge_inner = str(num)
+
+        parts.append(
+            f'<div class="wf-step {state_cls}">'
+            f'<span class="wf-num">{badge_inner}</span>'
+            f'<span class="wf-label">{html.escape(label)}</span>'
+            f'</div>'
+        )
+        if num < len(steps):
+            line_cls = "done" if num in done_steps else ""
+            parts.append(f'<div class="wf-line {line_cls}"></div>')
+
+    st.markdown(f'<div class="wf-stepper">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
-def section_heading(eyebrow, title, badge=None, step=None, description=None):
-    """A small orange label over a large title. On the right there is either a
-    status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete", or a plain step label."""
-    right = ""
+def section_heading(eyebrow, title, badge=None, description=""):
+    """Renders an uppercase orange eyebrow, bold section title, optional status pill, and description."""
+    badge_html = ""
     if badge:
         text, kind = badge
-        right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
-    elif step:
-        right = f'<span class="step-label">{html.escape(step)}</span>'
-    desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
+        badge_html = (
+            f'<span class="sec-badge {html.escape(kind)}">'
+            f'<span class="sec-badge-dot"></span>{html.escape(text)}</span>'
+        )
+    desc_html = f'<p class="sec-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
-        '<div class="section-heading"><div>'
-        f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
-        f'<h2>{html.escape(title)}</h2>'
-        f'</div>{right}</div>{desc_html}',
+        f'<div class="section-heading">'
+        f'<div class="sec-top-row">'
+        f'<div><p class="eyebrow">{html.escape(eyebrow)}</p><h2>{html.escape(title)}</h2></div>'
+        f'{badge_html}'
+        f'</div>'
+        f'{desc_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 
-def subsection_heading(title, description=None):
-    """The smaller heading of the source-specific content under the source switch."""
-    desc_html = f'<div class="source-subhead-desc">{html.escape(description)}</div>' if description else ""
+def subsection_heading(title, subtitle=""):
+    sub_html = f'<p class="subsec-sub">{html.escape(subtitle)}</p>' if subtitle else ""
     st.markdown(
-        f'<div class="source-subhead"><div class="source-subhead-title">{html.escape(title)}</div>{desc_html}</div>',
+        f'<div class="subsection-heading">'
+        f'<div class="subsec-title">{html.escape(title)}</div>'
+        f'{sub_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 
-def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
-    """The same label-over-title pair, smaller, for the top of a card."""
-    step_html = f'<span class="step-label">{html.escape(step)}</span>' if step else ""
+def card_heading(eyebrow, title):
     st.markdown(
-        '<div class="card-heading"><div>'
-        f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
-        f'<div class="card-title">{html.escape(title)}</div>'
-        f'</div><div class="card-heading-right">{step_html}{icon}</div></div>',
+        f'<div class="card-heading">'
+        f'<div><p class="eyebrow">{html.escape(eyebrow)}</p>'
+        f'<div class="card-title">{html.escape(title)}</div></div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 
-# Small icons for the "After extraction, you'll see" preview
-_ICON_PREVIEW_STATUS = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
-)
-_ICON_PREVIEW_REVIEW = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
-)
-_ICON_PREVIEW_FILE = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
-)
+def render_locked_save_settings():
+    """Renders the compact locked 'Save settings' card when Step 1 is not yet complete."""
+    st.markdown(
+        '<div class="locked-save-card">'
+        '  <div class="locked-save-left">'
+        '    <div class="locked-save-icon">'
+        '      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+        '        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+        '        <polyline points="14 2 14 8 20 8"/>'
+        '        <line x1="16" y1="13" x2="8" y2="13"/>'
+        '        <line x1="16" y1="17" x2="8" y2="17"/>'
+        '      </svg>'
+        '    </div>'
+        '    <div class="locked-save-copy">'
+        '      <div class="locked-save-title">Save settings</div>'
+        '      <div class="locked-save-sub">Available after photos or a SharePoint folder are selected.</div>'
+        '    </div>'
+        '  </div>'
+        '  <span class="locked-step-pill">Step 2</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_empty_results():
-    """Shown in the Batch results column until the first batch is run."""
+    """Renders the consolidated 'No batch results yet' card and 3-outcome preview strip."""
     st.markdown(
-        '<div class="sync-card">'
-        f'<span class="sync-icon">{_ICON_LAYERS}</span>'
-        '<div><strong>Ready to process a new batch</strong>'
-        '<p>Messages, downloads and sync status appear here once you extract a batch.</p></div>'
+        '<div class="empty-results-card">'
+        '  <div class="empty-results-icon">'
+        '    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '      <polygon points="12 2 2 7 12 12 22 7 12 2"/>'
+        '      <polyline points="2 12 12 17 22 12"/>'
+        '      <polyline points="2 17 12 22 22 17"/>'
+        '    </svg>'
+        '  </div>'
+        '  <div class="empty-results-body">'
+        '    <div class="empty-results-title">No batch results yet</div>'
+        '    <p class="empty-results-sub">Select whiteboard photos to see processing status, flagged rows, and the generated workbook.</p>'
+        '  </div>'
         '</div>'
-        '<div class="preview-card">'
-        '<p class="preview-title">After extraction, you\'ll see</p>'
-        '<ul class="preview-list">'
-        f'<li><span class="preview-icon">{_ICON_PREVIEW_STATUS}</span>'
-        '<div><b>File-level status</b><span>Added, skipped or failed, one row per photo</span></div></li>'
-        f'<li><span class="preview-icon preview-icon-warn">{_ICON_PREVIEW_REVIEW}</span>'
-        '<div><b>Records needing review</b><span>Rows highlighted red in Excel, with the reason</span></div></li>'
-        f'<li><span class="preview-icon">{_ICON_PREVIEW_FILE}</span>'
-        '<div><b>Generated Excel workbook</b><span>Download it, or find it in SharePoint</span></div></li>'
-        '</ul></div>',
+        '<div class="output-includes-box">'
+        '  <div class="output-includes-label">BATCH OUTPUT INCLUDES</div>'
+        '  <div class="output-includes-grid">'
+        '    <div class="output-pill-item">'
+        '      <span class="output-pill-icon blue">'
+        '        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '          <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>'
+        '        </svg>'
+        '      </span>'
+        '      <span class="output-pill-text">Processing status</span>'
+        '    </div>'
+        '    <div class="output-pill-item">'
+        '      <span class="output-pill-icon amber">'
+        '        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '          <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z"/>'
+        '        </svg>'
+        '      </span>'
+        '      <span class="output-pill-text">Flagged records</span>'
+        '    </div>'
+        '    <div class="output-pill-item">'
+        '      <span class="output-pill-icon blue">'
+        '        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        '          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+        '          <polyline points="14 2 14 8 20 8"/>'
+        '          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'
+        '        </svg>'
+        '      </span>'
+        '      <span class="output-pill-text">Excel workbook</span>'
+        '    </div>'
+        '  </div>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
 
 def render_tip(completed=False, review_count=0):
-    """Contextual footer card in the results panel:
-    - Before extraction: photo quality tip
-    - After extraction with flagged rows: explains how to review red rows in Excel
-    - After extraction with 0 flagged rows: confirms all rows passed validation"""
+    """Contextual footer card in the right panel."""
     if completed and review_count > 0:
         st.markdown(
-            '<div class="tip-card">'
-            f'<span class="tip-icon">{_ICON_PREVIEW_REVIEW}</span>'
-            f'<div><strong>How to review {review_count} flagged item{"s" if review_count != 1 else ""}</strong>'
-            '<p>Flagged items were added to the Excel workbook and highlighted in <b>red</b>. '
-            'Click any row above to see what was missing or shared, then open the workbook in SharePoint '
-            'or download it above to check the embedded photo and fill in the cell.</p></div>'
-            '</div>',
+            f'<div class="tip-card review-tip">'
+            f'<div class="tip-icon">⚠️</div>'
+            f'<div>'
+            f'<div class="tip-title">How to review {review_count} flagged item{"s" if review_count != 1 else ""}</div>'
+            f'<p>Rows with missing or shared dimensions are highlighted in <b>red</b> in the Excel Master Log. '
+            f'Open the workbook, check the embedded whiteboard photo in Column J, and fill in Column H.</p>'
+            f'</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
     elif completed:
         st.markdown(
-            '<div class="tip-card tip-card-ok">'
-            f'<span class="tip-icon tip-icon-ok">{_ICON_PREVIEW_STATUS}</span>'
-            '<div><strong>All extracted rows passed validation</strong>'
-            '<p>Every processed whiteboard had complete defect codes and dimensions. '
-            'The workbook is synced to SharePoint and ready in the Analytics Dashboard.</p></div>'
+            '<div class="tip-card ok-tip">'
+            '<div class="tip-icon">✓</div>'
+            '<div>'
+            '<div class="tip-title">All extracted rows passed validation</div>'
+            '<p>Every defect code and dimension passed automatic checks and was synced to SharePoint.</p>'
+            '</div>'
             '</div>',
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
             '<div class="tip-card">'
-            f'<span class="tip-icon">{_ICON_SPARK}</span>'
-            '<div><strong>Extraction tip</strong>'
-            '<p>For best results, use clear photos with the full whiteboard in frame.</p></div>'
+            '<div class="tip-icon">'
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            '<path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z"/>'
+            '</svg>'
+            '</div>'
+            '<div>'
+            '<div class="tip-title">Extraction tip</div>'
+            '<p>For best results, use clear photos with the full whiteboard in frame.</p>'
+            '</div>'
             '</div>',
-            unsafe_allow_html=True,
-        )
-
-
-def render_instructions():
-    """The how-to text above the uploader (Whiteboard Extraction view only),
-    folded away by default so it doesn't use up the top of the screen."""
-    with st.expander("How to use the whiteboard extractor", expanded=False):
-        st.markdown(
-            """
-            <div class="instruction-text">
-                Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the data
-                and append it to the Master Excel file.
-                <ol>
-                    <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
-                    <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
-                    <li>Click <b>Extract photos</b>.</li>
-                    <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
-                </ol>
-            </div>
-            """,
             unsafe_allow_html=True,
         )
