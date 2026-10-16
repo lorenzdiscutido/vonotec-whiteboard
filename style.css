@@ -491,19 +491,29 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .audit-cap-note { margin: 8px 0 0 0 !important; color: #64748b !important; font-size: 12px !important; }
 .boq-chevron { transition: transform 0.18s ease; }
 
-/* --- SharePoint Auto-Extract Top Status Strip --- */
-.st-key-auto_watch_strip { background: #ffffff !important; border: 1px solid #dce3eb !important; border-radius: 12px !important; padding: 10px 18px !important; margin: 0 auto 16px auto !important; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important; }
-.aw-strip-brand { display: flex; align-items: center; gap: 12px; }
+/* --- SharePoint Auto-Extract Top Status Strip (Aligned & Uniform) --- */
+.st-key-auto_watch_strip { background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; padding: 11px 20px !important; margin: 0 auto 14px auto !important; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important; }
+.st-key-auto_watch_strip [data-testid="stHorizontalBlock"] { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 14px !important; width: 100% !important; min-height: 38px !important; margin: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] { display: flex !important; align-items: center !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"] > div, .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stVerticalBlock"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stElementContainer"], .st-key-auto_watch_strip [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { display: flex !important; align-items: center !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(1) [data-testid="stElementContainer"] { flex: 1 1 auto !important; justify-content: flex-start !important; width: 100% !important; }
+.st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(2), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(3), .st-key-auto_watch_strip [data-testid="stColumn"]:nth-child(4) { flex: 0 0 auto !important; width: auto !important; justify-content: flex-end !important; }
+.aw-strip-brand { display: flex; align-items: center; gap: 12px; margin: 0; padding: 0; }
 .aw-strip-icon-wrap { position: relative; width: 36px; height: 36px; border-radius: 9px; background: #ecfdf5; border: 1px solid #d1fae5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .aw-strip-dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; background: #16a34a; }
 .aw-strip-dot.paused { background: #94a3b8; }
 .aw-strip-dot.error { background: #dc2626; }
-.aw-strip-title { font-size: 13.5px; font-weight: 700; color: #0f172a; line-height: 1.25; }
-.aw-strip-sub { font-size: 12px; font-weight: 500; color: #64748b; line-height: 1.35; }
-.aw-strip-checked { text-align: right; font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
-.st-key-auto_watch_strip [data-testid="stCheckbox"] label { flex-direction: row-reverse !important; gap: 8px !important; font-size: 12.5px !important; font-weight: 600 !important; color: #1e293b !important; }
-.st-key-auto_watch_check_now button { background: #ffffff !important; color: #1e293b !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; font-size: 12.5px !important; font-weight: 600 !important; height: 34px !important; padding: 0 12px !important; box-shadow: none !important; }
-.st-key-auto_watch_check_now button:hover:not(:disabled) { background: #f8fafc !important; border-color: #94a3b8 !important; }
+.aw-strip-text { display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.aw-strip-title { font-size: 13.5px; font-weight: 700; color: #0f172a; line-height: 1.25; margin: 0; }
+.aw-strip-sub { font-size: 12px; font-weight: 500; color: #64748b; line-height: 1.3; margin: 0; }
+.aw-strip-checked { display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 500; color: #64748b; white-space: nowrap; line-height: 1; margin: 0; padding: 0; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] { margin: 0 !important; padding: 0 !important; display: flex !important; align-items: center !important; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] label { display: inline-flex !important; flex-direction: row-reverse !important; align-items: center !important; gap: 9px !important; margin: 0 !important; padding: 0 !important; cursor: pointer !important; }
+.st-key-auto_watch_strip div[data-testid="stToggle"] label p { margin: 0 !important; padding: 0 !important; font-size: 12.5px !important; font-weight: 700 !important; color: #1e293b !important; line-height: 1 !important; white-space: nowrap !important; }
+.st-key-auto_watch_strip .st-key-auto_watch_check_now div.stButton, .st-key-auto_watch_strip .st-key-auto_watch_check_now { width: auto !important; margin: 0 !important; }
+.st-key-auto_watch_strip .st-key-auto_watch_check_now div.stButton > button:first-child { height: 34px !important; width: auto !important; padding: 0 14px !important; background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; box-shadow: none !important; transform: none !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; }
+.st-key-auto_watch_strip .st-key-auto_watch_check_now div.stButton > button:first-child p { color: #0f172a !important; font-size: 12.5px !important; font-weight: 700 !important; line-height: 1 !important; white-space: nowrap !important; margin: 0 !important; }
+.st-key-auto_watch_strip .st-key-auto_watch_check_now div.stButton > button:first-child:hover:not(:disabled) { background-color: #f8fafc !important; border-color: #94a3b8 !important; transform: none !important; }
 
 /* --- Compact Locked Save Settings Card (Step 2 Progressive Disclosure) --- */
 .locked-save-card { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin: 14px 0 18px 0; }

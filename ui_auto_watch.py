@@ -112,7 +112,9 @@ def render_auto_watch_strip():
     last_checked_str = _relative_last_check(status)
 
     with st.container(border=True, key="auto_watch_strip"):
-        col_left, col_meta, col_toggle, col_btn = st.columns([4.8, 2.2, 1.9, 1.1], vertical_alignment="center")
+        col_left, col_meta, col_toggle, col_btn = st.columns(
+            [5.4, 1.9, 1.7, 1.0], gap="small", vertical_alignment="center"
+        )
 
         with col_left:
             st.markdown(
@@ -144,7 +146,6 @@ def render_auto_watch_strip():
                 "Auto-Extract enabled",
                 key=ENABLED_KEY,
                 on_change=_on_enabled_change,
-                help="Automatically extracts new whiteboard photos uploaded to the monitored SharePoint folder.",
             )
 
         with col_btn:
@@ -153,7 +154,6 @@ def render_auto_watch_strip():
                 "Check now",
                 key="auto_watch_check_now",
                 disabled=not is_enabled or busy,
-                use_container_width=True,
             ):
                 if hasattr(auto_watcher, "trigger_check_now"):
                     auto_watcher.trigger_check_now(skip_settle=True)
@@ -175,7 +175,7 @@ def render_auto_watch_strip():
             with f_col1:
                 st.warning(f"{status['failed']} photo(s) could not be processed after 3 attempts.")
             with f_col2:
-                if st.button("Retry failed", key="auto_watch_retry", use_container_width=True):
+                if st.button("Retry failed", key="auto_watch_retry"):
                     auto_watcher.request_retry_failed()
                     st.rerun()
 
