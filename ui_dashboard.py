@@ -454,8 +454,8 @@ def _dimension_table_html(records):
             group_count = material_counts[current_material]
             body += (
                 '<tr class="boq-group"><td colspan="7">'
-                f'{html.escape(str(current_material))}'
-                f'<span class="boq-group-meta">{group_count:,} defect{"s" if group_count != 1 else ""}</span>'
+                f'{html.escape(str(current_material))} '
+                f'<span class="boq-group-meta">&middot; {group_count:,} defect{"s" if group_count != 1 else ""}</span>'
                 "</td></tr>"
             )
 
