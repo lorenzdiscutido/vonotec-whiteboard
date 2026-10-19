@@ -269,7 +269,7 @@ def _render_kpi_cards(df, summary, files_read):
             unsafe_allow_html=True,
         )
     with col3:
-        sub3 = f"Board: {area_board:,.2f} SQ LM \u00b7 {area_measured:,} measured"
+        sub3 = f"Board: {area_board:,.2f} SQM \u00b7 {area_measured:,} measured"
         st.markdown(
             _kpi_card_html("Area repair total", f"{area_repair:,.2f}", "SQ LM", html.escape(sub3), _KPI_ICON_AREA, tone="green"),
             unsafe_allow_html=True,
@@ -541,7 +541,7 @@ def _dimension_table_html(records):
         '<th>DEFECT</th>'
         '<th>DESCRIPTION</th>'
         '<th class="boq-num">COUNT</th>'
-        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQ LM</span></th>'
+        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
         '<th>AREA REPAIR <span class="th-unit">SQ LM</span></th>'
         '<th>DATA HEALTH</th>'
