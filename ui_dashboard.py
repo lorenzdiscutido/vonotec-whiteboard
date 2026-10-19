@@ -184,6 +184,25 @@ def _load_scope(scope, subfolders):
 # Section 1: KPI Cards & Warm-Amber Review Banner
 # ---------------------------------------------------------------------------
 
+# What each sealant location modifier means (the two surfaces the sealant joins), shown in the
+# Description column: "DS CF" -> "Damaged Sealant (Concrete to Frame)"
+SEALANT_LOCATION_NAMES = {
+    "CC": "Concrete to Concrete",
+    "CF": "Concrete to Frame",
+    "GG": "Glass to Glass",
+    "FG": "Frame to Glass",
+    "FF": "Frame to Frame",
+}
+
+
+def _defect_description(code, defect_type):
+    """The Description of a summary row: the defect type, plus the surfaces for a sealant code."""
+    parts = str(code or "").split()
+    if len(parts) > 1 and parts[1] in SEALANT_LOCATION_NAMES:
+        return f"{defect_type} ({SEALANT_LOCATION_NAMES[parts[1]]})"
+    return str(defect_type)
+
+
 def _base_defect_code(code):
     parts = str(code or "").split()
     return parts[0] if parts else ""
@@ -379,7 +398,7 @@ def _summary_to_excel_bytes(summary):
 
         ws.append([
             record["Defect Code"],
-            record["Defect Type"],
+            _defect_description(record["Defect Code"], record["Defect Type"]),
             cnt,
             round(float(tot_dim), 2) if tot_dim is not None and tot_dim == tot_dim else "",
             record["Board Unit"] or "",
@@ -460,7 +479,7 @@ def _dimension_table_html(records):
             )
 
         code = str(record["Defect Code"])
-        desc = str(record["Defect Type"])
+        desc = _defect_description(code, record["Defect Type"])
         cnt = int(record["Defects"] or 0)
         tot_dim = record["Total Dimension"]
         board_unit = str(record["Board Unit"] or "")
