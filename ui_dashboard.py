@@ -344,7 +344,22 @@ def _summary_to_excel_bytes(summary):
     total_area_repair = 0.0
     total_missing = 0
 
+    group_fill = PatternFill(start_color="E8EEF8", end_color="E8EEF8", fill_type="solid")
+    group_font = Font(name="Calibri", size=11, bold=True, color="1E3A8A")
+    material_counts = {}
     for record in records:
+        material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"])
+
+    current_material = None
+    for record in records:
+        if record["Material"] != current_material:
+            current_material = record["Material"]
+            ws.append([str(current_material), "", material_counts[current_material], "", "", "", "", ""])
+            for col_idx in range(1, len(headers) + 1):
+                group_cell = ws.cell(row=ws.max_row, column=col_idx)
+                group_cell.fill = group_fill
+                group_cell.font = group_font
+
         tot_dim = record["Total Dimension"]
         rep_dim = record["Total Repair Dimension"]
         rep_unit = record["Repair Unit"] or ""
@@ -427,7 +442,23 @@ def _dimension_table_html(records):
     total_area = 0.0
     total_missing = 0
 
+    # Defects per material, shown on each group's header row
+    material_counts = {}
     for record in records:
+        material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"] or 0)
+
+    current_material = None
+    for record in records:
+        if record["Material"] != current_material:
+            current_material = record["Material"]
+            group_count = material_counts[current_material]
+            body += (
+                '<tr class="boq-group"><td colspan="7">'
+                f'{html.escape(str(current_material))}'
+                f'<span class="boq-group-meta">{group_count:,} defect{"s" if group_count != 1 else ""}</span>'
+                "</td></tr>"
+            )
+
         code = str(record["Defect Code"])
         desc = str(record["Defect Type"])
         cnt = int(record["Defects"] or 0)
@@ -512,7 +543,7 @@ def _dimension_section(summary, scope="All"):
                 '<div class="boq-header">'
                 '<p class="eyebrow">Repair quantity summary</p>'
                 '<div class="chart-name">Dimensions by defect</div>'
-                '<div class="chart-sub">Repair quantities grouped by engineering defect code (Linear LM first, then Area SQ LM)</div>'
+                '<div class="chart-sub">Repair quantities grouped by material, then by defect code (Linear LM first, then Area SQ LM)</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
