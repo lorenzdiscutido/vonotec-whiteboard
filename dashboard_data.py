@@ -64,6 +64,11 @@ _MERGED_DEFECT_CODES = {
     "FRAME": "GLASS-FRAME",
 }
 
+# Likely cause of each defect code, straight from the Reference Data sheet ("-" rows are sealant
+# location modifiers, not defects). Used by the "Defects by likely cause" chart.
+_CAUSE_BY_CODE = {row[0]: row[2] for row in REFERENCE_DATA[1:] if row[2] and row[2] != "-"}
+
+
 # Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
 GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
 _NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
@@ -76,6 +81,12 @@ def _base_code(code):
     """Returns the base defect code (e.g. 'DS CF' -> 'DS')."""
     parts = str(code or "").split()
     return parts[0] if parts else ""
+
+
+def cause_for_code(code):
+    """The likely cause of a defect code ('DS CF' -> 'Wear and Tear'), or 'Unknown' when the code isn't in the
+    Reference Data sheet."""
+    return _CAUSE_BY_CODE.get(_base_code(code), UNKNOWN)
 
 
 def _clean_token(token):
@@ -351,6 +362,7 @@ def rows_to_dataframe(rows):
     df = pd.DataFrame(rows, columns=COLUMNS)
     for column in ("Floor", "Tower", "Material", "Defect Type"):
         df[column] = df[column].replace("", UNKNOWN).fillna(UNKNOWN)
+    df["Cause"] = df["Defect Code"].map(cause_for_code).astype(object)
     df["Dimension"] = pd.to_numeric(df["Dimension"], errors="coerce")
     df["Repair Dimension"] = pd.to_numeric(df["Repair Dimension"], errors="coerce")
     return df
