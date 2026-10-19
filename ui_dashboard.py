@@ -47,6 +47,7 @@ CHART_SUBTITLES = {
     "Material": "Top facade classifications",
     "Tower": "Distribution across project towers",
     "Floor": "Concentration across active levels",
+    "Cause": "Why each defect most likely happened",
 }
 
 # Column order of the raw audit log table
@@ -545,10 +546,14 @@ VALUE_LABEL_SIZE_MANY = 9.5
 MANY_BARS_MIN = 20
 
 
-def _bar_chart(counts, column):
+def _bar_chart(counts, column, horizontal=False):
     """A bar chart of counts (from dashboard_data.count_by), keeping the order the table is
     already in. Every bar carries its exact value above it."""
     import altair as alt
+
+    if horizontal:
+        _horizontal_bar_chart(counts, column)
+        return
 
     tilted = len(counts) > STRAIGHT_LABELS_MAX_BARS
     x_axis = alt.Axis(
@@ -607,6 +612,57 @@ def _bar_chart(counts, column):
         st.altair_chart(chart, theme=None)
 
 
+def _horizontal_bar_chart(counts, column):
+    """Horizontal bars for categories with long names (the likely causes): the names sit in full on
+    the left, one bar per row, every bar with its exact value at the end."""
+    import altair as alt
+
+    y = alt.Y(f"{column}:N", sort=list(counts[column]), title=None,
+              scale=alt.Scale(paddingInner=0.35, paddingOuter=0.2),
+              axis=alt.Axis(labelLimit=320, labelPadding=10, labelFontSize=13, ticks=False, domain=False))
+    x = alt.X("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1))
+
+    bars = (
+        alt.Chart(counts)
+        .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, size=26)
+        .encode(
+            color=alt.condition(
+                f"datum['{column}'] == '{UNKNOWN}'",
+                alt.value(ACCENT_COLOR),
+                alt.value(CHART_COLOR),
+            ),
+            y=y,
+            x=x,
+            tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
+        )
+    )
+    labels = (
+        alt.Chart(counts)
+        .mark_text(align="left", baseline="middle", dx=6, fontSize=VALUE_LABEL_SIZE_FEW, fontWeight=600,
+                   color=VALUE_LABEL_COLOR)
+        .encode(y=y, x=x, text=alt.Text("Defects:Q", format=",d"))
+    )
+
+    chart = (
+        alt.layer(bars, labels)
+        .properties(
+            height=max(120, 52 * len(counts) + 16), width="container", background=CHART_BACKGROUND,
+            padding={"left": 4, "right": 40, "top": 8, "bottom": 4},
+        )
+        .configure(font=CHART_FONT)
+        .configure_axis(
+            labelColor=CHART_TEXT, labelFontSize=12,
+            titleFontSize=13,
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
+        )
+        .configure_view(stroke=None)
+    )
+    try:
+        st.altair_chart(chart, theme=None, use_container_width=True)
+    except TypeError:
+        st.altair_chart(chart, theme=None)
+
+
 def _chart_badge_text(counts, column):
     """Contextual right-hand badge for each chart card."""
     if counts.empty:
@@ -620,6 +676,11 @@ def _chart_badge_text(counts, column):
         target = known if not known.empty else counts
         top_row = target.sort_values("Defects", ascending=False).iloc[0]
         return f"Floor {top_row['Floor']} is highest"
+    if column == "Cause":
+        known = counts[counts["Cause"] != UNKNOWN]
+        target = known if not known.empty else counts
+        top_row = target.sort_values("Defects", ascending=False).iloc[0]
+        return f"Mostly {top_row['Cause']}"
     total = int(counts["Defects"].sum())
     return f"{total:,} total"
 
@@ -653,12 +714,12 @@ def _chart_section(df, column, title, hide_unknown):
         if counts.empty:
             st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
             return
-        _bar_chart(counts, column)
+        _bar_chart(counts, column, horizontal=(column == "Cause"))
 
 
 def _chart_notes(df, hide_unknown):
     """Short note when 'Exclude Unknown locations' is switched on."""
-    columns = ("Tower", "Floor", "Material")
+    columns = ("Tower", "Material", "Cause")
     if hide_unknown:
         parts = []
         for column in columns:
@@ -887,7 +948,7 @@ def render_analytics_dashboard():
             _chart_section(df, "Material", "Defects by material", hide_unknown)
         with tower_col:
             _chart_section(df, "Tower", "Defects by tower", hide_unknown)
-        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+        _chart_section(df, "Cause", "Defects by likely cause", hide_unknown)
 
     note = _chart_notes(df, hide_unknown)
     if note:
