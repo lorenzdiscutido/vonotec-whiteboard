@@ -459,19 +459,19 @@ def _most_common_text(values):
 
 
 def _convert_board_dimension(total_value, raw_unit):
-    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQ LM (/ 10,000)."""
+    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQM (/ 10,000)."""
     unit_clean = (raw_unit or "").upper().strip()
     if total_value is None:
         if unit_clean == "CM":
             return None, "LM"
         if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-            return None, "SQ LM"
+            return None, "SQM"
         return None, raw_unit
 
     if unit_clean == "CM":
         return float(total_value) / 100.0, "LM"
     if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-        return float(total_value) / 10000.0, "SQ LM"
+        return float(total_value) / 10000.0, "SQM"
     return float(total_value), raw_unit
 
 
@@ -581,3 +581,4 @@ def dimension_by_defect(df):
         .drop(columns=["_material_rank", "_unit_rank", "_order"])
         .reset_index(drop=True)
     )
+    
