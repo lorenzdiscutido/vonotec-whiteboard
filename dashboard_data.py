@@ -430,8 +430,23 @@ _CODE_ORDER = _build_code_order()
 
 DEFECT_SUMMARY_COLUMNS = [
     "Defect Code", "Defect Type", "Defects", "Board Unit", "Total Dimension",
-    "Repair Unit", "Total Repair Dimension", "Missing Dimension",
+    "Repair Unit", "Total Repair Dimension", "Missing Dimension", "Material",
 ]
+
+# Material of each defect code and the order the materials are listed in: the same arrangement as
+# the batch Excel files (MATERIAL_RULES in config.py: Concrete, Paint, Gasket, Sealant, ...)
+_MATERIAL_ORDER = list(MATERIAL_RULES)
+_MATERIAL_BY_CODE = {code: material for material, codes in MATERIAL_RULES.items() for code in codes}
+
+
+def material_for_code(code):
+    """The material a defect code belongs to ('DS CF' -> 'Sealant'), or 'Unknown'."""
+    base = _base_code(code)
+    return _MATERIAL_BY_CODE.get(_MERGED_DEFECT_CODES.get(base, base), UNKNOWN)
+
+
+def _material_rank(material):
+    return _MATERIAL_ORDER.index(material) if material in _MATERIAL_ORDER else len(_MATERIAL_ORDER)
 
 
 def _most_common_text(values):
@@ -480,8 +495,9 @@ def _unit_group_rank(repair_unit):
 
 
 def dimension_by_defect(df):
-    """One row per defect code, ordered with all Linear Meter (LM) defects first,
-    then Square Meter (SQ LM) defects, then non-dimensional defects."""
+    """One row per defect code, grouped by material (Concrete, Paint, Gasket, Sealant, ...). Inside
+    each material: Linear Meter (LM) defects first, then Square Meter (SQ LM) defects, then
+    non-dimensional defects."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
 
@@ -556,10 +572,12 @@ def dimension_by_defect(df):
             "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
+    summary["Material"] = summary["Defect Code"].map(material_for_code)
+    summary["_material_rank"] = summary["Material"].map(_material_rank)
     summary["_unit_rank"] = summary["Repair Unit"].map(_unit_group_rank)
     summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))
     return (
-        summary.sort_values(["_unit_rank", "_order", "Defect Code"])
-        .drop(columns=["_unit_rank", "_order"])
+        summary.sort_values(["_material_rank", "_unit_rank", "_order", "Defect Code"])
+        .drop(columns=["_material_rank", "_unit_rank", "_order"])
         .reset_index(drop=True)
     )
