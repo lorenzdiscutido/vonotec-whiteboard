@@ -1,3 +1,4 @@
+# gemini_client.py
 import json
 import re
 import time
@@ -11,7 +12,6 @@ import streamlit as st
 from config import JSON_KEYS, MATERIAL_RULES, REFERENCE_DATA
 from defect_rules import DEFECT_UNITS
 
-# Errors from Gemini that are temporary (busy / rate limited) and worth retrying
 try:
     from google.api_core import exceptions as google_exceptions
     RETRYABLE_ERRORS = (
@@ -34,15 +34,15 @@ _rate_lock = threading.Lock()
 MATERIALS = ["Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass"]
 SEALANT_LOCATION_MODIFIERS = ["CC", "CF", "GG", "FG", "FF", "FC", "GF"]
 
-# Defect codes that are written on the board WITHOUT a dimension
-NO_DIMENSION_CODES = {"NP", "BG", "GLASS-FRAME", "FRAME"}
+# Defect codes that are written on the board WITHOUT a dimension (NP now uses CM² -> SQ.M. like other Paint defects)
+NO_DIMENSION_CODES = {"BG", "GLASS-FRAME", "FRAME"}
 
-# FIX: Exclude modifiers from VALID_CODES so the script doesn't split "DS CC" into "DS" and "CC"
-VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODIFIERS)
+# Exclude modifiers and multi-word aliases from VALID_CODES token splitting
+VALID_CODES = {row[0] for row in REFERENCE_DATA[1:]} - set(SEALANT_LOCATION_MODIFIERS) - {"NO PAINT"}
 
 HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 
-OTHER_DEFECT_CODES = ["BG", "GLASS-FRAME", "FRAME"]
+OTHER_DEFECT_CODES = ["BG"]
 
 
 def _wait_for_slot():
@@ -57,34 +57,39 @@ def _wait_for_slot():
             wait = RATE_WINDOW_SECONDS - (now - _call_times[0])
         time.sleep(max(wait, 0.5))
 
+
 def _retry_wait_seconds(error, attempt):
     match = re.search(r"retry in ([\d.]+)s", str(error))
     if match:
         return float(match.group(1)) + 1
     return (2 ** attempt) + random.random()
 
+
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-flash-lite-latest')
+model = genai.GenerativeModel("gemini-flash-lite-latest")
+
 
 def _defect_reference_text():
     lines = []
     for material, codes, unit in DEFECT_UNITS:
-        if unit:
-            lines.append(f"- {material} defect codes {', '.join(codes)}: dimension unit is {unit}.")
+        visible_codes = [c for c in codes if c != "NO PAINT"]
+        if unit and visible_codes:
+            lines.append(f"- {material} defect codes {', '.join(visible_codes)}: dimension unit is {unit}.")
     modifiers = ", ".join(SEALANT_LOCATION_MODIFIERS)
     all_codes = []
     for _material, codes, _unit in DEFECT_UNITS:
-        all_codes += [c for c in codes if c not in all_codes]
+        all_codes += [c for c in codes if c not in all_codes and c != "NO PAINT"]
     all_codes += [c for c in OTHER_DEFECT_CODES if c not in all_codes]
-    
+
     return (
         "DEFECT CODES, LOCATION MODIFIERS AND UNITS (this list is the current, official one): "
-        + " ".join(lines) + 
-        f" The ONLY valid sealant location modifiers are: {modifiers}. They follow the sealant defect code in the same string "
+        + " ".join(lines)
+        + f" The ONLY valid sealant location modifiers are: {modifiers}. They follow the sealant defect code in the same string "
         "(e.g., 'DS CC', 'MS FG'). Note that 'CC-' and 'CC+' (with a minus or plus sign) are CONCRETE crack defect codes, "
         "while 'CC' with no sign written after a sealant code is a location modifier. "
         f"The valid defect codes to watch for are: {', '.join(all_codes)}. "
     )
+
 
 def _extraction_prompt():
     modifiers_quoted = ", ".join(f"'{m}'" for m in SEALANT_LOCATION_MODIFIERS)
@@ -105,17 +110,18 @@ def _extraction_prompt():
         + "CRITICAL FORMATTING FOR RULE 6: "
         "- FORCE UPPERCASE: Convert all text to uppercase (e.g., 'ds' to 'DS'). "
         "- UNITS DEPEND ON THE DEFECT CODE: write each dimension with the unit that belongs to the defect code in the SAME position of the damage array, "
-        "exactly as listed above (for example Concrete 'US' and 'BH' use 'CM²', but Concrete 'CC-', 'CC+', 'C-', 'C+' use 'CM'; Paint uses 'CM²'; Gasket and Sealant use 'CM'). "
+        "exactly as listed above (for example Concrete 'US' and 'BH' use 'CM²', but Concrete 'CC-', 'CC+', 'C-', 'C+' use 'CM'; Paint 'DP', 'FP', 'BP', 'NP' use 'CM²'; Gasket and Sealant use 'CM'). "
         "Use the unit with the superscript ² for square units (CM²). "
         "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
         "After the word \"DS\" or \"MS\" there should be a space, then the next characters. If there is no space, add one. "
         "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
         "INTERCHANGED MODIFIER RULE: If a sealant location modifier is written in reverse (e.g., 'FC' instead of 'CF', or 'GF' instead of 'FG'), standardizing it to 'CF' or 'FG' is preferred, but outputting 'FC' or 'GF' is also acceptable. "
         "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame' or 'Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. "
+        "NO PAINT RULE: If the worker wrote 'No Paint' or 'NP' in the Paint row, extract the damage code as 'NP'. "
         "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
         "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
-        "NO-DIMENSION RULE: The defect codes 'NP' (under Paint), 'BG' (under Broken Glass), and 'GLASS-FRAME'/'FRAME' (under With Film) have no dimension. "
-        "Whenever you extract 'NP', 'BG', 'GLASS-FRAME', or 'FRAME', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
+        "NO-DIMENSION RULE: The defect codes 'BG' (under Broken Glass) and 'GLASS-FRAME'/'FRAME' (under With Film) have no dimension. "
+        "Whenever you extract 'BG', 'GLASS-FRAME', or 'FRAME', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
         "Example: \"Broken Glass Damage\": [\"BG\"], \"Broken Glass Dimension\": [\"\"]. "
         "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
         "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
@@ -126,6 +132,7 @@ def _extraction_prompt():
         "so both arrays have the same length. Example: board shows 'US BH C-' and '200 CM' -> "
         "\"Concrete Damage\": [\"US\", \"BH\", \"C-\"], \"Concrete Dimension\": [\"200 CM\", \"\", \"\"]."
     )
+
 
 def _generate_text(parts):
     response = None
@@ -151,24 +158,27 @@ def _generate_text(parts):
 
     return raw_text
 
+
 def get_raw_response(img):
     return _generate_text([_extraction_prompt(), img])
+
 
 def get_review_response(img, parsed_data, problems):
     first_pass = {k: parsed_data.get(k) for k in JSON_KEYS}
     problem_lines = "\n".join(f"- {msg}" for _material, msg, _kind in problems)
     review_prompt = (
-        _extraction_prompt() +
-        "\n\nREVIEW TASK: A first reading of this same photo produced the JSON below, "
+        _extraction_prompt()
+        + "\n\nREVIEW TASK: A first reading of this same photo produced the JSON below, "
         "but automatic checks found possible problems with it.\n"
         f"FIRST READING: {json.dumps(first_pass, ensure_ascii=False)}\n"
         f"PROBLEMS FOUND:\n{problem_lines}\n"
         "Look at the photo again carefully and return the corrected JSON, using exactly the same keys "
         "and all of the rules above. Only change values that you can actually see on the board; "
         "fix anything the first reading misread, but keep entries the board genuinely shows even if "
-        "they were flagged. Do not invent entries. Do not return anything except raw JSON."
+        "they were flagged. Do not invent entries. Return ONLY raw JSON."
     )
     return _generate_text([review_prompt, img])
+
 
 _UNIT_TABLE = {
     (material, code): unit
@@ -176,9 +186,9 @@ _UNIT_TABLE = {
     for code in codes
 }
 
-# A trailing centimetre unit in any common spelling: CM, CM2, CM^2, CM², SQ CM, SQ.CM, SQUARE CM
-_UNIT_SUFFIX = re.compile(r"\s*(?:(?:SQ\.?|SQUARE)\s*)?CM(?:\s*(?:\^\s*2|²|2))?\s*$")
-_NUMBER_ONLY = re.compile(r"^[\d.,\s xX×*/+-]+$")
+_UNIT_SUFFIX = re.compile(r"\s*(?:(?:SQ\.?|SQUARE)\s*)?CM(?:\s*(?:\^\s*2|\u00b2|2))?\s*$")
+_NUMBER_ONLY = re.compile(r"^[\d.,\s xX\u00d7*/+-]+$")
+
 
 def _apply_unit(dimension, unit):
     text = str(dimension).strip()
@@ -195,11 +205,12 @@ def _apply_unit(dimension, unit):
 
     return dimension
 
+
 def _fix_dimension_units(parsed_data):
     for material in MATERIALS:
         damages = parsed_data[f"{material} Damage"]
         dimensions = parsed_data[f"{material} Dimension"]
-        
+
         for i in range(min(len(damages), len(dimensions))):
             units = {
                 _UNIT_TABLE[(material, token)]
@@ -209,12 +220,14 @@ def _fix_dimension_units(parsed_data):
             if len(units) == 1:
                 dimensions[i] = _apply_unit(dimensions[i], units.pop())
 
+
 _HAS_DIGIT = re.compile(r"\d")
 
+
 def _group_defect_codes(entry):
-    entry = str(entry)
+    entry = re.sub(r"\bNO[\s-]+PAINT\b", "NP", str(entry).upper())
     tokens = entry.split()
-    
+
     if sum(1 for t in tokens if t in VALID_CODES) < 2:
         return [entry]
 
@@ -230,6 +243,7 @@ def _group_defect_codes(entry):
 
     return [" ".join(g) for g in groups]
 
+
 def _normalize_dimensions(parsed_data):
     notes = []
     for material in MATERIALS:
@@ -238,6 +252,7 @@ def _normalize_dimensions(parsed_data):
         new_damages, new_dimensions = [], []
 
         for i, entry in enumerate(damages):
+            entry = re.sub(r"\bNO[\s-]+PAINT\b", "NP", str(entry).upper()).strip()
             size = dimensions[i] if i < len(dimensions) else None
             groups = _group_defect_codes(entry)
 
@@ -245,14 +260,14 @@ def _normalize_dimensions(parsed_data):
                 first_index = len(new_damages)
                 for g, group in enumerate(groups):
                     new_damages.append(group)
-                    new_dimensions.append((size or "") if g == 0 and group not in NO_DIMENSION_CODES else "")
-                
+                    new_dimensions.append((size or "") if g == 0 else "")
+
                 blanks = [
-                    first_index + idx 
-                    for idx, group in enumerate(groups) 
+                    first_index + idx
+                    for idx, group in enumerate(groups)
                     if idx > 0 and group not in NO_DIMENSION_CODES
                 ]
-                
+
                 if size is None or size.strip() == "" or (size.strip() and not _HAS_DIGIT.search(size)):
                     if groups[0] not in NO_DIMENSION_CODES:
                         new_dimensions[first_index] = ""
@@ -270,9 +285,9 @@ def _normalize_dimensions(parsed_data):
                     })
             else:
                 no_number = size is not None and size.strip() != "" and not _HAS_DIGIT.search(size)
-                
+
                 if entry in NO_DIMENSION_CODES:
-                    new_damages.append("GLASS-FRAME" if entry == "FRAME" else entry)
+                    new_damages.append(entry)
                     new_dimensions.append("")
                 elif size is None or size.strip() == "" or no_number:
                     notes.append({
@@ -296,6 +311,7 @@ def _normalize_dimensions(parsed_data):
 
     parsed_data["Manual Dimension"] = notes
 
+
 def parse_and_clean_json(raw_text):
     parsed_data = json.loads(raw_text)
 
@@ -313,6 +329,7 @@ def parse_and_clean_json(raw_text):
     _fix_dimension_units(parsed_data)
 
     return parsed_data
+
 
 def find_problems(parsed_data):
     problems = []
@@ -355,25 +372,18 @@ def find_problems(parsed_data):
             if tokens[0] not in allowed or any(c not in allowed for c in codes_in_entry):
                 problems.append((mat, f"{mat}: code '{d}' does not belong in the {mat} row", "structural"))
 
-        if len(dim) >= 2 and any(str(s).strip() for s in dim):
-            key = tuple(dim)
-            if key in seen_dimension_lists:
-                problems.append((
-                    mat,
-                    f"{mat}: dimensions are identical to {seen_dimension_lists[key]} (possible copy error)",
-                    "structural",
-                ))
-            else:
-                seen_dimension_lists[key] = mat
-
-        filled_dims = [str(s).strip() for s in dim if str(s).strip()]
-        sizes_without_unit = {_UNIT_SUFFIX.sub("", s).strip() for s in filled_dims}
-        if len(filled_dims) >= 2 and len(sizes_without_unit) == 1:
-            problems.append((
-                mat,
-                f"{mat}: every dimension is '{filled_dims[0]}' (a shared dimension may have been copied to each defect)",
-                "structural",
-            ))
+        if len(dim) >= 2:
+            non_empty_dims = [x for x in dim if str(x).strip()]
+            if len(non_empty_dims) >= 2:
+                key = tuple(dim)
+                if key in seen_dimension_lists:
+                    problems.append((
+                        mat,
+                        f"{mat}: dimensions are identical to {seen_dimension_lists[key]} (possible copy error)",
+                        "structural",
+                    ))
+                else:
+                    seen_dimension_lists[key] = mat
 
         for text in list(dmg) + list(dim):
             if any(marker in str(text).upper() for marker in HEDGE_MARKERS):
