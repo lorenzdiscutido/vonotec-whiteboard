@@ -562,7 +562,7 @@ def _dimension_section(summary, scope="All"):
                 '<div class="boq-header">'
                 '<p class="eyebrow">Repair quantity summary</p>'
                 '<div class="chart-name">Dimensions by defect</div>'
-                '<div class="chart-sub">Repair quantities grouped by material, then by defect code (Linear LM first, then Area SQM)</div>'
+                '<div class="chart-sub">Repair quantities grouped by material, then by defect code</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
