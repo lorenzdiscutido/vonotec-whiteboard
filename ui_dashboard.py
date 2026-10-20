@@ -3,13 +3,13 @@
 Repair Quantity Summary + Location Analysis layout:
 
   1. ENGINEERING OVERVIEW ("Facade defect dashboard")
-     - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQ LM), Missing dimensions
+     - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQM), Missing dimensions
      - Collapsible warm-amber review banner ("X records need review") when dimensions are missing
   2. REPAIR QUANTITY SUMMARY ("Dimensions by defect")
      - Header with "Download summary XLSX" button on the top right
-     - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQ LM) rows,
+     - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQM) rows,
        with pill badges for Defect Code, Description, Count, Board Dimensions,
-       Linear Repair (LM), Area Repair (SQ LM), Data Health, and a Portfolio Total footer row
+       Linear Repair (LM), Area Repair (SQM), Data Health, and a Portfolio Total footer row
   3. LOCATION ANALYSIS ("Where are the defects located?")
      - Defects by material beside Defects by tower, then Defects by floor across the width
   4. RAW AUDIT LOG
@@ -235,10 +235,10 @@ def _render_kpi_cards(df, summary, files_read):
     """Draws the 4 Engineering KPI cards across the top of the dashboard:
       1. Total defects
       2. Linear repair total (LM)
-      3. Area repair total (SQ LM)
+      3. Area repair total (SQM)
       4. Missing dimensions"""
     linear_rows = summary[summary["Repair Unit"] == "LM"] if not summary.empty else summary
-    area_rows = summary[summary["Repair Unit"] == "SQ LM"] if not summary.empty else summary
+    area_rows = summary[summary["Repair Unit"] == "SQM"] if not summary.empty else summary
 
     linear_repair = float(linear_rows["Total Repair Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
     linear_board = float(linear_rows["Total Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
@@ -271,7 +271,7 @@ def _render_kpi_cards(df, summary, files_read):
     with col3:
         sub3 = f"Board: {area_board:,.2f} SQM \u00b7 {area_measured:,} measured"
         st.markdown(
-            _kpi_card_html("Area repair total", f"{area_repair:,.2f}", "SQ LM", html.escape(sub3), _KPI_ICON_AREA, tone="green"),
+            _kpi_card_html("Area repair total", f"{area_repair:,.2f}", "SQM", html.escape(sub3), _KPI_ICON_AREA, tone="green"),
             unsafe_allow_html=True,
         )
     with col4:
@@ -343,7 +343,7 @@ def _summary_to_excel_bytes(summary):
     headers = [
         "Defect Code", "Description", "Count",
         "Board Dimensions", "Board Unit",
-        "Linear Repair (LM)", "Area Repair (SQ LM)",
+        "Linear Repair (LM)", "Area Repair (SQM)",
         "Missing Dimensions",
     ]
     ws.append(headers)
@@ -387,7 +387,7 @@ def _summary_to_excel_bytes(summary):
 
         has_rep = rep_dim is not None and rep_dim == rep_dim
         lin_val = round(float(rep_dim), 2) if has_rep and rep_unit == "LM" else ""
-        area_val = round(float(rep_dim), 2) if has_rep and rep_unit == "SQ LM" else ""
+        area_val = round(float(rep_dim), 2) if has_rep and rep_unit == "SQM" else ""
 
         total_defects += cnt
         if isinstance(lin_val, float):
@@ -502,7 +502,7 @@ def _dimension_table_html(records):
         else:
             linear_html = '<span class="dim-na">&mdash;</span>'
 
-        if has_rep and rep_unit == "SQ LM":
+        if has_rep and rep_unit == "SQM":
             total_area += float(rep_dim)
             area_html = f'<span class="boq-val-repair">{_number_text(rep_dim, 2, False)}</span>'
         else:
@@ -531,7 +531,7 @@ def _dimension_table_html(records):
         f'<td class="boq-num">{total_defects:,}</td>'
         '<td class="boq-board"><span class="dim-na">&mdash;</span></td>'
         f'<td class="boq-foot-val">{_number_text(total_linear, 2, False)} <span class="boq-unit-inline">LM</span></td>'
-        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQ LM</span></td>'
+        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQM</span></td>'
         f"<td>{footer_health}</td>"
         "</tr></tfoot>"
     )
@@ -543,7 +543,7 @@ def _dimension_table_html(records):
         '<th class="boq-num">COUNT</th>'
         '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
-        '<th>AREA REPAIR <span class="th-unit">SQ LM</span></th>'
+        '<th>AREA REPAIR <span class="th-unit">SQM</span></th>'
         '<th>DATA HEALTH</th>'
         f"</tr></thead><tbody>{body}</tbody>{tfoot}</table></div>"
     )
@@ -562,7 +562,7 @@ def _dimension_section(summary, scope="All"):
                 '<div class="boq-header">'
                 '<p class="eyebrow">Repair quantity summary</p>'
                 '<div class="chart-name">Dimensions by defect</div>'
-                '<div class="chart-sub">Repair quantities grouped by material, then by defect code (Linear LM first, then Area SQ LM)</div>'
+                '<div class="chart-sub">Repair quantities grouped by material, then by defect code (Linear LM first, then Area SQM)</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
