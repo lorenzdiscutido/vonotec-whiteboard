@@ -71,7 +71,12 @@ _CAUSE_BY_CODE = {row[0]: row[2] for row in REFERENCE_DATA[1:] if row[2] and row
 
 # Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
 GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
-_NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
+_NO_DIMENSION_DASHBOARD_CODES = {"BG", "GLASS-FRAME"}
+
+# No Paint: its dimension is typed by hand in the Excel file in square centimetres (CM\u00b2), like the
+# other paint codes. It appears in the Raw audit log as typed and in "Dimensions by defect" converted to
+# SQM, and its repair quantity uses the same paint formula as DP, FP and BP.
+MANUAL_DIMENSION_CODES = {"NP"}
 
 # Valid base defect codes (excluding standalone location modifiers)
 _VALID_BASE_CODES = (set(_TYPE_BY_CODE.keys()) - set(_CANONICAL_MODIFIERS.keys())) | set(_MERGED_DEFECT_CODES.keys())
@@ -320,6 +325,10 @@ def parse_workbook(path, folder_label, filename):
             # Glass-Frame / Frame has no dimensions (uses placeholder None)
             if code in _NO_DIMENSION_DASHBOARD_CODES:
                 number, unit, repair, repair_unit = GLASS_FRAME_DIMENSION_PLACEHOLDER, "", None, ""
+            elif base in MANUAL_DIMENSION_CODES:
+                number, unit_in_text = _split_dimension(cells[7])
+                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text or "CM\u00b2"
+                repair, repair_unit = calculate_repair(["DP"], number)  # the paint formula, as for DP / FP / BP
             else:
                 number, unit_in_text = _split_dimension(cells[7])
                 unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
@@ -569,7 +578,7 @@ def dimension_by_defect(df):
             "Total Dimension": converted_board_total,
             "Repair Unit": display_repair_unit,
             "Total Repair Dimension": float(repairs.sum()) if len(repairs) else None,
-            "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
+            "Missing Dimension": int(group["Dimension"].isna().sum()) if (BOARD_UNITS.get(base) or base in MANUAL_DIMENSION_CODES) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
     summary["Material"] = summary["Defect Code"].map(material_for_code)
