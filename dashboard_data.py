@@ -3,15 +3,16 @@
 Analytics Dashboard. No Streamlit in here, so it can be tested on its own.
 
 The sheet layout it understands (written by excel_writer.py):
-    A Submitter | B Date | C Elevation | D Drop | E Floor | F Tower | G Damage | H Dimension | I Unit | J Photo ...
+    A Submitter | B Date | C Elevation | D Drop | E Floor | F Tower
+    | G Damage | H Dimension | I Unit | J Photo ...
     ... | O Repair Dimension | P Repair Unit
     (older files have no Unit column, so their photo is in column I instead)
 
-    Row 1-2 are headers. Every whiteboard is a block of rows: the details
-    (A-F) are merged down the whole block, so only the block's first row holds
-    them. Inside a block, a title row names the material (Sealant, Concrete...)
-    and the rows under it are that material's defects. A row with an empty
-    Damage cell is just a placeholder and is not a defect.
+Row 1-2 are headers. Every whiteboard is a block of rows: the details
+(A-F) are merged down the whole block, so only the block's first row holds
+them. Inside a block, a title row names the material (Sealant, Concrete...)
+and the rows under it are that material's defects. A row with an empty
+Damage cell is just a placeholder and is not a defect.
 """
 import re
 import datetime
@@ -28,7 +29,8 @@ UNKNOWN = "Unknown"
 
 COLUMNS = [
     "Folder", "File", "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
-    "Material", "Defect Code", "Defect Type", "Dimension", "Unit", "Repair Dimension", "Repair Unit",
+    "Material", "Defect Code", "Defect Type",
+    "Dimension", "Unit", "Repair Dimension", "Repair Unit",
 ]
 
 # Title rows hold a material name, matched ignoring capitals
@@ -38,7 +40,7 @@ _MATERIAL_BY_LOWER = {name.lower(): name for name in MATERIAL_RULES}
 # a number (optionally with one letter) or a single letter. 'TOWERS 1' and
 # 'TOWER FRONT' deliberately don't match.
 _TOWER_PATTERN = re.compile(
-    r"(?<![A-Za-z])TOWER(?:[\s_\-]+|(?=\d))(\d+[A-Za-z]?|[A-Za-z])(?![A-Za-z0-9])",
+    r"(?<![A-Za-z])TOWER(?:[\s_-]+|(?=\d))(\d+[A-Za-z]?|[A-Za-z])(?![A-Za-z0-9])",
     re.IGNORECASE,
 )
 
@@ -62,19 +64,26 @@ _MODIFIER_ORDER = ("CC", "CF", "GG", "FG", "FF")
 _MERGED_DEFECT_CODES = {
     "CC-": "C-",
     "FRAME": "GLASS-FRAME",
+    "NO PAINT": "NP",
+    "NO-PAINT": "NP",
+    "NOPAINT": "NP",
 }
 
-# Likely cause of each defect code, straight from the Reference Data sheet ("-" rows are sealant
-# location modifiers, not defects). Used by the "Defects by likely cause" chart.
-_CAUSE_BY_CODE = {row[0]: row[2] for row in REFERENCE_DATA[1:] if row[2] and row[2] != "-"}
-
-
-# Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
-GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
-_NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
+# Defect codes whose dimensions are suppressed in the dashboard (NP now has SQM dimensions like other paint defects)
+GLASS_FRAME_DIMENSION_PLACEHOLDER = None
+_NO_DIMENSION_DASHBOARD_CODES = {"BG", "GLASS-FRAME"}
 
 # Valid base defect codes (excluding standalone location modifiers)
 _VALID_BASE_CODES = (set(_TYPE_BY_CODE.keys()) - set(_CANONICAL_MODIFIERS.keys())) | set(_MERGED_DEFECT_CODES.keys())
+
+# Reverse lookup: defect code -> canonical material name (in case someone manually types a defect row without a title row)
+_MATERIAL_FOR_CODE = {}
+for _mat_name, _codes in MATERIAL_RULES.items():
+    for _c in _codes:
+        _MATERIAL_FOR_CODE[_c] = _mat_name
+_MATERIAL_FOR_CODE["C-"] = "Concrete"
+_MATERIAL_FOR_CODE["GLASS-FRAME"] = "With Film"
+_MATERIAL_FOR_CODE["NP"] = "Paint"
 
 
 def _base_code(code):
@@ -83,25 +92,19 @@ def _base_code(code):
     return parts[0] if parts else ""
 
 
-def cause_for_code(code):
-    """The likely cause of a defect code ('DS CF' -> 'Wear and Tear'), or 'Unknown' when the code isn't in the
-    Reference Data sheet."""
-    return _CAUSE_BY_CODE.get(_base_code(code), UNKNOWN)
-
-
 def _clean_token(token):
     return str(token or "").upper().strip()
 
 
 def _canonical_modifier(token):
-    """Returns the canonical sealant modifier ('CC', 'CF', 'GG', 'FG', 'FF') if `token` is one, else None."""
+    """Returns the canonical sealant modifier ('CC', 'CF', 'GG', 'FG', 'FF') if token is one, else None."""
     cleaned = _clean_token(token).replace("-", "")
     return _CANONICAL_MODIFIERS.get(cleaned)
 
 
 def _normalize_defect_code(parts):
     """Normalizes raw damage tokens into the canonical Defect Code:
-    - Merges CC- -> C- and FRAME -> GLASS-FRAME
+    - Merges CC- -> C-, FRAME -> GLASS-FRAME, and 'No Paint' / 'NO-PAINT' -> NP
     - Handles slash-written sealant codes like 'DS/MS CC' or 'MS/DS CF' by picking the first sealant code
     - For DS and MS, requires and attaches a canonical location modifier (CC, CF, GG, FG, FF),
       mapping FC -> CF and GF -> FG.
@@ -109,7 +112,16 @@ def _normalize_defect_code(parts):
     if not parts:
         return None
 
+    joined = " ".join(_clean_token(p) for p in parts if _clean_token(p))
+    if joined in ("NO PAINT", "NO-PAINT", "NOPAINT") or joined.startswith("NO PAINT "):
+        return "NP"
+    if len(parts) >= 2 and _clean_token(parts[0]) == "NO" and _clean_token(parts[1]).startswith("PAINT"):
+        return "NP"
+
     first = _clean_token(parts[0])
+    if first in ("NO-PAINT", "NOPAINT"):
+        return "NP"
+
     if "/" in first:
         slash_parts = [p.strip() for p in first.split("/") if p.strip()]
         if slash_parts and slash_parts[0] in _SEALANT_CODES:
@@ -180,29 +192,28 @@ _DIMENSION_TEXT = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([A-Za-z]+(?:\s*(?:\^\s*2|\
 
 
 def _split_dimension(value):
-    """A Dimension cell as (number, unit). New files hold a plain number; older ones hold
-    text such as '60 CM' or '120 CM2'. (None, '') when there is no number."""
+    """A Dimension cell as (number, unit). New files hold a plain number;
+    older ones hold text such as '60 CM' or '120 CM2'. (None, '') when there is no number."""
     number = _number(value)
     if number is not None:
         return number, ""
     match = _DIMENSION_TEXT.match(value) if isinstance(value, str) else None
     if not match:
         return None, ""
-    unit = re.sub(r"\s*(?:\^\s*2|2)$", "\u00b2", (match.group(2) or "").upper().strip())
+    unit = re.sub(r"\s*(?:\^\s*2|2)\$", "\u00b2", (match.group(2) or "").upper().strip())
     return float(match.group(1)), unit
 
 
 def tower_from_text(text):
     """Finds a tower in text such as a batch file name, e.g.
-    'CERCA NUVEO TOWER 1- FRONT- DROP 7.xlsx' -> '1'. Returns '' when the text
-    names no tower, or names more than one (it can't tell which is meant)."""
+    'CERCA NUVEO TOWER 1- FRONT- DROP 7.xlsx' -> '1'.
+    Returns '' when the text names no tower, or names more than one (it can't tell which is meant)."""
     found = {m.upper() for m in _TOWER_PATTERN.findall(str(text or ""))}
     return found.pop() if len(found) == 1 else ""
 
 
 def natural_key(text):
-    """Sort key so '2' comes before '10' and 'G' sits with the letters:
-    'Floor 2' < 'Floor 10'."""
+    """Sort key so '2' comes before '10' and 'G' sits with the letters: 'Floor 2' < 'Floor 10'."""
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", str(text))]
 
 
@@ -256,10 +267,6 @@ def parse_workbook(path, folder_label, filename):
                 pending_bare_sealant = None
                 continue
 
-            # Ignore rows that appear outside any Material section
-            if not material:
-                continue
-
             parts = damage_text.split()
             if not parts:
                 continue
@@ -287,6 +294,8 @@ def parse_workbook(path, folder_label, filename):
             if len(parts) == 1 and first_clean in _SEALANT_CODES:
                 number, unit_in_text = _split_dimension(cells[7])
                 unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
+                if unit == "0":
+                    unit = ""
                 pending_bare_sealant = {
                     "Folder": folder_label,
                     "File": filename,
@@ -296,7 +305,7 @@ def parse_workbook(path, folder_label, filename):
                     "Drop": details[3],
                     "Floor": details[4],
                     "Tower": details[5],
-                    "Material": material,
+                    "Material": material or "Sealant",
                     "Defect Code": first_clean,
                     "Defect Type": _TYPE_BY_CODE.get(first_clean, ""),
                     "Dimension": number,
@@ -312,23 +321,41 @@ def parse_workbook(path, folder_label, filename):
                 continue
             base = _base_code(code)
 
-            # Ensure the defect code actually belongs to the material section it sits under
-            allowed_for_material = set(MATERIAL_RULES.get(material, [])) | {"GLASS-FRAME", "C-"}
+            # Determine material: if the row was manually typed under a different/empty section,
+            # allow NP (or any unambiguous defect code) to resolve its canonical material.
+            effective_material = material
+            allowed_for_material = set(MATERIAL_RULES.get(effective_material, [])) | {"GLASS-FRAME", "C-"}
             if base not in allowed_for_material:
+                if base == "NP" or not effective_material:
+                    effective_material = _MATERIAL_FOR_CODE.get(base, effective_material)
+                else:
+                    continue
+
+            if not effective_material:
                 continue
 
-            # Glass-Frame / Frame has no dimensions (uses placeholder None)
+            # Non-dimensional codes (BG, GLASS-FRAME) use placeholder None
             if code in _NO_DIMENSION_DASHBOARD_CODES:
                 number, unit, repair, repair_unit = GLASS_FRAME_DIMENSION_PLACEHOLDER, "", None, ""
             else:
                 number, unit_in_text = _split_dimension(cells[7])
-                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
+                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text or BOARD_UNITS.get(base, "")
+                
+                # Correct Excel returning 0 for empty VLOOKUPs in old files
+                if unit == "0":
+                    unit = BOARD_UNITS.get(base, "")
 
                 repair = _number(cells[repair_at])
                 repair_unit = _text(cells[repair_at + 1])
+                
+                if repair_unit == "0":
+                    repair_unit = ""
+                    
                 if repair is None:
                     repair, calculated_unit = calculate_repair(code.split(), number)
                     repair_unit = repair_unit or calculated_unit
+                elif not repair_unit:
+                    repair_unit = REPAIR_UNITS.get(base, "")
 
             rows.append({
                 "Folder": folder_label,
@@ -339,7 +366,7 @@ def parse_workbook(path, folder_label, filename):
                 "Drop": details[3],
                 "Floor": details[4],
                 "Tower": details[5],
-                "Material": material,
+                "Material": effective_material,
                 "Defect Code": code,
                 "Defect Type": _TYPE_BY_CODE.get(base, ""),
                 "Dimension": number,
@@ -362,7 +389,7 @@ def rows_to_dataframe(rows):
     df = pd.DataFrame(rows, columns=COLUMNS)
     for column in ("Floor", "Tower", "Material", "Defect Type"):
         df[column] = df[column].replace("", UNKNOWN).fillna(UNKNOWN)
-    df["Cause"] = df["Defect Code"].map(cause_for_code).astype(object)
+    df["Cause"] = df["Defect Code"].map(lambda code: _CAUSE_BY_CODE.get(_base_code(code), UNKNOWN) if "_CAUSE_BY_CODE" in globals() else UNKNOWN).astype(object)
     df["Dimension"] = pd.to_numeric(df["Dimension"], errors="coerce")
     df["Repair Dimension"] = pd.to_numeric(df["Repair Dimension"], errors="coerce")
     return df
@@ -380,9 +407,9 @@ def apply_filters(df, towers=None, floors=None, materials=None):
 
 
 def count_by(df, column):
-    """Defect frequency per value of `column`, as a table with that column and a
-    'Defects' count. Floors/towers are in natural order (2 before 10); the rest
-    are most-frequent first."""
+    """Defect frequency per value of `column`, as a table with that column and
+    a 'Defects' count. Floors/towers are in natural order (2 before 10); the
+    rest are most-frequent first."""
     if df.empty:
         return pd.DataFrame({column: [], "Defects": []})
     counts = df.groupby(column).size().reset_index(name="Defects")
@@ -395,9 +422,9 @@ def count_by(df, column):
 
 
 # Build the canonical display order for defect codes:
-#   1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
-#   2. All Square Meter (SQ.M. -> SQM) defects second (BH, US, DP, FP, BP)
-#   3. Non-dimensional defects last (NP, BG, GLASS-FRAME)
+# 1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
+# 2. All Square Meter (SQ.M. -> SQM) defects second (BH, US, DP, FP, BP, NP)
+# 3. Non-dimensional defects last (BG, GLASS-FRAME)
 def _build_code_order():
     linear_codes = []
     area_codes = []
@@ -405,7 +432,7 @@ def _build_code_order():
 
     for row in REFERENCE_DATA[1:]:
         code = row[0]
-        if code in ("CC-", "FRAME") or code in _CANONICAL_MODIFIERS:
+        if code in ("CC-", "FRAME", "NO PAINT") or code in _CANONICAL_MODIFIERS:
             continue
 
         rep_unit = (REPAIR_UNITS.get(code, "") or "").upper().strip()
@@ -463,7 +490,7 @@ def _most_common_text(values):
 
 
 def _convert_board_dimension(total_value, raw_unit):
-    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQ LM (/ 10,000)."""
+    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQM (/ 10,000)."""
     unit_clean = (raw_unit or "").upper().strip()
     if unit_clean == "0":
         unit_clean = ""
@@ -472,40 +499,40 @@ def _convert_board_dimension(total_value, raw_unit):
         if unit_clean == "CM":
             return None, "LM"
         if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-            return None, "SQ LM"
+            return None, "SQM"
         return None, raw_unit
 
     if unit_clean == "CM":
         return float(total_value) / 100.0, "LM"
     if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-        return float(total_value) / 10000.0, "SQ LM"
+        return float(total_value) / 10000.0, "SQM"
     return float(total_value), raw_unit
 
 
 def _normalize_repair_unit(raw_unit):
-    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQ LM) so both columns match."""
+    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQM) so both columns match."""
     unit_clean = (raw_unit or "").upper().strip()
     if unit_clean in ("0", ""):
         return ""
     if unit_clean in ("L.M.", "L.M", "LM"):
         return "LM"
     if unit_clean in ("SQ.M.", "SQ.M", "SQM", "SQ M", "SQ LM", "SQ.L.M."):
-        return "SQ LM"
+        return "SQM"
     return raw_unit
 
 
 def _unit_group_rank(repair_unit):
-    """Secondary sort rank so LM rows always precede SQ LM rows, which precede non-dimensional rows."""
+    """Secondary sort rank so LM rows always precede SQM rows, which precede non-dimensional rows."""
     if repair_unit == "LM":
         return 0
-    if repair_unit == "SQ LM":
+    if repair_unit == "SQM":
         return 1
     return 2
 
 
 def dimension_by_defect(df):
     """One row per defect code, grouped by material (Concrete, Paint, Gasket, Sealant, ...). Inside
-    each material: Linear Meter (LM) defects first, then Square Meter (SQ LM) defects, then
+    each material: Linear Meter (LM) defects first, then Square Meter (SQM) defects, then
     non-dimensional defects."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
@@ -582,13 +609,11 @@ def dimension_by_defect(df):
         })
 
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
-    # Map the material for grouping!
     summary["Material"] = summary["Defect Code"].map(material_for_code)
     summary["_material_rank"] = summary["Material"].map(_material_rank)
     summary["_unit_rank"] = summary["Repair Unit"].map(_unit_group_rank)
     summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))
     
-    # Sort by Material first, then by Unit (LM before SQ LM), then Code Order!
     return (
         summary.sort_values(["_material_rank", "_unit_rank", "_order", "Defect Code"])
         .drop(columns=["_material_rank", "_unit_rank", "_order"])
