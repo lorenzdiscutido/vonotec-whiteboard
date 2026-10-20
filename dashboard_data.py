@@ -69,18 +69,9 @@ _MERGED_DEFECT_CODES = {
 _CAUSE_BY_CODE = {row[0]: row[2] for row in REFERENCE_DATA[1:] if row[2] and row[2] != "-"}
 
 
-# Spellings of square centimetres in a typed unit cell
-_SQ_CM_UNITS = ("CM\u00b2", "CM2", "CM^2", "SQCM", "SQ.CM")
-
-
 # Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
 GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
-_NO_DIMENSION_DASHBOARD_CODES = {"BG", "GLASS-FRAME"}
-
-# No Paint: the dimension is typed by hand in the Excel file, always in SQM. The Excel formulas leave
-# its unit and repair cells blank, so the dashboard counts the typed board dimension as the area
-# repair quantity too.
-MANUAL_AREA_CODES = {"NP"}
+_NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
 
 # Valid base defect codes (excluding standalone location modifiers)
 _VALID_BASE_CODES = (set(_TYPE_BY_CODE.keys()) - set(_CANONICAL_MODIFIERS.keys())) | set(_MERGED_DEFECT_CODES.keys())
@@ -333,17 +324,11 @@ def parse_workbook(path, folder_label, filename):
                 number, unit_in_text = _split_dimension(cells[7])
                 unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
 
-                if base in MANUAL_AREA_CODES:
-                    # Typed by hand in SQM: it is both the board dimension and the area repair quantity
-                    if number is not None and unit.upper().replace(" ", "") in _SQ_CM_UNITS:
-                        number = number / 10000.0  # typed in square centimetres: convert to SQM
-                    number, unit, repair, repair_unit = number, "SQM", number, "SQM"
-                else:
-                    repair = _number(cells[repair_at])
-                    repair_unit = _text(cells[repair_at + 1])
-                    if repair is None:
-                        repair, calculated_unit = calculate_repair(code.split(), number)
-                        repair_unit = repair_unit or calculated_unit
+                repair = _number(cells[repair_at])
+                repair_unit = _text(cells[repair_at + 1])
+                if repair is None:
+                    repair, calculated_unit = calculate_repair(code.split(), number)
+                    repair_unit = repair_unit or calculated_unit
 
             rows.append({
                 "Folder": folder_label,
@@ -584,7 +569,7 @@ def dimension_by_defect(df):
             "Total Dimension": converted_board_total,
             "Repair Unit": display_repair_unit,
             "Total Repair Dimension": float(repairs.sum()) if len(repairs) else None,
-            "Missing Dimension": int(group["Dimension"].isna().sum()) if (BOARD_UNITS.get(base) or base in MANUAL_AREA_CODES) else 0,
+            "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
     summary["Material"] = summary["Defect Code"].map(material_for_code)
