@@ -24,7 +24,7 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
-from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
+from dashboard_data import MANUAL_AREA_CODES, rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
 from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
@@ -213,7 +213,9 @@ def _missing_dimension_rows(df):
     (per BOARD_UNITS in config.py) but its Dimension is missing/NaN."""
     if df.empty:
         return df
-    requires_dim = df["Defect Code"].apply(lambda c: bool(BOARD_UNITS.get(_base_defect_code(c), "")))
+    requires_dim = df["Defect Code"].apply(
+        lambda c: bool(BOARD_UNITS.get(_base_defect_code(c), "")) or _base_defect_code(c) in MANUAL_AREA_CODES
+    )
     return df[requires_dim & df["Dimension"].isna()]
 
 
@@ -446,7 +448,7 @@ def _data_health_html(record):
     code = str(record["Defect Code"])
     base = _base_defect_code(code)
     missing = int(record["Missing Dimension"] or 0)
-    if not BOARD_UNITS.get(base, ""):
+    if not BOARD_UNITS.get(base, "") and base not in MANUAL_AREA_CODES:
         return '<span class="boq-health boq-health-na">No dimension</span>'
     if missing > 0:
         return f'<span class="boq-health boq-health-warn">{_ICON_WARN_SM}{missing:,} missing</span>'
