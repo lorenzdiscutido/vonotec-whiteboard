@@ -195,9 +195,19 @@ SEALANT_LOCATION_NAMES = {
 }
 
 
+# Descriptions shown in the summary table instead of the shared defect type (BH and US share one type
+# in the Reference Data sheet, but the table lists them separately)
+DEFECT_DESCRIPTION_OVERRIDES = {
+    "BH": "Bughole",
+    "US": "Uneven Surface",
+}
+
+
 def _defect_description(code, defect_type):
     """The Description of a summary row: the defect type, plus the surfaces for a sealant code."""
     parts = str(code or "").split()
+    if len(parts) == 1 and parts[0] in DEFECT_DESCRIPTION_OVERRIDES:
+        return DEFECT_DESCRIPTION_OVERRIDES[parts[0]]
     if len(parts) > 1 and parts[1] in SEALANT_LOCATION_NAMES:
         return f"{defect_type} ({SEALANT_LOCATION_NAMES[parts[1]]})"
     return str(defect_type)
