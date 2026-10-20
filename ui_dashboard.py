@@ -454,29 +454,23 @@ def _data_health_html(record):
 
 
 def _dimension_table_html(records):
-    """Builds the Repair Quantity Summary HTML table with Material Group Headers."""
+    """Builds the Repair Quantity Summary HTML table."""
     body = ""
     total_defects = 0
     total_linear = 0.0
     total_area = 0.0
     total_missing = 0
 
-    # Grouping counts per material
+    # Defects per material, shown on each group's header row
     material_counts = {}
     for record in records:
         material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"] or 0)
 
     current_material = None
     for record in records:
-        cnt = int(record["Defects"] or 0)
-        
-        # Don't draw the material header if the entire material category has 0 defects
-        group_count = material_counts.get(record["Material"], 0)
-        if group_count == 0:
-            continue
-
         if record["Material"] != current_material:
             current_material = record["Material"]
+            group_count = material_counts[current_material]
             body += (
                 '<tr class="boq-group"><td colspan="7">'
                 f'{html.escape(str(current_material))} '
@@ -486,6 +480,7 @@ def _dimension_table_html(records):
 
         code = str(record["Defect Code"])
         desc = _defect_description(code, record["Defect Type"])
+        cnt = int(record["Defects"] or 0)
         tot_dim = record["Total Dimension"]
         board_unit = str(record["Board Unit"] or "")
         rep_dim = record["Total Repair Dimension"]
@@ -1000,10 +995,10 @@ def render_analytics_dashboard():
     with st.container(key="charts_grid"):
         material_col, tower_col = st.columns([1, 1], gap="small")
         with material_col:
-            _chart_section(df, "Material", "Defects by material", hide_unknown)
+            _chart_section(df, "Material", "Defects by substrate", hide_unknown)
         with tower_col:
             _chart_section(df, "Tower", "Defects by tower", hide_unknown)
-        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+        _chart_section(df, "Cause", "Defects by likely cause", hide_unknown)
 
     note = _chart_notes(df, hide_unknown)
     if note:
