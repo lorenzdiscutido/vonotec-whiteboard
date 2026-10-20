@@ -874,7 +874,7 @@ def render_dashboard_controls():
     st.caption("Leave a filter empty to include everything.")
     st.multiselect("Tower", _sorted_options(df["Tower"]), key=_filter_key("tower", scope))
     st.multiselect("Floor", _sorted_options(df["Floor"]), key=_filter_key("floor", scope))
-    st.multiselect("Material", _sorted_options(df["Material"]), key=_filter_key("material", scope))
+    st.multiselect("Substrate", _sorted_options(df["Material"]), key=_filter_key("material", scope))
     folders_in_data = _sorted_options(df["Folder"])
     if len(folders_in_data) > 1:
         st.multiselect("Folder", folders_in_data, key=_filter_key("folder", scope))
@@ -995,7 +995,7 @@ def render_analytics_dashboard():
     with st.container(key="charts_grid"):
         material_col, tower_col = st.columns([1, 1], gap="small")
         with material_col:
-            _chart_section(df, "Material", "Defects by material", hide_unknown)
+            _chart_section(df, "Material", "Defects by substrate", hide_unknown)
         with tower_col:
             _chart_section(df, "Tower", "Defects by tower", hide_unknown)
         _chart_section(df, "Cause", "Defects by likely cause", hide_unknown)
