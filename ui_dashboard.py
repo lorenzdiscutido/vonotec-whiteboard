@@ -485,7 +485,7 @@ def _dimension_table_html(records):
             )
 
         code = str(record["Defect Code"])
-        desc = str(record["Defect Type"])
+        desc = _defect_description(code, record["Defect Type"])
         tot_dim = record["Total Dimension"]
         board_unit = str(record["Board Unit"] or "")
         rep_dim = record["Total Repair Dimension"]
@@ -507,7 +507,7 @@ def _dimension_table_html(records):
         else:
             linear_html = '<span class="dim-na">&mdash;</span>'
 
-        if has_rep and rep_unit == "SQ LM":
+        if has_rep and rep_unit == "SQM":
             total_area += float(rep_dim)
             area_html = f'<span class="boq-val-repair">{_number_text(rep_dim, 2, False)}</span>'
         else:
@@ -546,12 +546,13 @@ def _dimension_table_html(records):
         '<th>DEFECT</th>'
         '<th>DESCRIPTION</th>'
         '<th class="boq-num">COUNT</th>'
-        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQ LM</span></th>'
+        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
         '<th>AREA REPAIR <span class="th-unit">SQM</span></th>'
         '<th>DATA HEALTH</th>'
         f"</tr></thead><tbody>{body}</tbody>{tfoot}</table></div>"
     )
+
 
 def _dimension_section(summary, scope="All"):
     """Draws the Repair Quantity Summary ('Dimensions by defect') card with the Download summary
@@ -999,10 +1000,10 @@ def render_analytics_dashboard():
     with st.container(key="charts_grid"):
         material_col, tower_col = st.columns([1, 1], gap="small")
         with material_col:
-            _chart_section(df, "Material", "Defects by substrate", hide_unknown)
+            _chart_section(df, "Material", "Defects by material", hide_unknown)
         with tower_col:
             _chart_section(df, "Tower", "Defects by tower", hide_unknown)
-        _chart_section(df, "Cause", "Defects by likely cause", hide_unknown)
+        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
 
     note = _chart_notes(df, hide_unknown)
     if note:
