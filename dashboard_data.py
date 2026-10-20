@@ -327,7 +327,10 @@ def parse_workbook(path, folder_label, filename):
                 number, unit, repair, repair_unit = GLASS_FRAME_DIMENSION_PLACEHOLDER, "", None, ""
             elif base in MANUAL_DIMENSION_CODES:
                 number, unit_in_text = _split_dimension(cells[7])
-                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text or "CM\u00b2"
+                typed_unit = _text(cells[8]) if has_unit_col else ""
+                if typed_unit == "0":  # an old Reference Data sheet has no NP unit, so the Unit formula shows 0
+                    typed_unit = ""
+                unit = typed_unit or unit_in_text or "CM\u00b2"
                 repair, repair_unit = calculate_repair(["DP"], number)  # the paint formula, as for DP / FP / BP
             else:
                 number, unit_in_text = _split_dimension(cells[7])
