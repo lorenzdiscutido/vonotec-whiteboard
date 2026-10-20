@@ -548,7 +548,7 @@ def _dimension_table_html(records):
         '<th class="boq-num">COUNT</th>'
         '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQ LM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
-        '<th>AREA REPAIR <span class="th-unit">SQ LM</span></th>'
+        '<th>AREA REPAIR <span class="th-unit">SQM</span></th>'
         '<th>DATA HEALTH</th>'
         f"</tr></thead><tbody>{body}</tbody>{tfoot}</table></div>"
     )
