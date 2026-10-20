@@ -64,9 +64,19 @@ _MERGED_DEFECT_CODES = {
     "FRAME": "GLASS-FRAME",
 }
 
+# Likely cause of each defect code, straight from the Reference Data sheet ("-" rows are sealant
+# location modifiers, not defects). Used by the "Defects by likely cause" chart.
+_CAUSE_BY_CODE = {row[0]: row[2] for row in REFERENCE_DATA[1:] if row[2] and row[2] != "-"}
+
+
 # Defect codes whose dimensions are suppressed in the dashboard (kept as None placeholder until enabled)
 GLASS_FRAME_DIMENSION_PLACEHOLDER = None  # Placeholder for GLASS-FRAME dimension; None hides it in the dashboard
 _NO_DIMENSION_DASHBOARD_CODES = {"NP", "BG", "GLASS-FRAME"}
+
+# No Paint: a dimension typed by hand in the Excel file (always SQM) is kept in the Raw audit log only.
+# "Dimensions by defect" still treats NP as having no dimension (see dimension_by_defect), and the
+# charts only count defects, so the typed number appears nowhere else.
+AUDIT_ONLY_DIMENSION_CODES = {"NP"}
 
 # Valid base defect codes (excluding standalone location modifiers)
 _VALID_BASE_CODES = (set(_TYPE_BY_CODE.keys()) - set(_CANONICAL_MODIFIERS.keys())) | set(_MERGED_DEFECT_CODES.keys())
@@ -76,6 +86,12 @@ def _base_code(code):
     """Returns the base defect code (e.g. 'DS CF' -> 'DS')."""
     parts = str(code or "").split()
     return parts[0] if parts else ""
+
+
+def cause_for_code(code):
+    """The likely cause of a defect code ('DS CF' -> 'Wear and Tear'), or 'Unknown' when the code isn't in the
+    Reference Data sheet."""
+    return _CAUSE_BY_CODE.get(_base_code(code), UNKNOWN)
 
 
 def _clean_token(token):
@@ -307,7 +323,14 @@ def parse_workbook(path, folder_label, filename):
                 continue
 
             # Glass-Frame / Frame has no dimensions (uses placeholder None)
-            if code in _NO_DIMENSION_DASHBOARD_CODES:
+            if code in AUDIT_ONLY_DIMENSION_CODES:
+                # Keep the typed dimension for the Raw audit log; it has no repair quantity
+                number, unit_in_text = _split_dimension(cells[7])
+                unit = (_text(cells[8]) if has_unit_col else "") or unit_in_text
+                if number is not None and not unit:
+                    unit = "SQM"
+                repair, repair_unit = None, ""
+            elif code in _NO_DIMENSION_DASHBOARD_CODES:
                 number, unit, repair, repair_unit = GLASS_FRAME_DIMENSION_PLACEHOLDER, "", None, ""
             else:
                 number, unit_in_text = _split_dimension(cells[7])
@@ -351,6 +374,7 @@ def rows_to_dataframe(rows):
     df = pd.DataFrame(rows, columns=COLUMNS)
     for column in ("Floor", "Tower", "Material", "Defect Type"):
         df[column] = df[column].replace("", UNKNOWN).fillna(UNKNOWN)
+    df["Cause"] = df["Defect Code"].map(cause_for_code).astype(object)
     df["Dimension"] = pd.to_numeric(df["Dimension"], errors="coerce")
     df["Repair Dimension"] = pd.to_numeric(df["Repair Dimension"], errors="coerce")
     return df
@@ -384,7 +408,7 @@ def count_by(df, column):
 
 # Build the canonical display order for defect codes:
 #   1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
-#   2. All Square Meter (SQ.M. -> SQ LM) defects second (BH, US, DP, FP, BP)
+#   2. All Square Meter (SQ.M. -> SQM) defects second (BH, US, DP, FP, BP)
 #   3. Non-dimensional defects last (NP, BG, GLASS-FRAME)
 def _build_code_order():
     linear_codes = []
@@ -418,8 +442,23 @@ _CODE_ORDER = _build_code_order()
 
 DEFECT_SUMMARY_COLUMNS = [
     "Defect Code", "Defect Type", "Defects", "Board Unit", "Total Dimension",
-    "Repair Unit", "Total Repair Dimension", "Missing Dimension",
+    "Repair Unit", "Total Repair Dimension", "Missing Dimension", "Material",
 ]
+
+# Material of each defect code and the order the materials are listed in: the same arrangement as
+# the batch Excel files (MATERIAL_RULES in config.py: Concrete, Paint, Gasket, Sealant, ...)
+_MATERIAL_ORDER = list(MATERIAL_RULES)
+_MATERIAL_BY_CODE = {code: material for material, codes in MATERIAL_RULES.items() for code in codes}
+
+
+def material_for_code(code):
+    """The material a defect code belongs to ('DS CF' -> 'Sealant'), or 'Unknown'."""
+    base = _base_code(code)
+    return _MATERIAL_BY_CODE.get(_MERGED_DEFECT_CODES.get(base, base), UNKNOWN)
+
+
+def _material_rank(material):
+    return _MATERIAL_ORDER.index(material) if material in _MATERIAL_ORDER else len(_MATERIAL_ORDER)
 
 
 def _most_common_text(values):
@@ -432,44 +471,45 @@ def _most_common_text(values):
 
 
 def _convert_board_dimension(total_value, raw_unit):
-    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQ LM (/ 10,000)."""
+    """Converts board dimensions from CM -> LM (/ 100) and CM² / SQ CM -> SQM (/ 10,000)."""
     unit_clean = (raw_unit or "").upper().strip()
     if total_value is None:
         if unit_clean == "CM":
             return None, "LM"
         if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-            return None, "SQ LM"
+            return None, "SQM"
         return None, raw_unit
 
     if unit_clean == "CM":
         return float(total_value) / 100.0, "LM"
     if unit_clean in ("CM\u00b2", "CM2", "CM^2", "SQ CM", "SQ.CM", "SQ. CM"):
-        return float(total_value) / 10000.0, "SQ LM"
+        return float(total_value) / 10000.0, "SQM"
     return float(total_value), raw_unit
 
 
 def _normalize_repair_unit(raw_unit):
-    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQ LM) so both columns match."""
+    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQM) so both columns match."""
     unit_clean = (raw_unit or "").upper().strip()
     if unit_clean in ("L.M.", "L.M", "LM"):
         return "LM"
     if unit_clean in ("SQ.M.", "SQ.M", "SQM", "SQ M", "SQ LM", "SQ.L.M."):
-        return "SQ LM"
+        return "SQM"
     return raw_unit
 
 
 def _unit_group_rank(repair_unit):
-    """Secondary sort rank so LM rows always precede SQ LM rows, which precede non-dimensional rows."""
+    """Secondary sort rank so LM rows always precede SQM rows, which precede non-dimensional rows."""
     if repair_unit == "LM":
         return 0
-    if repair_unit == "SQ LM":
+    if repair_unit == "SQM":
         return 1
     return 2
 
 
 def dimension_by_defect(df):
-    """One row per defect code, ordered with all Linear Meter (LM) defects first,
-    then Square Meter (SQ LM) defects, then non-dimensional defects."""
+    """One row per defect code, grouped by material (Concrete, Paint, Gasket, Sealant, ...). Inside
+    each material: Linear Meter (LM) defects first, then Square Meter (SQM) defects, then
+    non-dimensional defects."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
 
@@ -544,10 +584,12 @@ def dimension_by_defect(df):
             "Missing Dimension": int(group["Dimension"].isna().sum()) if BOARD_UNITS.get(base) else 0,
         })
     summary = pd.DataFrame(rows, columns=DEFECT_SUMMARY_COLUMNS)
+    summary["Material"] = summary["Defect Code"].map(material_for_code)
+    summary["_material_rank"] = summary["Material"].map(_material_rank)
     summary["_unit_rank"] = summary["Repair Unit"].map(_unit_group_rank)
     summary["_order"] = summary["Defect Code"].map(lambda code: _CODE_ORDER.get(code, len(_CODE_ORDER)))
     return (
-        summary.sort_values(["_unit_rank", "_order", "Defect Code"])
-        .drop(columns=["_unit_rank", "_order"])
+        summary.sort_values(["_material_rank", "_unit_rank", "_order", "Defect Code"])
+        .drop(columns=["_material_rank", "_unit_rank", "_order"])
         .reset_index(drop=True)
     )
