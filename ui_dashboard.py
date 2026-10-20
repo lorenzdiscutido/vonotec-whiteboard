@@ -536,7 +536,7 @@ def _dimension_table_html(records):
         f'<td class="boq-num">{total_defects:,}</td>'
         '<td class="boq-board"><span class="dim-na">&mdash;</span></td>'
         f'<td class="boq-foot-val">{_number_text(total_linear, 2, False)} <span class="boq-unit-inline">LM</span></td>'
-        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQ LM</span></td>'
+        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQM</span></td>'
         f"<td>{footer_health}</td>"
         "</tr></tfoot>"
     )
