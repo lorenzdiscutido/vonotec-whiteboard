@@ -396,7 +396,7 @@ def count_by(df, column):
 
 # Build the canonical display order for defect codes:
 #   1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
-#   2. All Square Meter (SQ.M. -> SQ LM) defects second (BH, US, DP, FP, BP)
+#   2. All Square Meter (SQ.M. -> SQM) defects second (BH, US, DP, FP, BP)
 #   3. Non-dimensional defects last (NP, BG, GLASS-FRAME)
 def _build_code_order():
     linear_codes = []
@@ -476,27 +476,27 @@ def _convert_board_dimension(total_value, raw_unit):
 
 
 def _normalize_repair_unit(raw_unit):
-    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQ LM) so both columns match."""
+    """Standardizes repair units (L.M. -> LM, SQ.M. -> SQM) so both columns match."""
     unit_clean = (raw_unit or "").upper().strip()
     if unit_clean in ("L.M.", "L.M", "LM"):
         return "LM"
     if unit_clean in ("SQ.M.", "SQ.M", "SQM", "SQ M", "SQ LM", "SQ.L.M."):
-        return "SQ LM"
+        return "SQM"
     return raw_unit
 
 
 def _unit_group_rank(repair_unit):
-    """Secondary sort rank so LM rows always precede SQ LM rows, which precede non-dimensional rows."""
+    """Secondary sort rank so LM rows always precede SQM rows, which precede non-dimensional rows."""
     if repair_unit == "LM":
         return 0
-    if repair_unit == "SQ LM":
+    if repair_unit == "SQM":
         return 1
     return 2
 
 
 def dimension_by_defect(df):
     """One row per defect code, grouped by material (Concrete, Paint, Gasket, Sealant, ...). Inside
-    each material: Linear Meter (LM) defects first, then Square Meter (SQ LM) defects, then
+    each material: Linear Meter (LM) defects first, then Square Meter (SQM) defects, then
     non-dimensional defects."""
     if df.empty:
         return pd.DataFrame(columns=DEFECT_SUMMARY_COLUMNS)
@@ -581,4 +581,3 @@ def dimension_by_defect(df):
         .drop(columns=["_material_rank", "_unit_rank", "_order"])
         .reset_index(drop=True)
     )
-    
