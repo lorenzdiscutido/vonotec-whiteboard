@@ -454,23 +454,29 @@ def _data_health_html(record):
 
 
 def _dimension_table_html(records):
-    """Builds the Repair Quantity Summary HTML table."""
+    """Builds the Repair Quantity Summary HTML table with Material Group Headers."""
     body = ""
     total_defects = 0
     total_linear = 0.0
     total_area = 0.0
     total_missing = 0
 
-    # Defects per material, shown on each group's header row
+    # Grouping counts per material
     material_counts = {}
     for record in records:
         material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"] or 0)
 
     current_material = None
     for record in records:
+        cnt = int(record["Defects"] or 0)
+        
+        # Don't draw the material header if the entire material category has 0 defects
+        group_count = material_counts.get(record["Material"], 0)
+        if group_count == 0:
+            continue
+
         if record["Material"] != current_material:
             current_material = record["Material"]
-            group_count = material_counts[current_material]
             body += (
                 '<tr class="boq-group"><td colspan="7">'
                 f'{html.escape(str(current_material))} '
@@ -479,8 +485,7 @@ def _dimension_table_html(records):
             )
 
         code = str(record["Defect Code"])
-        desc = _defect_description(code, record["Defect Type"])
-        cnt = int(record["Defects"] or 0)
+        desc = str(record["Defect Type"])
         tot_dim = record["Total Dimension"]
         board_unit = str(record["Board Unit"] or "")
         rep_dim = record["Total Repair Dimension"]
@@ -502,7 +507,7 @@ def _dimension_table_html(records):
         else:
             linear_html = '<span class="dim-na">&mdash;</span>'
 
-        if has_rep and rep_unit == "SQM":
+        if has_rep and rep_unit == "SQ LM":
             total_area += float(rep_dim)
             area_html = f'<span class="boq-val-repair">{_number_text(rep_dim, 2, False)}</span>'
         else:
@@ -531,7 +536,7 @@ def _dimension_table_html(records):
         f'<td class="boq-num">{total_defects:,}</td>'
         '<td class="boq-board"><span class="dim-na">&mdash;</span></td>'
         f'<td class="boq-foot-val">{_number_text(total_linear, 2, False)} <span class="boq-unit-inline">LM</span></td>'
-        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQM</span></td>'
+        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQ LM</span></td>'
         f"<td>{footer_health}</td>"
         "</tr></tfoot>"
     )
@@ -541,13 +546,12 @@ def _dimension_table_html(records):
         '<th>DEFECT</th>'
         '<th>DESCRIPTION</th>'
         '<th class="boq-num">COUNT</th>'
-        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQM</span></th>'
+        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQ LM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
-        '<th>AREA REPAIR <span class="th-unit">SQM</span></th>'
+        '<th>AREA REPAIR <span class="th-unit">SQ LM</span></th>'
         '<th>DATA HEALTH</th>'
         f"</tr></thead><tbody>{body}</tbody>{tfoot}</table></div>"
     )
-
 
 def _dimension_section(summary, scope="All"):
     """Draws the Repair Quantity Summary ('Dimensions by defect') card with the Download summary
