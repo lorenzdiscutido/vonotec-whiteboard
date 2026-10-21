@@ -24,7 +24,10 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
-from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
+from dashboard_data import (
+    rows_to_dataframe, apply_filters, count_by, dimension_by_defect,
+    natural_key, material_for_code, UNKNOWN, _CODE_ORDER,
+)
 from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
@@ -194,20 +197,20 @@ SEALANT_LOCATION_NAMES = {
     "FF": "Frame to Frame",
 }
 
-
-# Descriptions shown in the summary table instead of the shared defect type (BH and US share one type
-# in the Reference Data sheet, but the table lists them separately)
-DEFECT_DESCRIPTION_OVERRIDES = {
+# Dashboard-only description overrides (leaves Reference Data in Excel untouched)
+_DASHBOARD_DESC_OVERRIDES = {
     "BH": "Bughole",
     "US": "Uneven Surface",
 }
 
 
 def _defect_description(code, defect_type):
-    """The Description of a summary row: the defect type, plus the surfaces for a sealant code."""
-    parts = str(code or "").split()
-    if len(parts) == 1 and parts[0] in DEFECT_DESCRIPTION_OVERRIDES:
-        return DEFECT_DESCRIPTION_OVERRIDES[parts[0]]
+    """The Description of a summary row: uses dashboard-specific overrides for BH and US,
+    plus the surfaces for a sealant code."""
+    clean_code = str(code or "").strip()
+    if clean_code in _DASHBOARD_DESC_OVERRIDES:
+        return _DASHBOARD_DESC_OVERRIDES[clean_code]
+    parts = clean_code.split()
     if len(parts) > 1 and parts[1] in SEALANT_LOCATION_NAMES:
         return f"{defect_type} ({SEALANT_LOCATION_NAMES[parts[1]]})"
     return str(defect_type)
@@ -824,7 +827,7 @@ def _render_raw_audit_log(df):
 
 
 # ---------------------------------------------------------------------------
-# Sidebar: which files, refresh, filters
+# Sidebar: which files, refresh, filters (including Defect Code sub-filter under Substrate)
 # ---------------------------------------------------------------------------
 
 def _filter_key(name, scope):
@@ -833,6 +836,24 @@ def _filter_key(name, scope):
 
 def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
+
+
+def _defect_options_for_substrates(df, selected_substrates):
+    """Returns canonical defect codes available for the chosen substrates (or all substrates
+    if none are selected), ordered in canonical engineering order."""
+    sub_df = df[df["Material"].isin(selected_substrates)] if selected_substrates else df
+    present_codes = {str(c).strip() for c in sub_df["Defect Code"].dropna().unique() if str(c).strip()}
+
+    # Include canonical codes configured for the selected substrates so users can pick any valid code
+    if selected_substrates:
+        for code in _CODE_ORDER:
+            if material_for_code(code) in selected_substrates:
+                present_codes.add(code)
+
+    return sorted(
+        present_codes,
+        key=lambda c: (_CODE_ORDER.get(c, len(_CODE_ORDER)), c),
+    )
 
 
 def render_dashboard_controls():
@@ -884,7 +905,32 @@ def render_dashboard_controls():
     st.caption("Leave a filter empty to include everything.")
     st.multiselect("Tower", _sorted_options(df["Tower"]), key=_filter_key("tower", scope))
     st.multiselect("Floor", _sorted_options(df["Floor"]), key=_filter_key("floor", scope))
-    st.multiselect("Substrate", _sorted_options(df["Material"]), key=_filter_key("material", scope))
+    selected_substrates = st.multiselect(
+        "Substrate",
+        _sorted_options(df["Material"]),
+        key=_filter_key("material", scope),
+    )
+
+    # Sub-filter for Defect Codes belonging to the selected Substrate(s)
+    defect_key = _filter_key("defect", scope)
+    available_defects = _defect_options_for_substrates(df, selected_substrates)
+    current_defects = st.session_state.get(defect_key) or []
+    valid_current = [d for d in current_defects if d in available_defects]
+    if valid_current != current_defects:
+        st.session_state[defect_key] = valid_current
+
+    defect_label = (
+        f"Defect ({', '.join(selected_substrates)})"
+        if selected_substrates and len(selected_substrates) <= 2
+        else ("Defect (selected substrates)" if selected_substrates else "Defect")
+    )
+    st.multiselect(
+        defect_label,
+        available_defects,
+        key=defect_key,
+        help="Choose specific defect codes (e.g. C-, C+, US, BH under Concrete) to filter the dashboard.",
+    )
+
     folders_in_data = _sorted_options(df["Folder"])
     if len(folders_in_data) > 1:
         st.multiselect("Folder", folders_in_data, key=_filter_key("folder", scope))
@@ -948,7 +994,10 @@ def render_analytics_dashboard():
         active_filters.append(f"Floor: {', '.join(selected_floors)}")
     selected_materials = st.session_state.get(_filter_key("material", scope)) or []
     if selected_materials:
-        active_filters.append(f"Material: {', '.join(selected_materials)}")
+        active_filters.append(f"Substrate: {', '.join(selected_materials)}")
+    selected_defects = st.session_state.get(_filter_key("defect", scope)) or []
+    if selected_defects:
+        active_filters.append(f"Defect: {', '.join(selected_defects)}")
     folders = st.session_state.get(_filter_key("folder", scope)) or []
     if folders:
         active_filters.append(f"Folder: {', '.join(folders)}")
@@ -962,6 +1011,7 @@ def render_analytics_dashboard():
             st.session_state[_filter_key("tower", scope)] = []
             st.session_state[_filter_key("floor", scope)] = []
             st.session_state[_filter_key("material", scope)] = []
+            st.session_state[_filter_key("defect", scope)] = []
             st.session_state[_filter_key("folder", scope)] = []
             st.session_state[HIDE_UNKNOWN_KEY] = False
             st.rerun()
@@ -969,9 +1019,9 @@ def render_analytics_dashboard():
     # --- Apply sidebar filters ---
     if folders:
         df = df[df["Folder"].isin(folders)]
-    df = apply_filters(df, selected_towers, selected_floors, selected_materials)
+    df = apply_filters(df, selected_towers, selected_floors, selected_materials, selected_defects)
 
-    summary = dimension_by_defect(df)
+    summary = dimension_by_defect(df, expand_all_sealant=not bool(selected_defects))
 
     # 1. Top Row: 4 Engineering KPI Cards
     _render_kpi_cards(df, summary, files_read)
