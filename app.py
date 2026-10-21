@@ -225,7 +225,7 @@ with form_col:
     with st.container(key="form_panel"):
         stepper_slot = st.empty()
         ui_components.section_heading(
-            "Input source",
+            "",
             "Choose where to import photos from",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
@@ -292,23 +292,24 @@ with form_col:
                          "and you can change it.",
                 )
 
-        photos_missing, destination_missing = process_blockers(
-            active_photo_count, bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
-        )
-        running = bool(st.session_state.get("batch_running", False))
-        if remote_mode:
-            batch_done = bool(st.session_state.batch_results) and list(source_path) == st.session_state.get("last_remote_path") and bool(source_path)
-        else:
-            batch_done = bool(st.session_state.batch_results) and not uploaded_files
+            photos_missing, destination_missing = process_blockers(
+                active_photo_count, bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
+            )
+            running = bool(st.session_state.get("batch_running", False))
+            if remote_mode:
+                batch_done = bool(st.session_state.batch_results) and list(source_path) == st.session_state.get("last_remote_path") and bool(source_path)
+            else:
+                batch_done = bool(st.session_state.batch_results) and not uploaded_files
 
-        process_clicked, clear_clicked = render_action_buttons(
-            photo_count=active_photo_count,
-            source_chosen=bool(source_path) if remote_mode else bool(uploaded_files),
-            blocked_reason=photos_missing or destination_missing,
-            remote=remote_mode,
-            running=running,
-            done=batch_done,
-        )
+            process_clicked, clear_clicked = render_action_buttons(
+                photo_count=active_photo_count,
+                source_chosen=bool(source_path) if remote_mode else bool(uploaded_files),
+                blocked_reason=photos_missing or destination_missing,
+                remote=remote_mode,
+                running=running,
+                done=batch_done,
+            )
+
         if process_clicked:
             st.session_state.batch_running = True
             st.rerun()
