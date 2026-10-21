@@ -63,7 +63,7 @@ def _brand_html():
         logo = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
     except OSError:
         logo = '<span class="brand-text">VONOTEC</span>'
-    return f'<div class="brand">{logo}<span class="product-name">Defect Log AI</span></div>'
+    return f'<div class="brand">{logo}<span class="product-name">Automated Defect Logger</span></div>'
 
 
 def render_header(views):
