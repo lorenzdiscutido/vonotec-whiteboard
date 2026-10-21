@@ -1,4 +1,3 @@
-# ui_components.py
 import base64
 import html
 from pathlib import Path
@@ -68,8 +67,7 @@ def _brand_html():
 
 def render_header(views):
     """One white header card with three equal columns: the brand on the left,
-    the view switch (a radio, drawn as two pills) in the middle and the
-    tagline on the right."""
+    the view switch (a radio, drawn as two pills) in the middle and the tagline on the right."""
     with st.container(key="top_app_header"):
         try:
             col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
@@ -106,28 +104,39 @@ def render_stepper(done, current):
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
-        mark = "&#10003;" if state == "done" else str(number)
+        mark = "✓" if state == "done" else str(number)
         parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
     st.markdown(
-        '<div class="workflow-stepper">' + '<span class="wf-arrow">&rarr;</span>'.join(parts) + '</div>',
+        '<style>'
+        '.st-key-top_app_header { margin-bottom: 18px !important; }'
+        '.workflow-stepper {'
+        '  background: transparent !important;'
+        '  border: none !important;'
+        '  box-shadow: none !important;'
+        '  border-radius: 0 !important;'
+        '  padding: 0 !important;'
+        '  margin: 0 0 6px 0 !important;'
+        '}'
+        '</style>'
+        '<div class="workflow-stepper">' + '<span class="wf-arrow">→</span>'.join(parts) + '</div>',
         unsafe_allow_html=True,
     )
 
 
 def section_heading(eyebrow, title, badge=None, step=None, description=None):
-    """A small orange label over a large title. On the right there is either a
-    status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete", or a plain step label."""
+    """A small orange label over a large title. On the right there is either a status badge,
+    badge = (text, kind) with kind "ready", "processing" or "complete", or a plain step label."""
     right = ""
     if badge:
         text, kind = badge
         right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
     elif step:
         right = f'<span class="step-label">{html.escape(step)}</span>'
+    eyebrow_html = f'<p class="eyebrow">{html.escape(eyebrow)}</p>' if eyebrow else ""
     desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
         '<div class="section-heading"><div>'
-        f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
+        f'{eyebrow_html}'
         f'<h2>{html.escape(title)}</h2>'
         f'</div>{right}</div>{desc_html}',
         unsafe_allow_html=True,
@@ -236,14 +245,14 @@ def render_instructions():
         st.markdown(
             """
             <div class="instruction-text">
-                Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the data
-                and append it to the Master Excel file.
-                <ol>
-                    <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
-                    <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
-                    <li>Click <b>Extract photos</b>.</li>
-                    <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
-                </ol>
+            Add whiteboard photos from your device or from a SharePoint folder. The AI will
+            automatically extract the data and append it to the Master Excel file.
+            <ol>
+                <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
+                <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
+                <li>Click <b>Extract photos</b>.</li>
+                <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
+            </ol>
             </div>
             """,
             unsafe_allow_html=True,
