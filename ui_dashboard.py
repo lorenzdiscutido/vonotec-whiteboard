@@ -598,16 +598,9 @@ def _dimension_section(summary, scope="All"):
     """Draws the Repair Quantity Summary ('Dimensions by defect') card with the Download summary
     button in the top-right header and the full engineering table below."""
     records = summary.to_dict("records")
-    safe_scope = "".join(ch if ch.isalnum() or ch in ("_", "-", " ") else "_" for ch in str(scope)).strip("_ ") or "Summary"
+    safe_scope = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(scope)).strip("_") or "Summary"
 
     with st.container(border=True, key="chart_dimensions"):
-        st.markdown(
-            '<style>'
-            '.dim-table-wrap { max-height: none !important; overflow-y: visible !important; padding-bottom: 6px !important; }'
-            '.st-key-chart_dimensions { height: auto !important; }'
-            '</style>',
-            unsafe_allow_html=True,
-        )
         head_left, head_right = st.columns([0.72, 0.28], gap="small")
         with head_left:
             st.markdown(
@@ -621,7 +614,7 @@ def _dimension_section(summary, scope="All"):
         with head_right:
             if records:
                 st.download_button(
-                    label="↓ Download summary  XLSX",
+                    label="\u2913 Download summary  XLSX",
                     data=_summary_to_excel_bytes(summary),
                     file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
