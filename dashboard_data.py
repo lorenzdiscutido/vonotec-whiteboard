@@ -58,9 +58,10 @@ _CANONICAL_MODIFIERS = {
 }
 _MODIFIER_ORDER = ("CC", "CF", "GG", "FG", "FF")
 
-# Defect codes that are merged into a single row in the dashboard
+# Defect codes that are merged into a single canonical code in the dashboard
 _MERGED_DEFECT_CODES = {
     "CC-": "C-",
+    "CC+": "C+",
     "FRAME": "GLASS-FRAME",
     "NO PAINT": "NP",
     "NO-PAINT": "NP",
@@ -83,6 +84,7 @@ _VALID_BASE_CODES = (set(_TYPE_BY_CODE.keys()) - set(_CANONICAL_MODIFIERS.keys()
 _MATERIAL_ORDER = list(MATERIAL_RULES)
 _MATERIAL_BY_CODE = {code: material for material, codes in MATERIAL_RULES.items() for code in codes}
 _MATERIAL_BY_CODE["C-"] = "Concrete"
+_MATERIAL_BY_CODE["C+"] = "Concrete"
 _MATERIAL_BY_CODE["GLASS-FRAME"] = "With Film"
 _MATERIAL_BY_CODE["NP"] = "Paint"
 
@@ -111,7 +113,7 @@ def _canonical_modifier(token):
 
 def _normalize_defect_code(parts):
     """Normalizes raw damage tokens into the canonical Defect Code:
-    - Merges CC- -> C-, FRAME -> GLASS-FRAME, and 'No Paint' / 'NO-PAINT' -> NP
+    - Merges CC- -> C-, CC+ -> C+, FRAME -> GLASS-FRAME, and 'No Paint' / 'NO-PAINT' -> NP
     - Handles slash-written sealant codes like 'DS/MS CC' or 'MS/DS CF' by picking the first sealant code
     - For DS and MS, requires and attaches a canonical location modifier (CC, CF, GG, FG, FF),
       mapping FC -> CF and GF -> FG.
@@ -331,14 +333,15 @@ def parse_workbook(path, folder_label, filename):
                 continue
             base = _base_code(code)
 
-            # Determine material: if NP / No Paint was manually typed, allow it to resolve to Paint
-            effective_material = material
-            allowed_for_material = set(MATERIAL_RULES.get(effective_material, [])) | {"GLASS-FRAME", "C-", "NP"}
-            if base not in allowed_for_material:
-                if base == "NP" or not effective_material:
-                    effective_material = _MATERIAL_BY_CODE.get(base, effective_material)
+            # Always map the defect code to its canonical material so e.g. NP never appears under Concrete
+            canonical_mat = material_for_code(code)
+            if material and canonical_mat != UNKNOWN and material != canonical_mat:
+                if base == "NP":
+                    effective_material = "Paint"
                 else:
                     continue
+            else:
+                effective_material = canonical_mat if canonical_mat != UNKNOWN else material
 
             if not effective_material:
                 continue
@@ -434,7 +437,7 @@ def count_by(df, column):
 
 
 # Build the canonical display order for defect codes:
-#   1. All Linear Meter (L.M. -> LM) defects first (C-, CC+, C+, DG, DS CC..FF, MS CC..FF)
+#   1. All Linear Meter (L.M. -> LM) defects first (C-, C+, DG, DS CC..FF, MS CC..FF)
 #   2. All Square Meter (SQ.M. -> SQM) defects second (BH, US, DP, FP, BP, NP)
 #   3. Non-dimensional defects last (BG, GLASS-FRAME)
 def _build_code_order():
@@ -444,7 +447,7 @@ def _build_code_order():
 
     for row in REFERENCE_DATA[1:]:
         code = row[0]
-        if code in ("CC-", "FRAME", "NO PAINT") or code in _CANONICAL_MODIFIERS:
+        if code in ("CC-", "CC+", "FRAME", "NO PAINT") or code in _CANONICAL_MODIFIERS:
             continue
 
         rep_unit = (REPAIR_UNITS.get(code, "") or "").upper().strip()
