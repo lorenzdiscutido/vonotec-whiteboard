@@ -1,5 +1,5 @@
-# app.py
 """Main flow of the Whiteboard AI web app. Everything else lives in:
+
     settings.py          switches and constants
     file_utils.py        processed-photo log, filename cleanup
     extraction.py        Gemini reading + review pass
@@ -13,8 +13,9 @@
     dashboard_data.py    reads the batch Excel files into a table for the dashboard
     dashboard_loader.py  downloads those files in the background so the dashboard is ready
 
-Photos can come from two places: uploaded from this device, or already sitting in any
-SharePoint folder ("Import from SharePoint"). Both end up in the same batch loop.
+Photos can come from two places: uploaded from this device, or already sitting
+in any SharePoint folder ("Import from SharePoint"). Both end up in the same
+batch loop.
 """
 import os
 import datetime
@@ -29,14 +30,22 @@ from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
 from file_utils import sanitize_batch_filename, load_prefs, save_prefs
 from batch_processor import run_batch, BatchOutcome
 from ui_sections import (
-    init_session_state, show_batch_results, render_photo_previews,
-    render_folder_picker, resolve_subfolder, remember_new_folder,
-    render_action_buttons, render_file_management, render_pending_syncs,
-    hide_uploader_chrome_if_filled, process_blockers,
+    init_session_state,
+    show_batch_results,
+    render_photo_previews,
+    render_folder_picker,
+    resolve_subfolder,
+    remember_new_folder,
+    render_action_buttons,
+    render_file_management,
+    render_pending_syncs,
+    hide_uploader_chrome_if_filled,
+    process_blockers,
 )
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
+
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
@@ -44,6 +53,7 @@ VIEW_DASHBOARD = "Dashboard"
 # Parallel wording: both options describe the same stage (bringing photos in)
 SOURCE_LOCAL = "Upload from device"
 SOURCE_SHAREPOINT = "Import from SharePoint"
+
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="VONOTEC Whiteboard Extractor", layout="wide")
@@ -207,16 +217,16 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
     _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro)
 
 
-stepper_slot = st.empty()
-
 # 55/45 split gives the results and review list plenty of horizontal room
 form_col, results_col = st.columns([11, 9], gap="large")
 
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
     with st.container(key="form_panel"):
+        stepper_slot = st.empty()
         ui_components.section_heading(
-            "Input source", "Choose where to import photos from",
+            "Input source",
+            "Choose where to import photos from",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
 
@@ -325,6 +335,7 @@ if clear_clicked:
     st.session_state.batch_results = []
     st.session_state.batch_report = None
     st.rerun()
+
 
 # --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
 with results_col:
