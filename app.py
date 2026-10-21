@@ -45,7 +45,8 @@ from ui_sections import (
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
-
+from pathlib import Path
+from PIL import Image
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
@@ -56,8 +57,12 @@ SOURCE_SHAREPOINT = "Import from SharePoint"
 
 
 # --- PAGE SETUP ---
+icon_path = Path(__file__).with_name("vonotec icon.png")
+page_icon = Image.open(icon_path) if icon_path.exists() else "📊"
+
 st.set_page_config(
     page_title="VONOTEC Whiteboard Extractor",
+    page_icon=page_icon,
     layout="wide",
 )
 ui_components.load_local_css("style.css")
