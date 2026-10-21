@@ -187,7 +187,8 @@ def _load_scope(scope, subfolders):
         if error:
             skipped.append((label, error))
         else:
-            rows += file_rows
+            link = item.get("web_url", "")
+            rows += [{**row, "File Link": link} for row in file_rows]
             files_read += 1
         if progress is not None:
             progress.progress((index + 1) / len(files), text=f"Reading Excel files... {index + 1} of {len(files)}")
@@ -313,6 +314,25 @@ def _render_kpi_cards(df, summary, files_read):
         )
 
 
+def _data_table_html(shown, float_format=None, link_files=False):
+    """The HTML for a plain data table. Every cell is escaped. With link_files=True the File column
+    becomes a link that opens that Excel file in SharePoint (only people with access to the site can open it)."""
+    table_df = shown.copy()
+    links = table_df.pop("File Link") if "File Link" in table_df.columns else None
+    for column in table_df.columns:
+        table_df[column] = table_df[column].map(lambda value: html.escape(value) if isinstance(value, str) else value)
+    if link_files and links is not None and "File" in table_df.columns:
+        def _file_cell(name, link):
+            link = link if isinstance(link, str) else ""
+            if not link.startswith("https://"):
+                return name
+            return f'<a class="file-link" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a>'
+        table_df["File"] = [_file_cell(name, link) for name, link in zip(table_df["File"], links)]
+    kwargs = {"float_format": float_format} if float_format else {}
+    table = table_df.to_html(index=False, border=0, na_rep="", classes="data-table", escape=False, **kwargs)
+    return "".join(line.strip() for line in table.splitlines())
+
+
 def _render_missing_dimensions_queue(df):
     """Draws the warm-amber collapsible review banner ('X records need review') right below
     the KPI cards when any defects are missing a required dimension in Excel."""
@@ -322,9 +342,8 @@ def _render_missing_dimensions_queue(df):
 
     count = len(missing_df)
     cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
-    shown = missing_df[cols].head(DATA_TABLE_MAX_ROWS)
-    table = shown.to_html(index=False, border=0, na_rep="", classes="data-table", escape=True)
-    table = "".join(line.strip() for line in table.splitlines())
+    shown = missing_df[cols + (["File Link"] if "File Link" in missing_df.columns else [])].head(DATA_TABLE_MAX_ROWS)
+    table = _data_table_html(shown, link_files=True)
 
     banner_html = (
         '<details class="review-banner">'
@@ -809,13 +828,11 @@ def _chart_notes(df, hide_unknown):
 
 def _render_raw_audit_log(df):
     """Draws the bottom 'Raw audit log' card."""
-    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [c for c in df.columns if c not in TABLE_COLUMNS]
+    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [
+        c for c in df.columns if c not in TABLE_COLUMNS and c != "File Link"
+    ] + (["File Link"] if "File Link" in df.columns else [])
     shown = df[ordered].head(DATA_TABLE_MAX_ROWS)
-    table = shown.to_html(
-        index=False, border=0, na_rep="", classes="data-table", escape=True,
-        float_format=lambda value: f"{value:g}",
-    )
-    table = "".join(line.strip() for line in table.splitlines())
+    table = _data_table_html(shown, float_format=lambda value: f"{value:g}")
     cap_note = (
         f'<p class="audit-cap-note">Showing the first {DATA_TABLE_MAX_ROWS:,} of {len(df):,} defects.</p>'
         if len(df) > DATA_TABLE_MAX_ROWS else ""
