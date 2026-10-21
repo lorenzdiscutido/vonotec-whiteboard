@@ -497,32 +497,67 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .data-table-wrap table.data-table td a.file-link { color: #1d4ed8 !important; text-decoration: none; font-weight: 600; }
 .data-table-wrap table.data-table td a.file-link:hover { text-decoration: underline; }
 
-/* Repair Quantity Summary card: grow with the table instead of using the equal-height chart rule */
+
+/* =====================================================================
+   OVERRIDES (keep this whole block at the very end of the file so it wins)
+   ===================================================================== */
+
+/* ---------- 1. Repair Quantity Summary card: grow with the table (fixes the table leaking out) ---------- */
 div.st-key-chart_dimensions {
   height: auto !important;
   min-height: 0 !important;
   flex: 0 0 auto !important;
   overflow: visible !important;
-  padding-bottom: 26px !important;   /* extra white space below the table */
+  padding-bottom: 26px !important;
 }
-div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
-  height: auto !important;
-}
-.st-key-chart_dimensions .dim-table-wrap {
-  margin-bottom: 4px;
-}
+div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] { height: auto !important; }
+.st-key-chart_dimensions .dim-table-wrap { margin-bottom: 4px; }
 
-/* Help popup: lift the header (and its popup) above everything below it */
-.st-key-top_app_header {
-  position: relative !important;
-  z-index: 1000 !important;
-  overflow: visible !important;
-}
+/* ---------- 2. Help popup: lift the header (and its popup) above everything below it ---------- */
+.st-key-top_app_header { position: relative !important; z-index: 1000 !important; overflow: visible !important; }
 [data-testid="stElementContainer"]:has(.st-key-top_app_header),
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .st-key-top_app_header) {
-  position: relative !important;
-  z-index: 1000 !important;
-  overflow: visible !important;
-}
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .st-key-top_app_header) { position: relative !important; z-index: 1000 !important; overflow: visible !important; }
 .help-pop { position: relative; z-index: 1001; }
 .help-panel { z-index: 1002 !important; }
+
+/* ---------- 3. Connected look: one neutral surface across both workspaces ---------- */
+:root {
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-muted: rgba(241, 245, 249, 0.7);
+  --border: #e3e9ef;
+  --radius-card: 12px;
+  --radius-inner: 10px;
+  --shadow-card: 0 4px 22px rgba(15, 23, 42, 0.16);
+}
+
+/* Shell for Extraction and Dashboard: same surface, radius and shadow */
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel),
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) {
+  background: var(--surface) !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* Primary panes: transparent so the shell colour shows evenly */
+.st-key-form_panel,
+.st-key-dashboard_main { background: transparent !important; }
+
+/* Secondary panes: same muted tint, no gradient bleed-through, no seam */
+.st-key-results_panel,
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:last-child,
+.st-key-dashboard_sidebar { background: var(--surface-muted) !important; }
+
+/* Sticky action bar: no empty white box, but still covers content scrolling underneath */
+.st-key-action_buttons,
+.st-key-form_panel [data-testid="stElementContainer"]:has(.st-key-action_buttons),
+.st-key-form_panel div:has(> .st-key-action_buttons) {
+  background: linear-gradient(to top, var(--surface) 75%, transparent) !important;
+}
+
+/* Inputs: one consistent white style on the muted panes */
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+.stApp [data-testid="stTextInput"] [data-baseweb="input"] {
+  background-color: #ffffff !important;
+  border-color: #d5dde8 !important;
+}
