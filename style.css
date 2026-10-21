@@ -493,3 +493,5 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .dim-table-wrap table.dim-table tbody tr.boq-group td { background-color: #eef3fb !important; color: #1e3a8a !important; font-size: 12.5px !important; font-weight: 700 !important; letter-spacing: 0.04em; text-transform: uppercase; padding: 9px 14px !important; border-top: 1px solid #dbe4f2; border-bottom: 1px solid #dbe4f2; }
 .dim-table-wrap table.dim-table tbody tr.boq-group:hover td { background-color: #eef3fb !important; }
 .boq-group-meta { color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-left: 10px; }
+.data-table-wrap table.data-table td a.file-link { color: #1d4ed8 !important; text-decoration: none; font-weight: 600; }
+.data-table-wrap table.data-table td a.file-link:hover { text-decoration: underline; }
