@@ -1,0 +1,216 @@
+/* =====================================================================
+   theme_polish.css  -  load AFTER styles.css (it overrides it)
+   Contains: design tokens, calmer background, type scale, KPI + table fixes,
+   empty-state + live-chip styles, focus rings, toggle + footer fixes,
+   Streamlit chrome hiding, tablet layout.
+   ===================================================================== */
+
+/* ---------- 0. Design tokens ---------- */
+:root {
+  /* surfaces (translucent, shared by Extraction and Dashboard) */
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-muted: rgba(241, 245, 249, 0.32);
+  --border: #e3e9ef;
+  --radius-card: 12px;
+  --radius-inner: 10px;
+  --shadow-card: 0 4px 22px rgba(15, 23, 42, 0.18);
+
+  /* type scale: 5 sizes, 3 weights */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-kpi: 28px;
+  --fw-body: 400;
+  --fw-label: 600;
+  --fw-heading: 700;
+
+  /* spacing scale (4px base) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* colour roles: blue = brand/actions, orange = attention only */
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #475569;
+  --blue: #1e3a8a;
+  --blue-2: #2f5597;
+  --attention: #c2570c;
+}
+
+/* ---------- 1. Calmer background: deep navy with a soft glow in one corner ---------- */
+.stApp {
+  background-color: #14275f !important;
+  background-image:
+    radial-gradient(900px 560px at 100% 100%, rgba(249, 115, 22, 0.30), transparent 65%),
+    radial-gradient(900px 600px at 0% 0%, rgba(47, 85, 151, 0.45), transparent 65%),
+    linear-gradient(160deg, #14275f 0%, #1e3a8a 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* ---------- 2. Typography: regular for helper text, semi-bold for labels, bold for headings ---------- */
+.chart-sub, .source-sub, .source-subhead-desc, .section-desc, .sync-card p, .tip-card p,
+.kpi-sub, .review-banner-sub, .audit-drawer-sub, .loc-section-meta, .file-sub,
+.sync-detail, .source-path, .footer-hint,
+[data-testid="stCaptionContainer"] p, [data-testid="stCaptionContainer"],
+.st-key-form_panel p, .st-key-dashboard_sidebar p {
+  font-size: var(--fs-sm) !important;
+  font-weight: var(--fw-body) !important;
+  color: var(--ink-3) !important;
+}
+.tip-card p { color: #785a37 !important; }
+
+[data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] p,
+.source-field-label {
+  font-size: var(--fs-sm) !important;
+  font-weight: var(--fw-label) !important;
+  color: var(--ink-2) !important;
+}
+
+.card-title, .panel-title, .chart-name, .source-title, .source-subhead-title,
+.st-key-dashboard_sidebar .side-title, .sync-card strong {
+  font-size: var(--fs-lg) !important;
+  font-weight: var(--fw-heading) !important;
+}
+.section-heading h2, .loc-section-head h2 {
+  font-size: var(--fs-xl) !important;
+  font-weight: var(--fw-heading) !important;
+}
+.kpi-value { font-size: var(--fs-kpi) !important; }
+
+/* Orange is reserved for attention (warnings, Unknown, tab underline): eyebrows go brand blue */
+.eyebrow {
+  color: var(--blue-2) !important;
+  font-size: var(--fs-xs) !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ---------- 3. KPI cards: let the sub-text wrap instead of cutting it off ---------- */
+.kpi-sub {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.35 !important;
+}
+
+/* ---------- 4. Repair Quantity Summary: right-align numbers so digits line up ---------- */
+.dim-table-wrap table.dim-table thead th:nth-child(n+3):nth-child(-n+6) { text-align: right !important; }
+.dim-table-wrap table.dim-table td.boq-num,
+.dim-table-wrap table.dim-table td.boq-board,
+.dim-table-wrap table.dim-table td.boq-repair,
+.dim-table-wrap table.dim-table td.boq-foot-val { text-align: right !important; }
+.dim-table-wrap table.dim-table tfoot td { border-top: 2px solid #94a3b8 !important; }
+
+/* ---------- 5. Empty states and the live chip (used by ui_polish.py) ---------- */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  margin: 8px 0; padding: 28px 20px;
+  border: 1.5px dashed #cbd5e1; border-radius: var(--radius-inner);
+  background: rgba(255, 255, 255, 0.6);
+}
+.empty-icon {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  border-radius: 50%; background: #eaf0fb; color: var(--blue-2);
+}
+.empty-title { color: var(--ink) !important; font-size: var(--fs-md) !important; font-weight: var(--fw-heading) !important; }
+.empty-body { max-width: 420px; color: var(--ink-3) !important; font-size: var(--fs-sm) !important; font-weight: var(--fw-body) !important; line-height: 1.5; }
+
+.live-chip {
+  display: inline-flex; align-items: center; gap: 7px; margin: 0 0 12px 0;
+  padding: 5px 12px; border: 1px solid #bfe6d7; border-radius: 999px;
+  background: #f3fbf7; color: #065f46; font-size: var(--fs-xs); font-weight: var(--fw-label);
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #16865b; box-shadow: 0 0 0 0 rgba(22, 134, 91, 0.5); animation: live-pulse 2s infinite; }
+@keyframes live-pulse { 70% { box-shadow: 0 0 0 6px rgba(22, 134, 91, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 134, 91, 0); } }
+
+/* ---------- 6. Visible keyboard focus ---------- */
+.stApp button:focus-visible,
+.stApp summary:focus-visible,
+.stApp a:focus-visible,
+.stApp [data-testid="stRadio"] label:has(input:focus-visible),
+.stApp [data-testid="stToggle"] label:has(input:focus-visible) {
+  outline: 2px solid #f97316 !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------- 7. Toggle: keep the OFF state clearly visible ---------- */
+div[data-testid="stToggle"] label > div:first-of-type,
+.st-key-src_recursive label > div:first-of-type,
+.st-key-analytics_hide_unknown label > div:first-of-type,
+div[data-testid="stToggle"] [data-baseweb="checkbox"] > div:first-child {
+  background-color: #94a3b8 !important;
+  border: 1.5px solid #64748b !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.15) !important;
+}
+div[data-testid="stToggle"] label > div:first-of-type div,
+.st-key-src_recursive label > div:first-of-type div,
+.st-key-analytics_hide_unknown label > div:first-of-type div {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
+}
+div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type,
+.st-key-src_recursive label:has(input:checked) > div:first-of-type,
+.st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type,
+div[data-testid="stToggle"] [data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+  background-color: var(--blue-2) !important;
+  border-color: var(--blue) !important;
+}
+
+/* ---------- 8. Action footer: right-aligned in every source mode, readable when disabled ---------- */
+.st-key-action_buttons,
+.st-key-action_buttons > [data-testid="stVerticalBlock"] {
+  display: flex !important; flex-direction: column !important; align-items: flex-end !important; width: 100% !important;
+}
+.st-key-action_buttons [data-testid="stElementContainer"] {
+  display: flex !important; flex-direction: column !important; align-items: flex-end !important; width: 100% !important;
+}
+.st-key-action_buttons div.stButton { width: auto !important; margin-left: auto !important; }
+.st-key-action_buttons .footer-hint { text-align: right !important; }
+
+.st-key-action_buttons button:disabled {
+  opacity: 1 !important;
+  background-color: #cbd5e1 !important;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+.st-key-action_buttons button:disabled p { color: var(--ink-3) !important; }
+.st-key-action_buttons button:disabled p::before { filter: invert(1) opacity(0.55); }
+
+.st-key-action_buttons .st-key-extract_data_running button:disabled,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled {
+  background-color: var(--blue) !important; border-color: var(--blue) !important; opacity: 0.8 !important; cursor: progress !important;
+}
+.st-key-action_buttons .st-key-extract_data_running button:disabled p,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled p { color: #ffffff !important; }
+.st-key-action_buttons .st-key-extract_data_running button:disabled p::before,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled p::before { filter: none; }
+
+/* ---------- 9. Hide Streamlit's prototype giveaways ---------- */
+#MainMenu, footer, [data-testid="stAppDeployButton"], [data-testid="stMainMenu"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* ---------- 10. Tablet layout (iPad-width): stack the two panes instead of squeezing them ---------- */
+@media (max-width: 900px) {
+  [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar),
+  [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { flex-wrap: wrap !important; }
+
+  [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"]:nth-child(n),
+  [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:nth-child(n) {
+    flex: 1 1 100% !important; width: 100% !important; min-width: 100% !important;
+  }
+  .st-key-dashboard_sidebar { border-right: none !important; border-bottom: 1px solid var(--border) !important; }
+  .st-key-dashboard_main, .st-key-form_panel, .st-key-results_panel { padding: 20px !important; }
+}
+
+/* ---------- 11. Respect reduced-motion settings ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
