@@ -4,7 +4,7 @@ import os
 import datetime
 import importlib
 import traceback
-
+import ui_polish
 import streamlit as st
 
 import auto_watcher
@@ -35,6 +35,10 @@ VIEW_DASHBOARD = "Dashboard"
 
 SOURCE_LOCAL = "Device upload"
 SOURCE_SHAREPOINT = "Import from SharePoint"
+
+ui_polish.configure_page()        # must be the first st.* call; delete your existing st.set_page_config
+# ... your existing CSS injection stays here ...
+ui_polish.load_polish_css()       # right after it
 
 # Normalize legacy session value if user switches from an older session
 if st.session_state.get("photo_source") in ("Upload Local Photos", "Upload from device"):
