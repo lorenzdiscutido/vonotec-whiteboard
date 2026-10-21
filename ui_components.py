@@ -179,7 +179,7 @@ def render_empty_results():
         '<p>Messages, downloads and sync status appear here once you extract a batch.</p></div>'
         '</div>'
         '<div class="preview-card">'
-        '<p class="preview-title">After extraction, you\'ll see</p>'
+        '<p class="preview-title">After extraction, you\'ll see:</p>'
         '<ul class="preview-list">'
         f'<li><span class="preview-icon">{_ICON_PREVIEW_STATUS}</span>'
         '<div><b>File-level status</b><span>Added, skipped or failed, one row per photo</span></div></li>'
