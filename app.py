@@ -21,7 +21,7 @@ import os
 import datetime
 import importlib
 import traceback
-from PIL import image
+from PIL import Image
 import streamlit as st
 
 import sharepoint_client
