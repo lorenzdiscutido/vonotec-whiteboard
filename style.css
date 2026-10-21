@@ -496,3 +496,18 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .boq-group-meta { color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-left: 10px; }
 .data-table-wrap table.data-table td a.file-link { color: #1d4ed8 !important; text-decoration: none; font-weight: 600; }
 .data-table-wrap table.data-table td a.file-link:hover { text-decoration: underline; }
+
+/* Repair Quantity Summary card: grow with the table instead of using the equal-height chart rule */
+div.st-key-chart_dimensions {
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  padding-bottom: 26px !important;   /* extra white space below the table */
+}
+div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
+  height: auto !important;
+}
+.st-key-chart_dimensions .dim-table-wrap {
+  margin-bottom: 4px;
+}
