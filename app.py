@@ -57,7 +57,7 @@ SOURCE_SHAREPOINT = "Import from SharePoint"
 
 
 # --- PAGE SETUP ---
-icon_path = Path(__file__).with_name("vonotec icon.png")
+icon_path = Path(__file__).with_name("vonotec_icon.png")
 page_icon = Image.open(icon_path) if icon_path.exists() else "📊"
 
 st.set_page_config(
