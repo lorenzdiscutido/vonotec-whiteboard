@@ -32,6 +32,17 @@ from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
 
+import ui_polish
+# in render_analytics_dashboard(), right after ui_components.section_heading(...)
+ui_polish.live_chip(f"Live \u00b7 refreshes every {DASHBOARD_REFRESH_SECONDS}s")
+
+# replace st.info("There are no Excel files to analyze in this selection yet.")
+ui_polish.empty_state("No Excel files in this selection", "Choose another folder, or process a batch from the Extraction tab.")
+
+# replace st.info("No defects match these filters.")
+ui_polish.empty_state("No defects match these filters", "Clear a filter in the left panel to see more results.")
+
+
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
 
