@@ -50,10 +50,10 @@ SUBSTRATE_DEFECT_OPTIONS = {
 
 # Chart look: Vonotec-blue bars on a white card.
 CHART_COLOR = "#1E40AF"
-ACCENT_COLOR = "#f26a3d"       # orange: marks the "Unknown" bars, so missing data stands out
-CHART_BACKGROUND = "#FFFFFF"
+ACCENT_COLOR = "#EA580C"       # orange: marks the "Unknown" bars, so missing data stands out
+CHART_BACKGROUND = "rgba(0,0,0,0)"  # transparent, so the card behind the chart shows through
 CHART_TEXT = "#64748B"         # axis labels
-CHART_GRID = "#F0E8E3"         # soft gridlines behind the bars
+CHART_GRID = "#EDF0F4"         # soft gridlines behind the bars
 CHART_FONT = "DM Sans"
 
 # With more bars than this, the x-axis labels are tilted so they don't run into each other
@@ -697,7 +697,7 @@ def _bar_chart(counts, column, horizontal=False):
         .configure_axis(
             labelColor=CHART_TEXT, labelFontSize=12,
             titleFontSize=13,
-            gridColor=CHART_GRID, domainColor="#E6DCD5", tickColor="#E6DCD5",
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
         )
         .configure_view(stroke=None)
     )
@@ -748,7 +748,7 @@ def _horizontal_bar_chart(counts, column):
         .configure_axis(
             labelColor=CHART_TEXT, labelFontSize=12,
             titleFontSize=13,
-            gridColor=CHART_GRID, domainColor="#E6DCD5", tickColor="#E6DCD5",
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
         )
         .configure_view(stroke=None)
     )
@@ -792,7 +792,7 @@ def _chart_section(df, column, title, hide_unknown):
     with st.container(border=True, key=f"chart_{column.lower()}"):
         legend_html = (
             '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'
-            'background:#f26a3d;margin-right:5px;"></span>Unknown classification'
+            'background:#ea580c;margin-right:5px;"></span>Unknown classification'
             if has_unknown else ""
         )
         st.markdown(
