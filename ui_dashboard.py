@@ -26,7 +26,7 @@ import sharepoint_client
 import ui_components
 from dashboard_data import (
     rows_to_dataframe, apply_filters, count_by, dimension_by_defect,
-    natural_key, material_for_code, UNKNOWN, _CODE_ORDER,
+    natural_key, UNKNOWN,
 )
 from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
@@ -34,6 +34,19 @@ from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRES
 
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
+
+# Strict canonical defect options per substrate for the sidebar sub-filter
+SUBSTRATE_DEFECT_OPTIONS = {
+    "Concrete": ["C-", "C+", "BH", "US"],
+    "Sealant": [
+        "DS CC", "DS CF", "DS GG", "DS FG", "DS FF",
+        "MS CC", "MS CF", "MS GG", "MS FG", "MS FF",
+    ],
+    "Paint": ["DP", "FP", "BP", "NP"],
+    "Gasket": ["DG"],
+    "Broken Glass": ["BG"],
+    "With Film": ["GLASS-FRAME"],
+}
 
 # Chart look: Vonotec-blue bars on a white card.
 CHART_COLOR = "#1E40AF"
@@ -827,7 +840,7 @@ def _render_raw_audit_log(df):
 
 
 # ---------------------------------------------------------------------------
-# Sidebar: which files, refresh, filters (including Defect Code sub-filter under Substrate)
+# Sidebar: which files, refresh, filters (including strict Defect sub-filter per Substrate)
 # ---------------------------------------------------------------------------
 
 def _filter_key(name, scope):
@@ -838,22 +851,20 @@ def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
 
 
-def _defect_options_for_substrates(df, selected_substrates):
-    """Returns canonical defect codes available for the chosen substrates (or all substrates
-    if none are selected), ordered in canonical engineering order."""
-    sub_df = df[df["Material"].isin(selected_substrates)] if selected_substrates else df
-    present_codes = {str(c).strip() for c in sub_df["Defect Code"].dropna().unique() if str(c).strip()}
-
-    # Include canonical codes configured for the selected substrates so users can pick any valid code
-    if selected_substrates:
-        for code in _CODE_ORDER:
-            if material_for_code(code) in selected_substrates:
-                present_codes.add(code)
-
-    return sorted(
-        present_codes,
-        key=lambda c: (_CODE_ORDER.get(c, len(_CODE_ORDER)), c),
-    )
+def _defect_options_for_substrates(selected_substrates):
+    """Returns the strict canonical defect codes for the selected substrates in exact order:
+      - Concrete: C-, C+, BH, US
+      - Sealant:  DS CC, DS CF, DS GG, DS FG, DS FF, MS CC, MS CF, MS GG, MS FG, MS FF
+      - Paint:    DP, FP, BP, NP
+      - Gasket:   DG
+    """
+    substrates = selected_substrates if selected_substrates else list(SUBSTRATE_DEFECT_OPTIONS.keys())
+    options = []
+    for sub in substrates:
+        for code in SUBSTRATE_DEFECT_OPTIONS.get(sub, []):
+            if code not in options:
+                options.append(code)
+    return options
 
 
 def render_dashboard_controls():
@@ -913,7 +924,7 @@ def render_dashboard_controls():
 
     # Sub-filter for Defect Codes belonging to the selected Substrate(s)
     defect_key = _filter_key("defect", scope)
-    available_defects = _defect_options_for_substrates(df, selected_substrates)
+    available_defects = _defect_options_for_substrates(selected_substrates)
     current_defects = st.session_state.get(defect_key) or []
     valid_current = [d for d in current_defects if d in available_defects]
     if valid_current != current_defects:
@@ -928,7 +939,7 @@ def render_dashboard_controls():
         defect_label,
         available_defects,
         key=defect_key,
-        help="Choose specific defect codes (e.g. C-, C+, US, BH under Concrete) to filter the dashboard.",
+        help="Choose specific defect codes for the selected substrate(s).",
     )
 
     folders_in_data = _sorted_options(df["Folder"])
