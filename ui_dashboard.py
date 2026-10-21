@@ -51,7 +51,7 @@ SUBSTRATE_DEFECT_OPTIONS = {
 # Chart look: Vonotec-blue bars on a white card.
 CHART_COLOR = "#1E40AF"
 ACCENT_COLOR = "#EA580C"       # orange: marks the "Unknown" bars, so missing data stands out
-CHART_BACKGROUND = "#FFFFFF"
+CHART_BACKGROUND = "rgba(0,0,0,0)"  # transparent, so the card behind the chart shows through
 CHART_TEXT = "#64748B"         # axis labels
 CHART_GRID = "#EDF0F4"         # soft gridlines behind the bars
 CHART_FONT = "DM Sans"
