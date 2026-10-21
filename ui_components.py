@@ -100,25 +100,36 @@ WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
 def render_stepper(done, current):
-    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
+    """Renders a clean, transparent '1. Select photos > 2. Save destination > 3. Extract data' line
+    directly where the eyebrow sits, with no white background or circles."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
-        mark = "✓" if state == "done" else str(number)
-        parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
+        prefix = f"✓ {number}." if state == "done" else f"{number}."
+        if state == "current":
+            color = "#1e3a8a"
+            weight = "700"
+        elif state == "done":
+            color = "#15803d"
+            weight = "600"
+        else:
+            color = "#64748b"
+            weight = "500"
+        parts.append(
+            f'<span style="color:{color};font-weight:{weight};background:transparent !important;'
+            f'padding:0 !important;border:none !important;box-shadow:none !important;">'
+            f'{prefix} {html.escape(label)}</span>'
+        )
+    sep = '<span style="color:#94a3b8;margin:0 8px;font-weight:500;background:transparent !important;">&gt;</span>'
     st.markdown(
         '<style>'
         '.st-key-top_app_header { margin-bottom: 18px !important; }'
-        '.workflow-stepper {'
-        '  background: transparent !important;'
-        '  border: none !important;'
-        '  box-shadow: none !important;'
-        '  border-radius: 0 !important;'
-        '  padding: 0 !important;'
-        '  margin: 0 0 6px 0 !important;'
-        '}'
         '</style>'
-        '<div class="workflow-stepper">' + '<span class="wf-arrow">→</span>'.join(parts) + '</div>',
+        '<div style="display:flex;align-items:center;flex-wrap:wrap;font-size:13px;'
+        'line-height:1.4;background:transparent !important;border:none !important;'
+        'box-shadow:none !important;padding:0 !important;margin:0 0 4px 0 !important;">'
+        + sep.join(parts)
+        + '</div>',
         unsafe_allow_html=True,
     )
 
