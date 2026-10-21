@@ -511,3 +511,18 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
 .st-key-chart_dimensions .dim-table-wrap {
   margin-bottom: 4px;
 }
+
+/* Help popup: lift the header (and its popup) above everything below it */
+.st-key-top_app_header {
+  position: relative !important;
+  z-index: 1000 !important;
+  overflow: visible !important;
+}
+[data-testid="stElementContainer"]:has(.st-key-top_app_header),
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .st-key-top_app_header) {
+  position: relative !important;
+  z-index: 1000 !important;
+  overflow: visible !important;
+}
+.help-pop { position: relative; z-index: 1001; }
+.help-panel { z-index: 1002 !important; }
