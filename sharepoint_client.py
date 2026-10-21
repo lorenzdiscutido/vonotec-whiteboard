@@ -242,7 +242,7 @@ def list_xlsx_files(subfolder=""):
     or inside one (possibly multi-level nested) subfolder of it, sorted A-Z by name."""
     site_id = _get_site_id()
     encoded = _encode_folder_path(_remote_folder(subfolder).split("/"))
-    select = "$select=name,size,lastModifiedDateTime,file&$top=200"
+    select = "$select=name,size,lastModifiedDateTime,webUrl,file&$top=200"
     if encoded:
         url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{encoded}:/children?{select}"
     else:
@@ -267,6 +267,7 @@ def list_xlsx_files(subfolder=""):
                 "modified": item.get("lastModifiedDateTime", ""),
                 "size": item.get("size", 0),
                 "subfolder": subfolder,
+                "web_url": item.get("webUrl", ""),
             })
         url = data.get("@odata.nextLink")
     return sorted(files, key=lambda f: f["name"].lower())
