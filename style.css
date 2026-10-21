@@ -522,12 +522,12 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] { height: auto !im
 
 /* ---------- 3. Connected look: one neutral surface across both workspaces ---------- */
 :root {
-  --surface: rgba(255, 255, 255, 0.92);
-  --surface-muted: rgba(241, 245, 249, 0.7);
+  --surface: rgba(255, 255, 255, 0.72);        /* shell: back to your original translucency */
+  --surface-muted: rgba(241, 245, 249, 0.32);  /* secondary panes: light tint, gradient still shows through */
   --border: #e3e9ef;
   --radius-card: 12px;
   --radius-inner: 10px;
-  --shadow-card: 0 4px 22px rgba(15, 23, 42, 0.16);
+  --shadow-card: 0 4px 22px rgba(15, 23, 42, 0.18);
 }
 
 /* Shell for Extraction and Dashboard: same surface, radius and shadow */
