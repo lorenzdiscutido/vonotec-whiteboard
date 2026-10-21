@@ -46,12 +46,6 @@ from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
 
-import ui_polish
-
-ui_polish.configure_page()        # must be the first st.* call; delete your existing st.set_page_config
-# ... your existing CSS injection stays here ...
-ui_polish.load_polish_css()       # right after it
-
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
