@@ -29,6 +29,7 @@ UNKNOWN = "Unknown"
 COLUMNS = [
     "Folder", "File", "Submitter", "Date", "Elevation", "Drop", "Floor", "Tower",
     "Material", "Defect Code", "Defect Type", "Dimension", "Unit", "Repair Dimension", "Repair Unit",
+    "File Link",  # SharePoint web address of the file, added by the dashboard (not read from Excel)
 ]
 
 # Title rows hold a material name, matched ignoring capitals
