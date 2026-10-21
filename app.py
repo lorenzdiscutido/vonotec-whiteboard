@@ -21,7 +21,7 @@ import os
 import datetime
 import importlib
 import traceback
-from PIL import Image
+
 import streamlit as st
 
 import sharepoint_client
@@ -58,7 +58,6 @@ SOURCE_SHAREPOINT = "Import from SharePoint"
 # --- PAGE SETUP ---
 st.set_page_config(
     page_title="VONOTEC Whiteboard Extractor",
-    page_icon=Image.open("vonotec icon.png"),
     layout="wide",
 )
 ui_components.load_local_css("style.css")
