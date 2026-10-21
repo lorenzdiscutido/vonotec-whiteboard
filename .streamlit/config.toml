@@ -20,3 +20,8 @@ font = "sans serif"
 [client]
 # Hides the developer menu items in the top bar (Streamlit's own toolbar)
 toolbarMode = "minimal"
+
+# Place this file at  .streamlit/config.toml  in your project root.
+
+[browser]
+gatherUsageStats = false
