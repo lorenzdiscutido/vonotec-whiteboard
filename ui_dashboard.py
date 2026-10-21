@@ -3,13 +3,13 @@
 Repair Quantity Summary + Location Analysis layout:
 
   1. ENGINEERING OVERVIEW ("Facade defect dashboard")
-     - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQ LM), Missing dimensions
+     - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQM), Missing dimensions
      - Collapsible warm-amber review banner ("X records need review") when dimensions are missing
   2. REPAIR QUANTITY SUMMARY ("Dimensions by defect")
      - Header with "Download summary XLSX" button on the top right
-     - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQ LM) rows,
+     - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQM) rows,
        with pill badges for Defect Code, Description, Count, Board Dimensions,
-       Linear Repair (LM), Area Repair (SQ LM), Data Health, and a Portfolio Total footer row
+       Linear Repair (LM), Area Repair (SQM), Data Health, and a Portfolio Total footer row
   3. LOCATION ANALYSIS ("Where are the defects located?")
      - Defects by material beside Defects by tower, then Defects by floor across the width
   4. RAW AUDIT LOG
@@ -24,7 +24,10 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
-from dashboard_data import rows_to_dataframe, apply_filters, count_by, dimension_by_defect, natural_key, UNKNOWN
+from dashboard_data import (
+    rows_to_dataframe, apply_filters, count_by, dimension_by_defect,
+    natural_key, UNKNOWN,
+)
 from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
@@ -32,12 +35,25 @@ from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRES
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
 
+# Strict canonical defect options per substrate for the sidebar sub-filter
+SUBSTRATE_DEFECT_OPTIONS = {
+    "Concrete": ["C-", "C+", "BH", "US"],
+    "Sealant": [
+        "DS CC", "DS CF", "DS GG", "DS FG", "DS FF",
+        "MS CC", "MS CF", "MS GG", "MS FG", "MS FF",
+    ],
+    "Paint": ["DP", "FP", "BP", "NP"],
+    "Gasket": ["DG"],
+    "Broken Glass": ["BG"],
+    "With Film": ["GLASS-FRAME"],
+}
+
 # Chart look: Vonotec-blue bars on a white card.
 CHART_COLOR = "#1E40AF"
 ACCENT_COLOR = "#EA580C"       # orange: marks the "Unknown" bars, so missing data stands out
-CHART_BACKGROUND = "#FFFFFF"
+CHART_BACKGROUND = "rgba(255,255,255,0)"  # transparent, so the glass card shows through
 CHART_TEXT = "#64748B"         # axis labels
-CHART_GRID = "#EDF0F4"         # soft gridlines behind the bars
+CHART_GRID = "#E3E6F2"         # soft gridlines behind the bars
 CHART_FONT = "DM Sans"
 
 # With more bars than this, the x-axis labels are tilted so they don't run into each other
@@ -47,6 +63,7 @@ CHART_SUBTITLES = {
     "Material": "Top facade classifications",
     "Tower": "Distribution across project towers",
     "Floor": "Concentration across active levels",
+    "Cause": "Why each defect most likely happened",
 }
 
 # Column order of the raw audit log table
@@ -170,7 +187,8 @@ def _load_scope(scope, subfolders):
         if error:
             skipped.append((label, error))
         else:
-            rows += file_rows
+            link = item.get("web_url", "")
+            rows += [{**row, "File Link": link} for row in file_rows]
             files_read += 1
         if progress is not None:
             progress.progress((index + 1) / len(files), text=f"Reading Excel files... {index + 1} of {len(files)}")
@@ -182,6 +200,35 @@ def _load_scope(scope, subfolders):
 # ---------------------------------------------------------------------------
 # Section 1: KPI Cards & Warm-Amber Review Banner
 # ---------------------------------------------------------------------------
+
+# What each sealant location modifier means (the two surfaces the sealant joins), shown in the
+# Description column: "DS CF" -> "Damaged Sealant (Concrete to Frame)"
+SEALANT_LOCATION_NAMES = {
+    "CC": "Concrete to Concrete",
+    "CF": "Concrete to Frame",
+    "GG": "Glass to Glass",
+    "FG": "Frame to Glass",
+    "FF": "Frame to Frame",
+}
+
+# Dashboard-only description overrides (leaves Reference Data in Excel untouched)
+_DASHBOARD_DESC_OVERRIDES = {
+    "BH": "Bughole",
+    "US": "Uneven Surface",
+}
+
+
+def _defect_description(code, defect_type):
+    """The Description of a summary row: uses dashboard-specific overrides for BH and US,
+    plus the surfaces for a sealant code."""
+    clean_code = str(code or "").strip()
+    if clean_code in _DASHBOARD_DESC_OVERRIDES:
+        return _DASHBOARD_DESC_OVERRIDES[clean_code]
+    parts = clean_code.split()
+    if len(parts) > 1 and parts[1] in SEALANT_LOCATION_NAMES:
+        return f"{defect_type} ({SEALANT_LOCATION_NAMES[parts[1]]})"
+    return str(defect_type)
+
 
 def _base_defect_code(code):
     parts = str(code or "").split()
@@ -215,10 +262,10 @@ def _render_kpi_cards(df, summary, files_read):
     """Draws the 4 Engineering KPI cards across the top of the dashboard:
       1. Total defects
       2. Linear repair total (LM)
-      3. Area repair total (SQ LM)
+      3. Area repair total (SQM)
       4. Missing dimensions"""
     linear_rows = summary[summary["Repair Unit"] == "LM"] if not summary.empty else summary
-    area_rows = summary[summary["Repair Unit"] == "SQ LM"] if not summary.empty else summary
+    area_rows = summary[summary["Repair Unit"] == "SQM"] if not summary.empty else summary
 
     linear_repair = float(linear_rows["Total Repair Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
     linear_board = float(linear_rows["Total Dimension"].dropna().sum()) if not linear_rows.empty else 0.0
@@ -249,9 +296,9 @@ def _render_kpi_cards(df, summary, files_read):
             unsafe_allow_html=True,
         )
     with col3:
-        sub3 = f"Board: {area_board:,.2f} SQ LM \u00b7 {area_measured:,} measured"
+        sub3 = f"Board: {area_board:,.2f} SQM \u00b7 {area_measured:,} measured"
         st.markdown(
-            _kpi_card_html("Area repair total", f"{area_repair:,.2f}", "SQ LM", html.escape(sub3), _KPI_ICON_AREA, tone="green"),
+            _kpi_card_html("Area repair total", f"{area_repair:,.2f}", "SQM", html.escape(sub3), _KPI_ICON_AREA, tone="green"),
             unsafe_allow_html=True,
         )
     with col4:
@@ -267,6 +314,25 @@ def _render_kpi_cards(df, summary, files_read):
         )
 
 
+def _data_table_html(shown, float_format=None, link_files=False):
+    """The HTML for a plain data table. Every cell is escaped. With link_files=True the File column
+    becomes a link that opens that Excel file in SharePoint (only people with access to the site can open it)."""
+    table_df = shown.copy()
+    links = table_df.pop("File Link") if "File Link" in table_df.columns else None
+    for column in table_df.columns:
+        table_df[column] = table_df[column].map(lambda value: html.escape(value) if isinstance(value, str) else value)
+    if link_files and links is not None and "File" in table_df.columns:
+        def _file_cell(name, link):
+            link = link if isinstance(link, str) else ""
+            if not link.startswith("https://"):
+                return name
+            return f'<a class="file-link" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a>'
+        table_df["File"] = [_file_cell(name, link) for name, link in zip(table_df["File"], links)]
+    kwargs = {"float_format": float_format} if float_format else {}
+    table = table_df.to_html(index=False, border=0, na_rep="", classes="data-table", escape=False, **kwargs)
+    return "".join(line.strip() for line in table.splitlines())
+
+
 def _render_missing_dimensions_queue(df):
     """Draws the warm-amber collapsible review banner ('X records need review') right below
     the KPI cards when any defects are missing a required dimension in Excel."""
@@ -276,9 +342,8 @@ def _render_missing_dimensions_queue(df):
 
     count = len(missing_df)
     cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
-    shown = missing_df[cols].head(DATA_TABLE_MAX_ROWS)
-    table = shown.to_html(index=False, border=0, na_rep="", classes="data-table", escape=True)
-    table = "".join(line.strip() for line in table.splitlines())
+    shown = missing_df[cols + (["File Link"] if "File Link" in missing_df.columns else [])].head(DATA_TABLE_MAX_ROWS)
+    table = _data_table_html(shown, link_files=True)
 
     banner_html = (
         '<details class="review-banner">'
@@ -323,7 +388,7 @@ def _summary_to_excel_bytes(summary):
     headers = [
         "Defect Code", "Description", "Count",
         "Board Dimensions", "Board Unit",
-        "Linear Repair (LM)", "Area Repair (SQ LM)",
+        "Linear Repair (LM)", "Area Repair (SQM)",
         "Missing Dimensions",
     ]
     ws.append(headers)
@@ -343,7 +408,22 @@ def _summary_to_excel_bytes(summary):
     total_area_repair = 0.0
     total_missing = 0
 
+    group_fill = PatternFill(start_color="E8EEF8", end_color="E8EEF8", fill_type="solid")
+    group_font = Font(name="Calibri", size=11, bold=True, color="1E3A8A")
+    material_counts = {}
     for record in records:
+        material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"])
+
+    current_material = None
+    for record in records:
+        if record["Material"] != current_material:
+            current_material = record["Material"]
+            ws.append([str(current_material), "", material_counts[current_material], "", "", "", "", ""])
+            for col_idx in range(1, len(headers) + 1):
+                group_cell = ws.cell(row=ws.max_row, column=col_idx)
+                group_cell.fill = group_fill
+                group_cell.font = group_font
+
         tot_dim = record["Total Dimension"]
         rep_dim = record["Total Repair Dimension"]
         rep_unit = record["Repair Unit"] or ""
@@ -352,7 +432,7 @@ def _summary_to_excel_bytes(summary):
 
         has_rep = rep_dim is not None and rep_dim == rep_dim
         lin_val = round(float(rep_dim), 2) if has_rep and rep_unit == "LM" else ""
-        area_val = round(float(rep_dim), 2) if has_rep and rep_unit == "SQ LM" else ""
+        area_val = round(float(rep_dim), 2) if has_rep and rep_unit == "SQM" else ""
 
         total_defects += cnt
         if isinstance(lin_val, float):
@@ -363,7 +443,7 @@ def _summary_to_excel_bytes(summary):
 
         ws.append([
             record["Defect Code"],
-            record["Defect Type"],
+            _defect_description(record["Defect Code"], record["Defect Type"]),
             cnt,
             round(float(tot_dim), 2) if tot_dim is not None and tot_dim == tot_dim else "",
             record["Board Unit"] or "",
@@ -426,9 +506,25 @@ def _dimension_table_html(records):
     total_area = 0.0
     total_missing = 0
 
+    # Defects per material, shown on each group's header row
+    material_counts = {}
     for record in records:
+        material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"] or 0)
+
+    current_material = None
+    for record in records:
+        if record["Material"] != current_material:
+            current_material = record["Material"]
+            group_count = material_counts[current_material]
+            body += (
+                '<tr class="boq-group"><td colspan="7">'
+                f'{html.escape(str(current_material))} '
+                f'<span class="boq-group-meta">&middot; {group_count:,} defect{"s" if group_count != 1 else ""}</span>'
+                "</td></tr>"
+            )
+
         code = str(record["Defect Code"])
-        desc = str(record["Defect Type"])
+        desc = _defect_description(code, record["Defect Type"])
         cnt = int(record["Defects"] or 0)
         tot_dim = record["Total Dimension"]
         board_unit = str(record["Board Unit"] or "")
@@ -451,7 +547,7 @@ def _dimension_table_html(records):
         else:
             linear_html = '<span class="dim-na">&mdash;</span>'
 
-        if has_rep and rep_unit == "SQ LM":
+        if has_rep and rep_unit == "SQM":
             total_area += float(rep_dim)
             area_html = f'<span class="boq-val-repair">{_number_text(rep_dim, 2, False)}</span>'
         else:
@@ -480,7 +576,7 @@ def _dimension_table_html(records):
         f'<td class="boq-num">{total_defects:,}</td>'
         '<td class="boq-board"><span class="dim-na">&mdash;</span></td>'
         f'<td class="boq-foot-val">{_number_text(total_linear, 2, False)} <span class="boq-unit-inline">LM</span></td>'
-        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQ LM</span></td>'
+        f'<td class="boq-foot-val">{_number_text(total_area, 2, False)} <span class="boq-unit-inline">SQM</span></td>'
         f"<td>{footer_health}</td>"
         "</tr></tfoot>"
     )
@@ -490,9 +586,9 @@ def _dimension_table_html(records):
         '<th>DEFECT</th>'
         '<th>DESCRIPTION</th>'
         '<th class="boq-num">COUNT</th>'
-        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQ LM</span></th>'
+        '<th>BOARD DIMENSIONS <span class="th-unit">LM / SQM</span></th>'
         '<th>LINEAR REPAIR <span class="th-unit">LM</span></th>'
-        '<th>AREA REPAIR <span class="th-unit">SQ LM</span></th>'
+        '<th>AREA REPAIR <span class="th-unit">SQM</span></th>'
         '<th>DATA HEALTH</th>'
         f"</tr></thead><tbody>{body}</tbody>{tfoot}</table></div>"
     )
@@ -511,7 +607,7 @@ def _dimension_section(summary, scope="All"):
                 '<div class="boq-header">'
                 '<p class="eyebrow">Repair quantity summary</p>'
                 '<div class="chart-name">Dimensions by defect</div>'
-                '<div class="chart-sub">Repair quantities grouped by engineering defect code (Linear LM first, then Area SQ LM)</div>'
+                '<div class="chart-sub">Repair quantities grouped by material, then by defect code</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -545,10 +641,14 @@ VALUE_LABEL_SIZE_MANY = 9.5
 MANY_BARS_MIN = 20
 
 
-def _bar_chart(counts, column):
+def _bar_chart(counts, column, horizontal=False):
     """A bar chart of counts (from dashboard_data.count_by), keeping the order the table is
     already in. Every bar carries its exact value above it."""
     import altair as alt
+
+    if horizontal:
+        _horizontal_bar_chart(counts, column)
+        return
 
     tilted = len(counts) > STRAIGHT_LABELS_MAX_BARS
     x_axis = alt.Axis(
@@ -607,6 +707,57 @@ def _bar_chart(counts, column):
         st.altair_chart(chart, theme=None)
 
 
+def _horizontal_bar_chart(counts, column):
+    """Horizontal bars for categories with long names (the likely causes): the names sit in full on
+    the left, one bar per row, every bar with its exact value at the end."""
+    import altair as alt
+
+    y = alt.Y(f"{column}:N", sort=list(counts[column]), title=None,
+              scale=alt.Scale(paddingInner=0.35, paddingOuter=0.2),
+              axis=alt.Axis(labelLimit=320, labelPadding=10, labelFontSize=13, ticks=False, domain=False))
+    x = alt.X("Defects:Q", title=None, axis=alt.Axis(tickMinStep=1))
+
+    bars = (
+        alt.Chart(counts)
+        .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, size=26)
+        .encode(
+            color=alt.condition(
+                f"datum['{column}'] == '{UNKNOWN}'",
+                alt.value(ACCENT_COLOR),
+                alt.value(CHART_COLOR),
+            ),
+            y=y,
+            x=x,
+            tooltip=[alt.Tooltip(f"{column}:N", title=column), alt.Tooltip("Defects:Q", title="Number of defects")],
+        )
+    )
+    labels = (
+        alt.Chart(counts)
+        .mark_text(align="left", baseline="middle", dx=6, fontSize=VALUE_LABEL_SIZE_FEW, fontWeight=600,
+                   color=VALUE_LABEL_COLOR)
+        .encode(y=y, x=x, text=alt.Text("Defects:Q", format=",d"))
+    )
+
+    chart = (
+        alt.layer(bars, labels)
+        .properties(
+            height=max(120, 52 * len(counts) + 16), width="container", background=CHART_BACKGROUND,
+            padding={"left": 4, "right": 40, "top": 8, "bottom": 4},
+        )
+        .configure(font=CHART_FONT)
+        .configure_axis(
+            labelColor=CHART_TEXT, labelFontSize=12,
+            titleFontSize=13,
+            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
+        )
+        .configure_view(stroke=None)
+    )
+    try:
+        st.altair_chart(chart, theme=None, use_container_width=True)
+    except TypeError:
+        st.altair_chart(chart, theme=None)
+
+
 def _chart_badge_text(counts, column):
     """Contextual right-hand badge for each chart card."""
     if counts.empty:
@@ -620,6 +771,11 @@ def _chart_badge_text(counts, column):
         target = known if not known.empty else counts
         top_row = target.sort_values("Defects", ascending=False).iloc[0]
         return f"Floor {top_row['Floor']} is highest"
+    if column == "Cause":
+        known = counts[counts["Cause"] != UNKNOWN]
+        target = known if not known.empty else counts
+        top_row = target.sort_values("Defects", ascending=False).iloc[0]
+        return f"Mostly {top_row['Cause']}"
     total = int(counts["Defects"].sum())
     return f"{total:,} total"
 
@@ -653,12 +809,12 @@ def _chart_section(df, column, title, hide_unknown):
         if counts.empty:
             st.caption(f"Nothing to show: every defect here has an unknown {column.lower()}.")
             return
-        _bar_chart(counts, column)
+        _bar_chart(counts, column, horizontal=(column == "Cause"))
 
 
 def _chart_notes(df, hide_unknown):
     """Short note when 'Exclude Unknown locations' is switched on."""
-    columns = ("Tower", "Floor", "Material")
+    columns = ("Tower", "Material", "Cause")
     if hide_unknown:
         parts = []
         for column in columns:
@@ -672,13 +828,11 @@ def _chart_notes(df, hide_unknown):
 
 def _render_raw_audit_log(df):
     """Draws the bottom 'Raw audit log' card."""
-    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [c for c in df.columns if c not in TABLE_COLUMNS]
+    ordered = [c for c in TABLE_COLUMNS if c in df.columns] + [
+        c for c in df.columns if c not in TABLE_COLUMNS and c != "File Link"
+    ] + (["File Link"] if "File Link" in df.columns else [])
     shown = df[ordered].head(DATA_TABLE_MAX_ROWS)
-    table = shown.to_html(
-        index=False, border=0, na_rep="", classes="data-table", escape=True,
-        float_format=lambda value: f"{value:g}",
-    )
-    table = "".join(line.strip() for line in table.splitlines())
+    table = _data_table_html(shown, float_format=lambda value: f"{value:g}")
     cap_note = (
         f'<p class="audit-cap-note">Showing the first {DATA_TABLE_MAX_ROWS:,} of {len(df):,} defects.</p>'
         if len(df) > DATA_TABLE_MAX_ROWS else ""
@@ -703,7 +857,7 @@ def _render_raw_audit_log(df):
 
 
 # ---------------------------------------------------------------------------
-# Sidebar: which files, refresh, filters
+# Sidebar: which files, refresh, filters (including strict Defect sub-filter per Substrate)
 # ---------------------------------------------------------------------------
 
 def _filter_key(name, scope):
@@ -712,6 +866,22 @@ def _filter_key(name, scope):
 
 def _sorted_options(series):
     return sorted(series.unique(), key=natural_key)
+
+
+def _defect_options_for_substrates(selected_substrates):
+    """Returns the strict canonical defect codes for the selected substrates in exact order:
+      - Concrete: C-, C+, BH, US
+      - Sealant:  DS CC, DS CF, DS GG, DS FG, DS FF, MS CC, MS CF, MS GG, MS FG, MS FF
+      - Paint:    DP, FP, BP, NP
+      - Gasket:   DG
+    """
+    substrates = selected_substrates if selected_substrates else list(SUBSTRATE_DEFECT_OPTIONS.keys())
+    options = []
+    for sub in substrates:
+        for code in SUBSTRATE_DEFECT_OPTIONS.get(sub, []):
+            if code not in options:
+                options.append(code)
+    return options
 
 
 def render_dashboard_controls():
@@ -763,7 +933,32 @@ def render_dashboard_controls():
     st.caption("Leave a filter empty to include everything.")
     st.multiselect("Tower", _sorted_options(df["Tower"]), key=_filter_key("tower", scope))
     st.multiselect("Floor", _sorted_options(df["Floor"]), key=_filter_key("floor", scope))
-    st.multiselect("Material", _sorted_options(df["Material"]), key=_filter_key("material", scope))
+    selected_substrates = st.multiselect(
+        "Substrate",
+        _sorted_options(df["Material"]),
+        key=_filter_key("material", scope),
+    )
+
+    # Sub-filter for Defect Codes belonging to the selected Substrate(s)
+    defect_key = _filter_key("defect", scope)
+    available_defects = _defect_options_for_substrates(selected_substrates)
+    current_defects = st.session_state.get(defect_key) or []
+    valid_current = [d for d in current_defects if d in available_defects]
+    if valid_current != current_defects:
+        st.session_state[defect_key] = valid_current
+
+    defect_label = (
+        f"Defect ({', '.join(selected_substrates)})"
+        if selected_substrates and len(selected_substrates) <= 2
+        else ("Defect (selected substrates)" if selected_substrates else "Defect")
+    )
+    st.multiselect(
+        defect_label,
+        available_defects,
+        key=defect_key,
+        help="Choose specific defect codes for the selected substrate(s).",
+    )
+
     folders_in_data = _sorted_options(df["Folder"])
     if len(folders_in_data) > 1:
         st.multiselect("Folder", folders_in_data, key=_filter_key("folder", scope))
@@ -827,7 +1022,10 @@ def render_analytics_dashboard():
         active_filters.append(f"Floor: {', '.join(selected_floors)}")
     selected_materials = st.session_state.get(_filter_key("material", scope)) or []
     if selected_materials:
-        active_filters.append(f"Material: {', '.join(selected_materials)}")
+        active_filters.append(f"Substrate: {', '.join(selected_materials)}")
+    selected_defects = st.session_state.get(_filter_key("defect", scope)) or []
+    if selected_defects:
+        active_filters.append(f"Defect: {', '.join(selected_defects)}")
     folders = st.session_state.get(_filter_key("folder", scope)) or []
     if folders:
         active_filters.append(f"Folder: {', '.join(folders)}")
@@ -841,6 +1039,7 @@ def render_analytics_dashboard():
             st.session_state[_filter_key("tower", scope)] = []
             st.session_state[_filter_key("floor", scope)] = []
             st.session_state[_filter_key("material", scope)] = []
+            st.session_state[_filter_key("defect", scope)] = []
             st.session_state[_filter_key("folder", scope)] = []
             st.session_state[HIDE_UNKNOWN_KEY] = False
             st.rerun()
@@ -848,9 +1047,9 @@ def render_analytics_dashboard():
     # --- Apply sidebar filters ---
     if folders:
         df = df[df["Folder"].isin(folders)]
-    df = apply_filters(df, selected_towers, selected_floors, selected_materials)
+    df = apply_filters(df, selected_towers, selected_floors, selected_materials, selected_defects)
 
-    summary = dimension_by_defect(df)
+    summary = dimension_by_defect(df, expand_all_sealant=not bool(selected_defects))
 
     # 1. Top Row: 4 Engineering KPI Cards
     _render_kpi_cards(df, summary, files_read)
@@ -884,10 +1083,10 @@ def render_analytics_dashboard():
     with st.container(key="charts_grid"):
         material_col, tower_col = st.columns([1, 1], gap="small")
         with material_col:
-            _chart_section(df, "Material", "Defects by material", hide_unknown)
+            _chart_section(df, "Material", "Defects by substrate", hide_unknown)
         with tower_col:
             _chart_section(df, "Tower", "Defects by tower", hide_unknown)
-        _chart_section(df, "Floor", "Defects by floor", hide_unknown)
+        _chart_section(df, "Cause", "Defects by likely cause", hide_unknown)
 
     note = _chart_notes(df, hide_unknown)
     if note:
