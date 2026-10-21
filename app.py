@@ -57,7 +57,7 @@ SOURCE_SHAREPOINT = "Import from SharePoint"
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="VONOTEC Whiteboard Extractor", layout="wide")
-page_icon=Image.open("vonotec"),
+page_icon=Image.open("vonotec.png"),
 ui_components.load_local_css("style.css")
 
 # --- HEADER AND VIEW SWITCH ---
