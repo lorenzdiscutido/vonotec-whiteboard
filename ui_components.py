@@ -3,17 +3,36 @@ import html
 from pathlib import Path
 import streamlit as st
 
-from icons import icon
+# Uniform Lucide 24x24 SVG icon set (stroke-width="2", round caps & joins)
+_ICON_LAYERS = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/>'
+    '<path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/>'
+    '<path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>'
+)
+_ICON_SPARK = (
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>'
+    '<path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>'
+)
 
-# Icons come from icons.py (Lucide), so they all share one style
-_ICON_LAYERS = icon("layers", 23)
-_ICON_SPARK = icon("sparkles", 18)
+# Gray file icon on the right of the "Save settings" card heading (Lucide file-text)
+_ICON_FILE = (
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ba8b9" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
+    '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
+)
 
-# Gray file icon on the right of the "Save settings" card heading
-_ICON_FILE = icon("file-text", 18, stroke=1.75, color="#9ba8b9", hidden=True)
-
-# The "?" icon of the Help link in the header
-_ICON_HELP = icon("circle-question-mark", 15, stroke=2, hidden=True)
+# The "?" icon of the Help link in the header (Lucide circle-help)
+_ICON_HELP = (
+    '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="10"/>'
+    '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>'
+)
 
 # The how-to text that opens from the Help link.
 _HELP_HTML = (
@@ -56,7 +75,8 @@ def _brand_html():
 
 def render_header(views):
     """One white header card with three equal columns: the brand on the left,
-    the view switch (a radio, drawn as two pills) in the middle and the tagline on the right."""
+    the view switch (a radio, drawn as two pills) in the middle and the
+    tagline on the right."""
     with st.container(key="top_app_header"):
         try:
             col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
@@ -89,54 +109,32 @@ WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
 def render_stepper(done, current):
-    """Renders a clean, transparent '1. Select photos > 2. Save destination > 3. Extract data' line
-    directly where the eyebrow sits, with no white background or circles."""
+    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
-        prefix = f"✓ {number}." if state == "done" else f"{number}."
-        if state == "current":
-            color = "#1e3a8a"
-            weight = "700"
-        elif state == "done":
-            color = "#15803d"
-            weight = "600"
-        else:
-            color = "#64748b"
-            weight = "500"
-        parts.append(
-            f'<span style="color:{color};font-weight:{weight};background:transparent !important;'
-            f'padding:0 !important;border:none !important;box-shadow:none !important;">'
-            f'{prefix} {html.escape(label)}</span>'
-        )
-    sep = '<span style="color:#94a3b8;margin:0 8px;font-weight:500;background:transparent !important;">&gt;</span>'
+        mark = "&#10003;" if state == "done" else str(number)
+        parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
     st.markdown(
-        '<style>'
-        '.st-key-top_app_header { margin-bottom: 18px !important; }'
-        '</style>'
-        '<div style="display:flex;align-items:center;flex-wrap:wrap;font-size:13px;'
-        'line-height:1.4;background:transparent !important;border:none !important;'
-        'box-shadow:none !important;padding:0 !important;margin:0 0 4px 0 !important;">'
-        + sep.join(parts)
-        + '</div>',
+        '<div class="workflow-stepper">' + '<span class="wf-arrow">&rarr;</span>'.join(parts) + '</div>',
         unsafe_allow_html=True,
     )
 
 
 def section_heading(eyebrow, title, badge=None, step=None, description=None):
-    """A small orange label over a large title. On the right there is either a status badge,
-    badge = (text, kind) with kind "ready", "processing" or "complete", or a plain step label."""
+    """A small orange label over a large title. On the right there is either a
+    status badge, badge = (text, kind) with kind "ready", "processing" or
+    "complete", or a plain step label."""
     right = ""
     if badge:
         text, kind = badge
         right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
     elif step:
         right = f'<span class="step-label">{html.escape(step)}</span>'
-    eyebrow_html = f'<p class="eyebrow">{html.escape(eyebrow)}</p>' if eyebrow else ""
     desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
         '<div class="section-heading"><div>'
-        f'{eyebrow_html}'
+        f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
         f'<h2>{html.escape(title)}</h2>'
         f'</div>{right}</div>{desc_html}',
         unsafe_allow_html=True,
@@ -164,10 +162,24 @@ def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
     )
 
 
-# Small icons for the "After extraction, you'll see" preview
-_ICON_PREVIEW_STATUS = icon("circle-check", 18)
-_ICON_PREVIEW_REVIEW = icon("triangle-alert", 18)
-_ICON_PREVIEW_FILE = icon("file-spreadsheet", 18)
+# Small icons for the "After extraction, you'll see" preview (Lucide circle-check, triangle-alert, file-spreadsheet)
+_ICON_PREVIEW_STATUS = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>'
+)
+_ICON_PREVIEW_REVIEW = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>'
+    '<path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+)
+_ICON_PREVIEW_FILE = (
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
+    '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/></svg>'
+)
 
 
 def render_empty_results():
@@ -236,14 +248,14 @@ def render_instructions():
         st.markdown(
             """
             <div class="instruction-text">
-            Add whiteboard photos from your device or from a SharePoint folder. The AI will
-            automatically extract the data and append it to the Master Excel file.
-            <ol>
-                <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
-                <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
-                <li>Click <b>Extract photos</b>.</li>
-                <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
-            </ol>
+                Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the data
+                and append it to the Master Excel file.
+                <ol>
+                    <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
+                    <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
+                    <li>Click <b>Extract photos</b>.</li>
+                    <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
+                </ol>
             </div>
             """,
             unsafe_allow_html=True,

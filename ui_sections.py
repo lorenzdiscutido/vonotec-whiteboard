@@ -10,7 +10,6 @@ from PIL import Image, ImageOps
 
 import sharepoint_client
 import sync_tracker
-from icons import icon
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 
 # The one final action, whichever photo source is used
@@ -56,16 +55,27 @@ RESULTS_PINNED_MESSAGES = 2
 RESULT_ROWS_BOX_MIN = 8
 RESULT_ROWS_BOX_HEIGHT_PX = 390
 
-# Short icons for the result rows: green check, orange alert, gray skip, red cross
+# Uniform Lucide 24x24 icons (stroke-width="2") for result rows & file/folder badges
 _ROW_ICONS = {
-    "added": icon("circle-check", 16, stroke=2),
-    "review": icon("triangle-alert", 16, stroke=2),
-    "skipped": icon("circle-minus", 16, stroke=2),
-    "failed": icon("circle-x", 16, stroke=2),
+    "added": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+    "review": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+    "skipped": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>',
+    "failed": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
 }
-_ICON_CHEVRON = icon("chevron-right", 15, stroke=2, css_class="rs-chevron")
-_ICON_FILE_BADGE = icon("file", 14, stroke=2)
-_ICON_FOLDER_BADGE = icon("folder", 14, stroke=2)
+_ICON_CHEVRON = (
+    '<svg class="rs-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+)
+_ICON_FILE_BADGE = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>'
+)
+_ICON_FOLDER_BADGE = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>'
+)
 
 _ROW_LABELS = {"added": "Added", "review": "Needs review", "skipped": "Skipped", "failed": "Failed"}
 _ROW_ORDER = {"failed": 0, "review": 1, "skipped": 2, "added": 3}
@@ -318,8 +328,8 @@ def render_photo_previews(uploaded_files):
 
 # ---------------------------------------------------------------------------
 # Multi-Level Cascading SharePoint Output Folder Picker
-# Supports unlimited drill-down: Folder 1 > Subfolder > Sub-subfolder > ...
-# Plus multi-level creation by typing "Sub1/Sub2" or drilling down level by level.
+#   Supports unlimited drill-down: Folder 1 > Subfolder > Sub-subfolder > ...
+#   Plus multi-level creation by typing "Sub1/Sub2" or drilling down level by level.
 # ---------------------------------------------------------------------------
 
 def refresh_folder_list():
@@ -334,7 +344,7 @@ def refresh_folder_list():
 
 
 def _get_nested_folders(relative_path):
-    """Returns the cached list of subfolders inside relative_path, fetching once per session."""
+    """Returns the cached list of subfolders inside `relative_path`, fetching once per session."""
     nested_map = st.session_state.setdefault("sp_nested_folders", {})
     if relative_path not in nested_map:
         try:
@@ -351,8 +361,8 @@ def _direct_parent_label(folder_name):
 def render_folder_picker(disabled=False):
     """Multi-level cascading output folder picker:
     - Level 0: 'Main folder', existing top-level folders, or '+ Create a new folder...'
-    - Level 1..N: Whenever an existing folder is picked, another dropdown appears for the next level down:
-      '(Save directly in <Folder>)', existing subfolders, or '+ Create a new subfolder...'.
+    - Level 1..N: Whenever an existing folder is picked, another dropdown appears for the
+      next level down: '(Save directly in <Folder>)', existing subfolders, or '+ Create a new subfolder...'.
     - When creating a new folder or subfolder at any level, users can also type '/' (e.g. 'Sub1/Sub2')
       to create multiple new nested levels at once.
     Returns (folder_choice, new_folder_raw)."""
@@ -489,8 +499,8 @@ def resolve_subfolder(folder_choice, new_folder_raw):
 
 
 def remember_new_folder(subfolder):
-    """Adds every level of a newly created folder path ('Folder1/Sub1/Sub2') into the session
-    caches so it immediately appears in the cascading dropdowns without re-querying SharePoint."""
+    """Adds every level of a newly created folder path ('Folder1/Sub1/Sub2') into the session caches
+    so it immediately appears in the cascading dropdowns without re-querying SharePoint."""
     parts = [p for p in (subfolder or "").split("/") if p]
     if not parts:
         return
@@ -559,33 +569,15 @@ def _process_label(photo_count, source_chosen, remote, running=False, done=False
 
 
 def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="", remote=False, running=False, done=False):
-    """The action footer with uniform spacing inside form_panel."""
+    """The sticky action footer: primary action aligned to the right edge with requirement text above it."""
     with st.container(key="action_buttons"):
-        st.markdown(
-            "<style>"
-            ".st-key-action_buttons {"
-            "  background: transparent !important;"
-            "  border: none !important;"
-            "  box-shadow: none !important;"
-            "  padding: 8px 0 0 0 !important;"
-            "  margin-top: 8px !important;"
-            "}"
-            ".st-key-action_buttons .footer-hint {"
-            "  margin: 0 0 10px 0 !important;"
-            "  padding: 0 !important;"
-            "}"
-            "</style>",
-            unsafe_allow_html=True,
-        )
         label = _process_label(photo_count, source_chosen, remote, running, done)
         process_disabled = bool(blocked_reason) or running
         if blocked_reason:
             st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
         if remote:
             process_clicked = st.button(
-                label,
-                type="primary",
-                key="fetch_folder_running" if running else "fetch_folder",
+                label, type="primary", key="fetch_folder_running" if running else "fetch_folder",
                 disabled=process_disabled,
             )
             clear_clicked = False
@@ -600,9 +592,7 @@ def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="",
                 )
             with process_col:
                 process_clicked = st.button(
-                    label,
-                    type="primary",
-                    key="extract_data_running" if running else "extract_data",
+                    label, type="primary", key="extract_data_running" if running else "extract_data",
                     disabled=process_disabled,
                 )
     return process_clicked, clear_clicked
@@ -704,8 +694,8 @@ def _push_pending(item):
 
 
 def render_pending_syncs():
-    """Lists batch files that are not up to date in SharePoint, each with a Push button.
-    Draws nothing when everything is synced."""
+    """Lists batch files that are not up to date in SharePoint, each with a
+    Push button. Draws nothing when everything is synced."""
     if not ENABLE_SHAREPOINT_SYNC:
         return
 

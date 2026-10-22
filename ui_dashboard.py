@@ -1,17 +1,19 @@
-# ui_dashboard.py
 """The "Analytics Dashboard" tab, structured around the Engineering Overview +
 Repair Quantity Summary + Location Analysis layout:
 
   1. ENGINEERING OVERVIEW ("Facade defect dashboard")
      - 4 KPI cards: Total defects, Linear repair total (LM), Area repair total (SQM), Missing dimensions
      - Collapsible warm-amber review banner ("X records need review") when dimensions are missing
+
   2. REPAIR QUANTITY SUMMARY ("Dimensions by defect")
      - Header with "Download summary XLSX" button on the top right
      - Table ordered with all Linear Meter (LM) rows first, then Square Meter (SQM) rows,
        with pill badges for Defect Code, Description, Count, Board Dimensions,
        Linear Repair (LM), Area Repair (SQM), Data Health, and a Portfolio Total footer row
+
   3. LOCATION ANALYSIS ("Where are the defects located?")
      - Defects by material beside Defects by tower, then Defects by floor across the width
+
   4. RAW AUDIT LOG
      - Expandable drawer at the bottom showing the underlying defect records
 """
@@ -24,7 +26,6 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
-from icons import icon
 from dashboard_data import (
     rows_to_dataframe, apply_filters, count_by, dimension_by_defect,
     natural_key, UNKNOWN,
@@ -32,17 +33,6 @@ from dashboard_data import (
 from dashboard_loader import get_file_rows, is_loaded
 from defect_rules import BOARD_UNITS
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, DASHBOARD_REFRESH_SECONDS
-
-import ui_polish
-# in render_analytics_dashboard(), right after ui_components.section_heading(...)
-ui_polish.live_chip(f"Live \u00b7 refreshes every {DASHBOARD_REFRESH_SECONDS}s")
-
-# replace st.info("There are no Excel files to analyze in this selection yet.")
-ui_polish.empty_state("No Excel files in this selection", "Choose another folder, or process a batch from the Extraction tab.")
-
-# replace st.info("No defects match these filters.")
-ui_polish.empty_state("No defects match these filters", "Clear a filter in the left panel to see more results.")
-
 
 # Dropdown choice that reads the whole landing folder: its own files plus every subfolder's
 ALL_FILES_LABEL = "Whiteboard Excel Files"
@@ -96,15 +86,55 @@ SCOPE_KEY = "analytics_scope"
 HIDE_UNKNOWN_KEY = "analytics_hide_unknown"
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
 
-# Icons come from icons.py (Lucide)
-_KPI_ICON_DEFECTS = icon("chart-column", 21)
-_KPI_ICON_LINEAR = icon("ruler", 21)
-_KPI_ICON_AREA = icon("layout-grid", 21)
-_KPI_ICON_WARN = icon("triangle-alert", 21)
-_KPI_ICON_OK = icon("circle-check", 21)
-_ICON_CHECK_SM = icon("circle-check", 14, stroke=2)
-_ICON_WARN_SM = icon("triangle-alert", 14, stroke=2)
-_ICON_CHEVRON_DOWN = icon("chevron-down", 15, stroke=2, css_class="boq-chevron")
+# Uniform Lucide 24x24 SVG icons (stroke-width="2", round caps & joins) for KPI cards, banners & drawers
+_KPI_ICON_DEFECTS = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>'
+)
+_KPI_ICON_LINEAR = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/>'
+    '<path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>'
+)
+_KPI_ICON_AREA = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>'
+    '<rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>'
+)
+_KPI_ICON_WARN = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>'
+    '<path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+)
+_KPI_ICON_OK = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>'
+)
+_ICON_AUDIT_TABLE = (
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>'
+)
+_ICON_CHECK_SM = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>'
+)
+_ICON_WARN_SM = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>'
+    '<path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+)
+_ICON_CHEVRON_DOWN = (
+    '<svg class="boq-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+)
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +324,7 @@ def _render_kpi_cards(df, summary, files_read):
         )
 
 
-def _data_table_html(shown, float_format=None, link_files=False, flag_missing=False):
+def _data_table_html(shown, float_format=None, link_files=False):
     """The HTML for a plain data table. Every cell is escaped. With link_files=True the File column
     becomes a link that opens that Excel file in SharePoint (only people with access to the site can open it)."""
     table_df = shown.copy()
@@ -308,13 +338,6 @@ def _data_table_html(shown, float_format=None, link_files=False, flag_missing=Fa
                 return name
             return f'<a class="file-link" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a>'
         table_df["File"] = [_file_cell(name, link) for name, link in zip(table_df["File"], links)]
-    if flag_missing:
-        # Every row in the review queue is missing its dimension: make the defect code stand out and
-        # add a red "Missing" tag right after it, so the blank is obvious without scanning the row.
-        if "Defect Code" in table_df.columns:
-            position = list(table_df.columns).index("Defect Code")
-            table_df["Defect Code"] = [f'<span class="flag-code">{code}</span>' for code in table_df["Defect Code"]]
-            table_df.insert(position + 1, "Dimension", ['<span class="flag-missing">Missing</span>'] * len(table_df))
     kwargs = {"float_format": float_format} if float_format else {}
     table = table_df.to_html(index=False, border=0, na_rep="", classes="data-table", escape=False, **kwargs)
     return "".join(line.strip() for line in table.splitlines())
@@ -330,7 +353,7 @@ def _render_missing_dimensions_queue(df):
     count = len(missing_df)
     cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
     shown = missing_df[cols + (["File Link"] if "File Link" in missing_df.columns else [])].head(DATA_TABLE_MAX_ROWS)
-    table = _data_table_html(shown, link_files=True, flag_missing=True)
+    table = _data_table_html(shown, link_files=True)
 
     banner_html = (
         '<details class="review-banner">'
@@ -601,7 +624,7 @@ def _dimension_section(summary, scope="All"):
         with head_right:
             if records:
                 st.download_button(
-                    label="Download summary XLSX",
+                    label="Download summary  XLSX",
                     data=_summary_to_excel_bytes(summary),
                     file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -829,7 +852,7 @@ def _render_raw_audit_log(df):
         '<details class="audit-drawer">'
         '<summary class="audit-drawer-head">'
         '<div class="audit-drawer-left">'
-        f'<span class="audit-drawer-icon">{_KPI_ICON_AREA}</span>'
+        f'<span class="audit-drawer-icon">{_ICON_AUDIT_TABLE}</span>'
         '<div>'
         '<div class="audit-drawer-title">Raw audit log</div>'
         '<div class="audit-drawer-sub">View the records behind these quantities and charts</div>'

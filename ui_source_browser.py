@@ -1,12 +1,11 @@
-# ui_source_browser.py
 """The folder browser used by "Import from SharePoint", drawn as one card:
 a header (folder icon, title, Connected status), the SharePoint site and a
 cascading "Photo folder" drill-down where every field supports instant
 type-to-search (via index=None + placeholder), and a footer that says how many
 photos the chosen folder holds and when that was last checked.
 
-Pre-fills "01 - Projects > 04 - Execution" by default on first open, while
-keeping every level editable so users can switch to any other folder."""
+Pre-fills "01 - Projects > 04 - Execution" by default on first open, while keeping
+every level editable so users can switch to any other folder."""
 import hashlib
 import html
 import time
@@ -16,21 +15,31 @@ import streamlit as st
 import sharepoint_client
 from config import SHAREPOINT_SITE_NAME
 from file_utils import load_prefs
-from icons import icon
 from settings import PHOTO_BROWSE_ROOT
 
 RECURSIVE_KEY = "src_recursive"
 PLACEHOLDER_TOP = "Type to search or select a folder..."
 PLACEHOLDER_SUB = "Type to search subfolder (optional)..."
-LEVELS_PER_ROW = 2     # folder selectors side by side
+LEVELS_PER_ROW = 2     # selectors side by side (the site box takes the first slot)
 MAX_LEVELS = 12        # safety stop for very deep folder trees
 COUNT_CACHE_SECONDS = 180
 
 # Usual starting path where whiteboard photos are stored
 DEFAULT_SOURCE_PATH = ("01 - Projects", "04 - Execution")
 
-_ICON_FOLDER = icon("folder-open", 22)
-_ICON_IMAGE = icon("image", 15)
+# Uniform Lucide 24x24 folder & image icons (stroke-width="2")
+_ICON_FOLDER = (
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>'
+)
+_ICON_IMAGE = (
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>'
+    '<circle cx="9" cy="9" r="2"/>'
+    '<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+)
 
 
 def _root():
@@ -74,19 +83,19 @@ def _header_html(connected):
         '<span class="source-status"><span></span>Connected</span>' if connected
         else '<span class="source-status error"><span></span>Not connected</span>'
     )
-    # The SharePoint site never changes, so it is a small pill next to the status
-    # and the whole width below is left for the folder fields.
-    status = (
-        '<span class="source-head-right">'
-        f'<span class="source-site" title="SharePoint site">{html.escape(SHAREPOINT_SITE_NAME.upper())}</span>'
-        f'{status}</span>'
-    )
     return (
         '<div class="source-head"><div class="source-head-left">'
         f'<span class="source-icon">{_ICON_FOLDER}</span>'
         '<div><div class="source-title">Choose a SharePoint folder</div>'
         '<div class="source-sub">Click any folder field and type to search, or pick from the list.</div></div>'
         f'</div>{status}</div>'
+    )
+
+
+def _site_box_html():
+    return (
+        '<div class="source-field"><div class="source-field-label">SharePoint site</div>'
+        f'<div class="source-field-box">{html.escape(SHAREPOINT_SITE_NAME.upper())}</div></div>'
     )
 
 
@@ -146,7 +155,10 @@ def render_source_browser():
             st.warning(f"Could not reach SharePoint right now: {connection_error}")
             return [], include_subfolders, 0
 
-        columns = None
+        columns = st.columns(LEVELS_PER_ROW, gap="medium")
+        with columns[0]:
+            st.markdown(_site_box_html(), unsafe_allow_html=True)
+
         for level in range(MAX_LEVELS):
             current = root + selections
             try:
@@ -159,7 +171,7 @@ def render_source_browser():
                     st.caption("No folders were found to choose from.")
                 break
 
-            slot = level
+            slot = level + 1  # slot 0 is the SharePoint site box
             if slot % LEVELS_PER_ROW == 0:
                 columns = st.columns(LEVELS_PER_ROW, gap="medium")
 

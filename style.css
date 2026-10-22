@@ -642,3 +642,75 @@ div[data-testid="stToggle"] [data-baseweb="checkbox"]:has(input:checked) > div:f
 .data-table-wrap table.data-table td .flag-missing { display: inline-block; padding: 2px 9px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: 12px; font-weight: 800; }
 .st-key-download_dimensions_summary .stDownloadButton > button:first-child p { display: inline-flex !important; align-items: center !important; gap: 8px !important; }
 .st-key-download_dimensions_summary .stDownloadButton > button:first-child p::before { content: ""; width: 16px; height: 16px; flex: 0 0 16px; background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23ffffff'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M12%2015V3'/%3E%3Cpath%20d='M21%2015v4a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2v-4'/%3E%3Cpath%20d='m7%2010%205%205%205-5'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* ==========================================================================
+   UNIFORM LUCIDE 24x24 ICON SYSTEM (stroke-width="2", round caps & joins)
+   ========================================================================== */
+
+/* Top Switcher Icon 1: Extraction (Lucide layers) */
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > *:first-child label::before,
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:first-of-type::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z'/%3E%3Cpath d='m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65'/%3E%3Cpath d='m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65'/%3E%3C/svg%3E") !important;
+}
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > *:first-child label:has(input:checked)::before,
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:first-of-type:has(input:checked)::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z'/%3E%3Cpath d='m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65'/%3E%3Cpath d='m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65'/%3E%3C/svg%3E") !important;
+}
+
+/* Top Switcher Icon 2: Dashboard (Lucide bar-chart-3) */
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > *:last-child label::before,
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:last-of-type::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v16a2 2 0 0 0 2 2h16'/%3E%3Cpath d='M18 17V9'/%3E%3Cpath d='M13 17V5'/%3E%3Cpath d='M8 17v-3'/%3E%3C/svg%3E") !important;
+}
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > *:last-child label:has(input:checked)::before,
+.st-key-top_app_header [data-testid="stRadio"] div[role="radiogroup"] > label:last-of-type:has(input:checked)::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v16a2 2 0 0 0 2 2h16'/%3E%3Cpath d='M18 17V9'/%3E%3Cpath d='M13 17V5'/%3E%3Cpath d='M8 17v-3'/%3E%3C/svg%3E") !important;
+}
+
+/* Source Switcher Icon 1: Upload from device (Lucide upload) */
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > *:first-child label::before,
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:first-of-type::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' x2='12' y1='3' y2='15'/%3E%3C/svg%3E") !important;
+}
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > *:first-child label:has(input:checked)::before,
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:first-of-type:has(input:checked)::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' x2='12' y1='3' y2='15'/%3E%3C/svg%3E") !important;
+}
+
+/* Source Switcher Icon 2: Import from SharePoint (Lucide folder) */
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > *:last-child label::before,
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:last-of-type::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/%3E%3C/svg%3E") !important;
+}
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > *:last-child label:has(input:checked)::before,
+.st-key-form_panel [data-testid="stRadio"] div[role="radiogroup"] > label:last-of-type:has(input:checked)::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/%3E%3C/svg%3E") !important;
+}
+
+/* Photo Uploader Dropzone Icon (Lucide upload) */
+[data-testid="stFileUploaderDropzone"]::before,
+[data-testid="stFileUploadDropzone"]::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' x2='12' y1='3' y2='15'/%3E%3C/svg%3E") !important;
+}
+
+/* Extract Button Icon (Lucide sparkles, stroked to match all other icons) */
+.st-key-extract_data button p::before,
+.st-key-fetch_folder button p::before,
+.st-key-extract_data_running button p::before,
+.st-key-fetch_folder_running button p::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3Cpath d='M20 3v4'/%3E%3Cpath d='M22 5h-4'/%3E%3C/svg%3E") !important;
+}
+
+/* Download summary XLSX Button Icon (Lucide download) */
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child p::before {
+    content: "";
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin-right: 7px;
+    vertical-align: -2px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%231e3a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' x2='12' y1='15' y2='3'/%3E%3C/svg%3E");
+}
