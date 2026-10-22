@@ -24,6 +24,7 @@ import streamlit as st
 
 import sharepoint_client
 import ui_components
+from icons import icon
 from dashboard_data import (
     rows_to_dataframe, apply_filters, count_by, dimension_by_defect,
     natural_key, UNKNOWN,
@@ -95,47 +96,15 @@ SCOPE_KEY = "analytics_scope"
 HIDE_UNKNOWN_KEY = "analytics_hide_unknown"
 LIST_CACHE_SECONDS = max(DASHBOARD_REFRESH_SECONDS - 1, 1)
 
-# Inline SVG icons for the 4 KPI cards & banners
-_KPI_ICON_DEFECTS = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M5 20V10m7 10V4m7 16v-7"/></svg>'
-)
-_KPI_ICON_LINEAR = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4"/></svg>'
-)
-_KPI_ICON_AREA = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<rect x="4" y="4" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1"/>'
-    '<rect x="4" y="13.5" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1"/></svg>'
-)
-_KPI_ICON_WARN = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
-)
-_KPI_ICON_OK = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
-)
-_ICON_CHECK_SM = (
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
-    '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
-)
-_ICON_WARN_SM = (
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
-)
-_ICON_CHEVRON_DOWN = (
-    '<svg class="boq-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
-)
+# Icons come from icons.py (Lucide)
+_KPI_ICON_DEFECTS = icon("chart-column", 21)
+_KPI_ICON_LINEAR = icon("ruler", 21)
+_KPI_ICON_AREA = icon("layout-grid", 21)
+_KPI_ICON_WARN = icon("triangle-alert", 21)
+_KPI_ICON_OK = icon("circle-check", 21)
+_ICON_CHECK_SM = icon("circle-check", 14, stroke=2)
+_ICON_WARN_SM = icon("triangle-alert", 14, stroke=2)
+_ICON_CHEVRON_DOWN = icon("chevron-down", 15, stroke=2, css_class="boq-chevron")
 
 
 # ---------------------------------------------------------------------------
@@ -325,11 +294,7 @@ def _render_kpi_cards(df, summary, files_read):
         )
 
 
-<<<<<<< HEAD
 def _data_table_html(shown, float_format=None, link_files=False, flag_missing=False):
-=======
-def _data_table_html(shown, float_format=None, link_files=False):
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
     """The HTML for a plain data table. Every cell is escaped. With link_files=True the File column
     becomes a link that opens that Excel file in SharePoint (only people with access to the site can open it)."""
     table_df = shown.copy()
@@ -343,7 +308,6 @@ def _data_table_html(shown, float_format=None, link_files=False):
                 return name
             return f'<a class="file-link" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a>'
         table_df["File"] = [_file_cell(name, link) for name, link in zip(table_df["File"], links)]
-<<<<<<< HEAD
     if flag_missing:
         # Every row in the review queue is missing its dimension: make the defect code stand out and
         # add a red "Missing" tag right after it, so the blank is obvious without scanning the row.
@@ -351,8 +315,6 @@ def _data_table_html(shown, float_format=None, link_files=False):
             position = list(table_df.columns).index("Defect Code")
             table_df["Defect Code"] = [f'<span class="flag-code">{code}</span>' for code in table_df["Defect Code"]]
             table_df.insert(position + 1, "Dimension", ['<span class="flag-missing">Missing</span>'] * len(table_df))
-=======
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
     kwargs = {"float_format": float_format} if float_format else {}
     table = table_df.to_html(index=False, border=0, na_rep="", classes="data-table", escape=False, **kwargs)
     return "".join(line.strip() for line in table.splitlines())
@@ -368,11 +330,7 @@ def _render_missing_dimensions_queue(df):
     count = len(missing_df)
     cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
     shown = missing_df[cols + (["File Link"] if "File Link" in missing_df.columns else [])].head(DATA_TABLE_MAX_ROWS)
-<<<<<<< HEAD
     table = _data_table_html(shown, link_files=True, flag_missing=True)
-=======
-    table = _data_table_html(shown, link_files=True)
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
 
     banner_html = (
         '<details class="review-banner">'
@@ -643,7 +601,7 @@ def _dimension_section(summary, scope="All"):
         with head_right:
             if records:
                 st.download_button(
-                    label="\u2913 Download summary  XLSX",
+                    label="Download summary XLSX",
                     data=_summary_to_excel_bytes(summary),
                     file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

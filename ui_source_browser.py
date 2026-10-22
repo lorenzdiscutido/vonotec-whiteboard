@@ -16,6 +16,7 @@ import streamlit as st
 import sharepoint_client
 from config import SHAREPOINT_SITE_NAME
 from file_utils import load_prefs
+from icons import icon
 from settings import PHOTO_BROWSE_ROOT
 
 RECURSIVE_KEY = "src_recursive"
@@ -28,14 +29,8 @@ COUNT_CACHE_SECONDS = 180
 # Usual starting path where whiteboard photos are stored
 DEFAULT_SOURCE_PATH = ("01 - Projects", "04 - Execution")
 
-_ICON_FOLDER = (
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.5h6l2-2h9v15h-17v-13Z"/></svg>'
-)
-_ICON_IMAGE = (
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4V5Zm0 11 4.5-4.5 3.2 3.2 2.3-2.3 6 5.6M15.5 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>'
-)
+_ICON_FOLDER = icon("folder-open", 22)
+_ICON_IMAGE = icon("image", 15)
 
 
 def _root():

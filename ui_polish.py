@@ -11,13 +11,11 @@ from pathlib import Path
 
 import streamlit as st
 
+from icons import icon
+
 _CSS_PATH = Path(__file__).with_name("theme_polish.css")
 
-_ICON_INBOX = (
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M3 13l3-8h12l3 8"/><path d="M3 13v6h18v-6h-5l-1.5 2h-5L8 13H3z"/></svg>'
-)
+_ICON_INBOX = icon("inbox", 22)
 
 
 def configure_page(page_icon="\U0001F3D7\uFE0F"):

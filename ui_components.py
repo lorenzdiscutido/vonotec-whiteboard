@@ -3,28 +3,17 @@ import html
 from pathlib import Path
 import streamlit as st
 
-# Inline icons (the same paths the design uses)
-_ICON_LAYERS = (
-    '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Zm-7.5 9 7.5 4 7.5-4M4.5 16l7.5 4 7.5-4"/></svg>'
-)
-_ICON_SPARK = (
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3ZM5 15l.7 2.3L8 18.5l-2.3 1.2L5 22l-.7-2.3L2 18.5l2.3-1.2L5 15Zm14-3 .7 2.3 2.3 1.2-2.3 1.2L19 19l-.7-2.3-2.3-1.2 2.3-1.2L19 12Z"/></svg>'
-)
+from icons import icon
+
+# Icons come from icons.py (Lucide), so they all share one style
+_ICON_LAYERS = icon("layers", 23)
+_ICON_SPARK = icon("sparkles", 18)
 
 # Gray file icon on the right of the "Save settings" card heading
-_ICON_FILE = (
-    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ba8b9" '
-    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
-)
+_ICON_FILE = icon("file-text", 18, stroke=1.75, color="#9ba8b9", hidden=True)
 
 # The "?" icon of the Help link in the header
-_ICON_HELP = (
-    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>'
-    '<path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9M12 17h.01"/></svg>'
-)
+_ICON_HELP = icon("circle-question-mark", 15, stroke=2, hidden=True)
 
 # The how-to text that opens from the Help link.
 _HELP_HTML = (
@@ -176,18 +165,9 @@ def card_heading(eyebrow, title, icon=_ICON_FILE, step=None):
 
 
 # Small icons for the "After extraction, you'll see" preview
-_ICON_PREVIEW_STATUS = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>'
-)
-_ICON_PREVIEW_REVIEW = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>'
-)
-_ICON_PREVIEW_FILE = (
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4M9.5 12h5m-5 3h5"/></svg>'
-)
+_ICON_PREVIEW_STATUS = icon("circle-check", 18)
+_ICON_PREVIEW_REVIEW = icon("triangle-alert", 18)
+_ICON_PREVIEW_FILE = icon("file-spreadsheet", 18)
 
 
 def render_empty_results():

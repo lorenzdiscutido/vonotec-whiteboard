@@ -10,6 +10,7 @@ from PIL import Image, ImageOps
 
 import sharepoint_client
 import sync_tracker
+from icons import icon
 from settings import ENABLE_SHAREPOINT_SYNC, MAIN_FOLDER_LABEL, NEW_FOLDER_LABEL
 
 # The one final action, whichever photo source is used
@@ -57,23 +58,14 @@ RESULT_ROWS_BOX_HEIGHT_PX = 390
 
 # Short icons for the result rows: green check, orange alert, gray skip, red cross
 _ROW_ICONS = {
-    "added": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>',
-    "review": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.2M12 17h.01"/></svg>',
-    "skipped": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>',
-    "failed": '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>',
+    "added": icon("circle-check", 16, stroke=2),
+    "review": icon("triangle-alert", 16, stroke=2),
+    "skipped": icon("circle-minus", 16, stroke=2),
+    "failed": icon("circle-x", 16, stroke=2),
 }
-_ICON_CHEVRON = (
-    '<svg class="rs-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>'
-)
-_ICON_FILE_BADGE = (
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6l4 4V20H7V3.5Zm6 0v4h4"/></svg>'
-)
-_ICON_FOLDER_BADGE = (
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.5h6l2-2h9v15h-17v-13Z"/></svg>'
-)
+_ICON_CHEVRON = icon("chevron-right", 15, stroke=2, css_class="rs-chevron")
+_ICON_FILE_BADGE = icon("file", 14, stroke=2)
+_ICON_FOLDER_BADGE = icon("folder", 14, stroke=2)
 
 _ROW_LABELS = {"added": "Added", "review": "Needs review", "skipped": "Skipped", "failed": "Failed"}
 _ROW_ORDER = {"failed": 0, "review": 1, "skipped": 2, "added": 3}
