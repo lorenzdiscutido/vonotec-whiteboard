@@ -50,7 +50,7 @@ SUBSTRATE_DEFECT_OPTIONS = {
     "With Film": ["GLASS-FRAME"],
 }
 
-# Chart look: Vonotec-blue bars on a white card.
+# Chart look: Vonotec-blue bars on a card, dynamically adapted for Dark Mode.
 CHART_COLOR = "#1E40AF"
 ACCENT_COLOR = "#EA580C"       # orange: marks the "Unknown" bars, so missing data stands out
 CHART_BACKGROUND = "rgba(0,0,0,0)"  # transparent, so the card behind the chart shows through
@@ -624,7 +624,7 @@ def _dimension_section(summary, scope="All"):
         with head_right:
             if records:
                 st.download_button(
-                    label="Download summary  XLSX",
+                    label="Download summary XLSX",
                     data=_summary_to_excel_bytes(summary),
                     file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -651,6 +651,14 @@ VALUE_LABEL_SIZE_MANY = 9.5
 MANY_BARS_MIN = 20
 
 
+def _chart_theme():
+    """Returns (chart_color, accent_color, text_color, grid_color, domain_color, value_label_color)
+    adapted to st.session_state.dark_mode."""
+    if bool(st.session_state.get("dark_mode", False)):
+        return "#3B82F6", "#F97316", "#94A3B8", "#334155", "#475569", "#F8FAFC"
+    return CHART_COLOR, ACCENT_COLOR, CHART_TEXT, CHART_GRID, "#DBE2EA", VALUE_LABEL_COLOR
+
+
 def _bar_chart(counts, column, horizontal=False):
     """A bar chart of counts (from dashboard_data.count_by), keeping the order the table is
     already in. Every bar carries its exact value above it."""
@@ -660,6 +668,7 @@ def _bar_chart(counts, column, horizontal=False):
         _horizontal_bar_chart(counts, column)
         return
 
+    chart_color, accent_color, text_color, grid_color, domain_color, value_label_color = _chart_theme()
     tilted = len(counts) > STRAIGHT_LABELS_MAX_BARS
     x_axis = alt.Axis(
         labelAngle=-45 if tilted else 0,
@@ -679,8 +688,8 @@ def _bar_chart(counts, column, horizontal=False):
         .encode(
             color=alt.condition(
                 f"datum['{column}'] == '{UNKNOWN}'",
-                alt.value(ACCENT_COLOR),
-                alt.value(CHART_COLOR),
+                alt.value(accent_color),
+                alt.value(chart_color),
             ),
             x=x,
             y=y,
@@ -692,7 +701,7 @@ def _bar_chart(counts, column, horizontal=False):
         .mark_text(
             align="center", baseline="bottom", dy=-4,
             fontSize=VALUE_LABEL_SIZE_FEW if len(counts) <= MANY_BARS_MIN else VALUE_LABEL_SIZE_MANY,
-            fontWeight=600, color=VALUE_LABEL_COLOR,
+            fontWeight=600, color=value_label_color,
         )
         .encode(x=x, y=y, text=alt.Text("Defects:Q", format=",d"))
     )
@@ -705,9 +714,9 @@ def _bar_chart(counts, column, horizontal=False):
         )
         .configure(font=CHART_FONT)
         .configure_axis(
-            labelColor=CHART_TEXT, labelFontSize=12,
+            labelColor=text_color, labelFontSize=12,
             titleFontSize=13,
-            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
+            gridColor=grid_color, domainColor=domain_color, tickColor=domain_color,
         )
         .configure_view(stroke=None)
     )
@@ -722,6 +731,7 @@ def _horizontal_bar_chart(counts, column):
     the left, one bar per row, every bar with its exact value at the end."""
     import altair as alt
 
+    chart_color, accent_color, text_color, grid_color, domain_color, value_label_color = _chart_theme()
     y = alt.Y(f"{column}:N", sort=list(counts[column]), title=None,
               scale=alt.Scale(paddingInner=0.35, paddingOuter=0.2),
               axis=alt.Axis(labelLimit=320, labelPadding=10, labelFontSize=13, ticks=False, domain=False))
@@ -733,8 +743,8 @@ def _horizontal_bar_chart(counts, column):
         .encode(
             color=alt.condition(
                 f"datum['{column}'] == '{UNKNOWN}'",
-                alt.value(ACCENT_COLOR),
-                alt.value(CHART_COLOR),
+                alt.value(accent_color),
+                alt.value(chart_color),
             ),
             y=y,
             x=x,
@@ -744,7 +754,7 @@ def _horizontal_bar_chart(counts, column):
     labels = (
         alt.Chart(counts)
         .mark_text(align="left", baseline="middle", dx=6, fontSize=VALUE_LABEL_SIZE_FEW, fontWeight=600,
-                   color=VALUE_LABEL_COLOR)
+                   color=value_label_color)
         .encode(y=y, x=x, text=alt.Text("Defects:Q", format=",d"))
     )
 
@@ -756,9 +766,9 @@ def _horizontal_bar_chart(counts, column):
         )
         .configure(font=CHART_FONT)
         .configure_axis(
-            labelColor=CHART_TEXT, labelFontSize=12,
+            labelColor=text_color, labelFontSize=12,
             titleFontSize=13,
-            gridColor=CHART_GRID, domainColor="#DBE2EA", tickColor="#DBE2EA",
+            gridColor=grid_color, domainColor=domain_color, tickColor=domain_color,
         )
         .configure_view(stroke=None)
     )
@@ -791,7 +801,7 @@ def _chart_badge_text(counts, column):
 
 
 def _chart_section(df, column, title, hide_unknown):
-    """A white card with a title, a one-line subtitle, a contextual right badge, and the bar chart."""
+    """A card with a title, a one-line subtitle, a contextual right badge, and the bar chart."""
     counts = count_by(df, column)
     if hide_unknown:
         counts = counts[counts[column] != UNKNOWN]
@@ -802,7 +812,7 @@ def _chart_section(df, column, title, hide_unknown):
     with st.container(border=True, key=f"chart_{column.lower()}"):
         legend_html = (
             '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'
-            'background:#ea580c;margin-right:5px;"></span>Unknown classification'
+            'background:#f97316;margin-right:5px;"></span>Unknown classification'
             if has_unknown else ""
         )
         st.markdown(
@@ -812,7 +822,7 @@ def _chart_section(df, column, title, hide_unknown):
             '</div>'
             '<div style="text-align:right;">'
             f'<span class="chart-total">{html.escape(badge_text)}</span>'
-            f'<div style="color:#64748b;font-size:11.5px;font-weight:500;margin-top:2px;">{legend_html}</div>'
+            f'<div style="color:var(--text-muted);font-size:11.5px;font-weight:500;margin-top:2px;">{legend_html}</div>'
             '</div></div>',
             unsafe_allow_html=True,
         )

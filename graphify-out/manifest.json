@@ -1,0 +1,158 @@
+{
+  ".devcontainer/devcontainer.json": {
+    "mtime": 1792648005.126258,
+    "seen": 1792650852.766484,
+    "ast_hash": "fb2ac9a154553d42c8a4a2afdb9d9447",
+    "semantic_hash": "fb2ac9a154553d42c8a4a2afdb9d9447"
+  },
+  "app.py": {
+    "mtime": 1792648005.1345382,
+    "seen": 1792650852.7664902,
+    "ast_hash": "75c99ff41141f9290c22dd9139bca5d8",
+    "semantic_hash": "75c99ff41141f9290c22dd9139bca5d8"
+  },
+  "batch_processor.py": {
+    "mtime": 1792648005.1361456,
+    "seen": 1792650852.7664928,
+    "ast_hash": "913d48b2a756f59d05b3f73ada1cb310",
+    "semantic_hash": "913d48b2a756f59d05b3f73ada1cb310"
+  },
+  "config.py": {
+    "mtime": 1792648005.1371999,
+    "seen": 1792650852.7664945,
+    "ast_hash": "390bb9d8f2ec2133ae51a0bbc8572386",
+    "semantic_hash": "390bb9d8f2ec2133ae51a0bbc8572386"
+  },
+  "dashboard_data.py": {
+    "mtime": 1792648005.1388538,
+    "seen": 1792650852.7664962,
+    "ast_hash": "fb9127cdeb5a88afb452af216cf962fa",
+    "semantic_hash": "fb9127cdeb5a88afb452af216cf962fa"
+  },
+  "dashboard_loader.py": {
+    "mtime": 1792648005.1399913,
+    "seen": 1792650852.7664976,
+    "ast_hash": "8f449a5b1aaba83489e93c2b65a7cd68",
+    "semantic_hash": "8f449a5b1aaba83489e93c2b65a7cd68"
+  },
+  "defect_rules.py": {
+    "mtime": 1792648005.1416533,
+    "seen": 1792650852.7664988,
+    "ast_hash": "2e60f11cb219d2929031cc8a2e5378b2",
+    "semantic_hash": "2e60f11cb219d2929031cc8a2e5378b2"
+  },
+  "excel_writer.py": {
+    "mtime": 1792648005.1427186,
+    "seen": 1792650852.7665002,
+    "ast_hash": "b182aca812b710fa2d95b077ec23af8b",
+    "semantic_hash": "b182aca812b710fa2d95b077ec23af8b"
+  },
+  "extraction.py": {
+    "mtime": 1792648005.1432447,
+    "seen": 1792650852.7665017,
+    "ast_hash": "8103041c2bba2e30e2785b1f4c2fd827",
+    "semantic_hash": "8103041c2bba2e30e2785b1f4c2fd827"
+  },
+  "file_utils.py": {
+    "mtime": 1792648734.1113753,
+    "seen": 1792650852.7665029,
+    "ast_hash": "dde132410548540d2b2259b895319f77",
+    "semantic_hash": "dde132410548540d2b2259b895319f77"
+  },
+  "gemini_client.py": {
+    "mtime": 1792649190.3664608,
+    "seen": 1792650852.7665043,
+    "ast_hash": "98f474c0e01dcfef7663d5dfd6166ce0",
+    "semantic_hash": "98f474c0e01dcfef7663d5dfd6166ce0"
+  },
+  "icons.py": {
+    "mtime": 1792648005.1472025,
+    "seen": 1792650852.7665057,
+    "ast_hash": "b2f6e1f54db420835c143bcda76ba07a",
+    "semantic_hash": "b2f6e1f54db420835c143bcda76ba07a"
+  },
+  "image_utils.py": {
+    "mtime": 1792648005.1482744,
+    "seen": 1792650852.7665071,
+    "ast_hash": "889febf37e60be64cd1e9ec67ca8c1cd",
+    "semantic_hash": "889febf37e60be64cd1e9ec67ca8c1cd"
+  },
+  "settings.py": {
+    "mtime": 1792648005.1498315,
+    "seen": 1792650852.7665086,
+    "ast_hash": "4bc5d888ee0b093b2e1ea3557244e9f3",
+    "semantic_hash": "4bc5d888ee0b093b2e1ea3557244e9f3"
+  },
+  "sharepoint_client.py": {
+    "mtime": 1792648859.994574,
+    "seen": 1792650852.76651,
+    "ast_hash": "b3af8a0d35e7c40d8cd40d94a5d194bf",
+    "semantic_hash": "b3af8a0d35e7c40d8cd40d94a5d194bf"
+  },
+  "sync_tracker.py": {
+    "mtime": 1792648005.1528347,
+    "seen": 1792650852.7665114,
+    "ast_hash": "f84b9aa879dca714c1b0008473f369e6",
+    "semantic_hash": "f84b9aa879dca714c1b0008473f369e6"
+  },
+  "tests/test_defect_rules.py": {
+    "mtime": 1792648465.7278726,
+    "seen": 1792650852.7665126,
+    "ast_hash": "85a88d9017436710c9a020461a37b110",
+    "semantic_hash": "85a88d9017436710c9a020461a37b110"
+  },
+  "tests/test_excel_writer.py": {
+    "mtime": 1792648485.3696208,
+    "seen": 1792650852.7665138,
+    "ast_hash": "dc8126e047227dc5f453c890a374dbc0",
+    "semantic_hash": "dc8126e047227dc5f453c890a374dbc0"
+  },
+  "tests/test_extraction.py": {
+    "mtime": 1792649217.0059648,
+    "seen": 1792650852.7665153,
+    "ast_hash": "ff4ce4b8fcc78c7d5586aeb1ad345b23",
+    "semantic_hash": "ff4ce4b8fcc78c7d5586aeb1ad345b23"
+  },
+  "tests/test_file_utils.py": {
+    "mtime": 1792648447.8356438,
+    "seen": 1792650852.7665164,
+    "ast_hash": "3b0d1a3038ee0992ba116ec59ea43a64",
+    "semantic_hash": "3b0d1a3038ee0992ba116ec59ea43a64"
+  },
+  "ui_components.py": {
+    "mtime": 1792648005.156368,
+    "seen": 1792650852.7665179,
+    "ast_hash": "6f919304ce87ae3bc770f463a81132ff",
+    "semantic_hash": "6f919304ce87ae3bc770f463a81132ff"
+  },
+  "ui_dashboard.py": {
+    "mtime": 1792648005.1583622,
+    "seen": 1792650852.7665193,
+    "ast_hash": "68d7ecb89a6a5c2ae37e8a3cf64963f7",
+    "semantic_hash": "68d7ecb89a6a5c2ae37e8a3cf64963f7"
+  },
+  "ui_polish.py": {
+    "mtime": 1792648005.1583622,
+    "seen": 1792650852.766521,
+    "ast_hash": "f36e98fda0c3aea9f425b7f2b8c0c896",
+    "semantic_hash": "f36e98fda0c3aea9f425b7f2b8c0c896"
+  },
+  "ui_sections.py": {
+    "mtime": 1792648005.1597288,
+    "seen": 1792650852.7665224,
+    "ast_hash": "fa579607d0c7c174f6ecc445fc10bc26",
+    "semantic_hash": "fa579607d0c7c174f6ecc445fc10bc26"
+  },
+  "ui_source_browser.py": {
+    "mtime": 1792648005.1621785,
+    "seen": 1792650852.7665238,
+    "ast_hash": "50ec9658660d26abd3b5a8968e2ebd5e",
+    "semantic_hash": "50ec9658660d26abd3b5a8968e2ebd5e"
+  },
+  "user_prefs.json": {
+    "mtime": 1792648460.1321902,
+    "seen": 1792650852.7665253,
+    "ast_hash": "2c3992241612931d7aa8d561edc9af08",
+    "semantic_hash": "2c3992241612931d7aa8d561edc9af08"
+  }
+}
