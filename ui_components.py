@@ -1,4 +1,3 @@
-# ui_components.py
 import base64
 import html
 from pathlib import Path
@@ -63,13 +62,12 @@ def _brand_html():
         logo = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
     except OSError:
         logo = '<span class="brand-text">VONOTEC</span>'
-    return f'<div class="brand">{logo}<span class="product-name">Whiteboard AI</span></div>'
+    return f'<div class="brand">{logo}<span class="product-name">Automated Defect Logger</span></div>'
 
 
 def render_header(views):
     """One white header card with three equal columns: the brand on the left,
-    the view switch (a radio, drawn as two pills) in the middle and the
-    tagline on the right."""
+    the view switch (a radio, drawn as two pills) in the middle and the tagline on the right."""
     with st.container(key="top_app_header"):
         try:
             col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
@@ -89,7 +87,7 @@ def render_header(views):
         with col_right:
             st.markdown(
                 '<div class="header-right">'
-                '<span class="header-tagline">Data Extraction and Master Log Automator</span>'
+                '<span class="header-tagline">Defect Extraction & Repair Analytics</span>'
                 f'<details class="help-pop"><summary>{_ICON_HELP}Help</summary>'
                 f'<div class="help-panel">{_HELP_HTML}</div></details>'
                 '</div>',
@@ -102,32 +100,54 @@ WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
 def render_stepper(done, current):
-    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
+    """Renders a clean, transparent '1. Select photos > 2. Save destination > 3. Extract data' line
+    directly where the eyebrow sits, with no white background or circles."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
-        mark = "&#10003;" if state == "done" else str(number)
-        parts.append(f'<span class="wf-step wf-{state}"><span class="wf-num">{mark}</span>{html.escape(label)}</span>')
+        prefix = f"✓ {number}." if state == "done" else f"{number}."
+        if state == "current":
+            color = "#1e3a8a"
+            weight = "700"
+        elif state == "done":
+            color = "#15803d"
+            weight = "600"
+        else:
+            color = "#64748b"
+            weight = "500"
+        parts.append(
+            f'<span style="color:{color};font-weight:{weight};background:transparent !important;'
+            f'padding:0 !important;border:none !important;box-shadow:none !important;">'
+            f'{prefix} {html.escape(label)}</span>'
+        )
+    sep = '<span style="color:#94a3b8;margin:0 8px;font-weight:500;background:transparent !important;">&gt;</span>'
     st.markdown(
-        '<div class="workflow-stepper">' + '<span class="wf-arrow">&rarr;</span>'.join(parts) + '</div>',
+        '<style>'
+        '.st-key-top_app_header { margin-bottom: 18px !important; }'
+        '</style>'
+        '<div style="display:flex;align-items:center;flex-wrap:wrap;font-size:13px;'
+        'line-height:1.4;background:transparent !important;border:none !important;'
+        'box-shadow:none !important;padding:0 !important;margin:0 0 4px 0 !important;">'
+        + sep.join(parts)
+        + '</div>',
         unsafe_allow_html=True,
     )
 
 
 def section_heading(eyebrow, title, badge=None, step=None, description=None):
-    """A small orange label over a large title. On the right there is either a
-    status badge, badge = (text, kind) with kind "ready", "processing" or
-    "complete", or a plain step label."""
+    """A small orange label over a large title. On the right there is either a status badge,
+    badge = (text, kind) with kind "ready", "processing" or "complete", or a plain step label."""
     right = ""
     if badge:
         text, kind = badge
         right = f'<span class="status-badge {html.escape(kind)}"><span></span>{html.escape(text)}</span>'
     elif step:
         right = f'<span class="step-label">{html.escape(step)}</span>'
+    eyebrow_html = f'<p class="eyebrow">{html.escape(eyebrow)}</p>' if eyebrow else ""
     desc_html = f'<p class="section-desc">{html.escape(description)}</p>' if description else ""
     st.markdown(
         '<div class="section-heading"><div>'
-        f'<p class="eyebrow">{html.escape(eyebrow)}</p>'
+        f'{eyebrow_html}'
         f'<h2>{html.escape(title)}</h2>'
         f'</div>{right}</div>{desc_html}',
         unsafe_allow_html=True,
@@ -179,7 +199,7 @@ def render_empty_results():
         '<p>Messages, downloads and sync status appear here once you extract a batch.</p></div>'
         '</div>'
         '<div class="preview-card">'
-        '<p class="preview-title">After extraction, you\'ll see</p>'
+        '<p class="preview-title">After extraction, you\'ll see:</p>'
         '<ul class="preview-list">'
         f'<li><span class="preview-icon">{_ICON_PREVIEW_STATUS}</span>'
         '<div><b>File-level status</b><span>Added, skipped or failed, one row per photo</span></div></li>'
@@ -236,14 +256,14 @@ def render_instructions():
         st.markdown(
             """
             <div class="instruction-text">
-                Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the data
-                and append it to the Master Excel file.
-                <ol>
-                    <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
-                    <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
-                    <li>Click <b>Extract photos</b>.</li>
-                    <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
-                </ol>
+            Add whiteboard photos from your device or from a SharePoint folder. The AI will
+            automatically extract the data and append it to the Master Excel file.
+            <ol>
+                <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
+                <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the Excel file name.</li>
+                <li>Click <b>Extract photos</b>.</li>
+                <li>Follow the progress, messages and download on the right. The <b>Analytics Dashboard</b> picks up the new data by itself.</li>
+            </ol>
             </div>
             """,
             unsafe_allow_html=True,

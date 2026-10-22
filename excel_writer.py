@@ -32,47 +32,23 @@ def _populate_reference_sheet(wb):
     else:
         ws_ref = wb.create_sheet(title="Reference Data")
 
-    header_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-
-    for row_idx, row_values in enumerate(REFERENCE_DATA, start=1):
-        ws_ref.append(row_values[:REFERENCE_SHEET_COLUMNS])  # columns A-H go into Excel
-        for col_idx in range(1, REFERENCE_SHEET_COLUMNS + 1):
-            cell = ws_ref.cell(row=row_idx, column=col_idx)
-            if row_idx == 1:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            else:
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-
-    for letter, width in {"A": 15, "B": 26, "C": 24, "D": 45, "E": 40, "F": 18, "G": 14, "H": 14}.items():
-        ws_ref.column_dimensions[letter].width = width
-    ws_ref.row_dimensions[1].height = 28
+    for row_idx, row_data in enumerate(REFERENCE_DATA, start=1):
+        ws_ref.append(row_data[:REFERENCE_SHEET_COLUMNS])
+        if row_idx == 1:
+            for cell in ws_ref[row_idx]:
+                cell.font = Font(bold=True)
 
 
 # ---------------------------------------------------------------------------
-# Dimension & Dynamic Formula helpers
+# Dynamic Excel formulas watching $G{row} (Damage) and $H{row} (Dimension)
 # ---------------------------------------------------------------------------
-
-def split_dimension(text):
-    """Splits a dimension like '60 CM' or '120 CM²' into (60, 'CM') / (120, 'CM²').
-    Anything that doesn't look like 'number + unit' is kept whole, with no unit."""
-    text = str(text or "").strip()
-    if not text:
-        return "", ""
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([A-Z]+(?:²|\^2|2)?)?", text, flags=re.IGNORECASE)
-    if not match:
-        return text, ""
-    number = float(match.group(1))
-    if number.is_integer():
-        number = int(number)
-    return number, (match.group(2) or "").upper()
-
 
 def _base_code_expr(row):
-    """Excel expression that extracts the first word (base defect code) from $G{row}."""
-    return f'LEFT(TRIM($G{row}), FIND(" ", TRIM($G{row})&" ") - 1)'
+    """Excel expression that extracts the base defect code from $G{row},
+    mapping 'NO PAINT' / 'NO-PAINT' to 'NP' so manual typing works either way."""
+    first_word = f'LEFT(TRIM($G{row}), FIND(" ", TRIM($G{row})&" ") - 1)'
+    upper_g = f'UPPER(TRIM($G{row}))'
+    return f'IF(OR({upper_g}="NO PAINT", {upper_g}="NO-PAINT", {upper_g}="NOPAINT"), "NP", {first_word})'
 
 
 def _modifier_expr(row):
@@ -83,10 +59,10 @@ def _modifier_expr(row):
 
 
 def _dynamic_repair_formula(row):
-    """Builds a live Excel formula for Repair Dimension (Column O) that watches both
-    $G{row} (Damage) and $H{row} (Dimension):
+    """Builds a live Excel formula for Repair Dimension (Column O) that watches
+    both $G{row} (Damage) and $H{row} (Dimension):
     - If $G{row} is cleared/empty OR $H{row} is not a number, returns "" (blank).
-    - If $G{row} is edited or typed manually (e.g. C-, US, DP, DG, DS CC, MS FG),
+    - If $G{row} is edited or typed manually (e.g. C-, US, DP, FP, BP, NP, No Paint, DG, DS CC, MS FG),
       automatically applies that defect code's repair formula and repair limit."""
     h_cell = f"$H{row}"
     base = _base_code_expr(row)
@@ -107,7 +83,7 @@ def _dynamic_repair_formula(row):
         f'=IF(OR(TRIM($G{row})="", NOT(ISNUMBER({h_cell}))), "", '
         f'IF(OR({base}="CC-", {base}="C-", {base}="CC+", {base}="C+"), {crack_expr}, '
         f'IF(OR({base}="BH", {base}="US"), {surface_expr}, '
-        f'IF(OR({base}="DP", {base}="FP", {base}="BP"), {paint_expr}, '
+        f'IF(OR({base}="DP", {base}="FP", {base}="BP", {base}="NP"), {paint_expr}, '
         f'IF({base}="DG", {gasket_expr}, '
         f'IF(OR({base}="DS", {base}="MS"), {sealant_expr}, ""))))))'
     )
@@ -117,8 +93,6 @@ def _dynamic_repair_formula(row):
 # Sheet layout
 # ---------------------------------------------------------------------------
 
-# New files: A-F details | G Damage | H Dimension | I Unit | J Photo | K-N lookups | O-P repair.
-# Older files (no Unit column) keep their old layout so appending never shifts a column.
 Layout = namedtuple("Layout", "has_unit_col unit_col photo_col photo_letter last_col title_last_col")
 
 
@@ -172,38 +146,75 @@ def _create_master_workbook():
 
 
 # ---------------------------------------------------------------------------
+# Splitting a dimension string ("60 CM" -> (60, "CM"))
+# ---------------------------------------------------------------------------
+
+_DIMENSION_PATTERN = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(.*)$")
+
+
+def split_dimension(raw_text):
+    """Splits a dimension string like '60 CM' or '120.5 CM²' into (number, unit).
+    If raw_text does not start with a number, returns (raw_text, '') so nothing is lost."""
+    text = str(raw_text).strip() if raw_text else ""
+    if not text:
+        return "", ""
+    match = _DIMENSION_PATTERN.match(text)
+    if not match:
+        return text, ""
+    num_str, unit = match.group(1), match.group(2).strip()
+    number = float(num_str) if "." in num_str else int(num_str)
+    return number, unit
+
+
+# ---------------------------------------------------------------------------
 # Rows for one whiteboard
 # ---------------------------------------------------------------------------
 
 def _expand_entries(dmg_list, dim_list):
-    """Splits damage strings that hold several defect codes into one entry per
-    code. Only the first code keeps the dimension."""
+    """Splits damage strings that hold several defect codes into one entry per code.
+    Only the first code keeps the dimension."""
     expanded = []
     for i in range(max(len(dmg_list), len(dim_list))):
         dmg_str = dmg_list[i] if i < len(dmg_list) else ""
         dim_str = dim_list[i] if i < len(dim_list) else ""
+        tokens = str(dmg_str).split()
 
-        found_codes = [t for t in str(dmg_str).split() if t in VALID_CODES]
-        if len(found_codes) > 1:
-            for n, code in enumerate(found_codes):
-                expanded.append((code, dim_str if n == 0 else ""))
+        if sum(1 for t in tokens if t in VALID_CODES) > 1:
+            groups, leading = [], []
+            for token in tokens:
+                if token in VALID_CODES:
+                    groups.append(leading + [token])
+                    leading = []
+                elif groups:
+                    groups[-1].append(token)
+                else:
+                    leading.append(token)
+            for idx, group in enumerate(groups):
+                expanded.append((" ".join(group), dim_str if idx == 0 else ""))
         else:
             expanded.append((dmg_str, dim_str))
     return expanded
 
 
 def _build_rows_data(parsed_data):
-    """Returns a list of (damage, dimension, is_title, is_data, material)."""
-    rows = []
+    """Builds the (damage, dimension, is_title, is_data, material) tuples for one whiteboard."""
+    rows_data = []
     for mat in MATERIALS:
-        rows.append((mat, "", True, False, mat))
-        entries = _expand_entries(
-            parsed_data.get(f"{mat} Damage", []),
-            parsed_data.get(f"{mat} Dimension", []),
-        )
-        for dmg_val, dim_val in (entries or [("", "")]):
-            rows.append((dmg_val, dim_val, False, True, mat))
-    return rows
+        dmg_list = parsed_data.get(f"{mat} Damage", [])
+        dim_list = parsed_data.get(f"{mat} Dimension", [])
+        if not isinstance(dmg_list, list):
+            dmg_list = [dmg_list] if dmg_list else []
+        if not isinstance(dim_list, list):
+            dim_list = [dim_list] if dim_list else []
+
+        rows_data.append((mat, "", True, False, mat))
+        expanded = _expand_entries(dmg_list, dim_list)
+        if not expanded:
+            rows_data.append(("", "", False, False, mat))
+        else:
+            for d_val, s_val in expanded:
+                rows_data.append((d_val, s_val, False, True, mat))
+    return rows_data
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +233,8 @@ def _write_data_row(ws, row, g_val, h_val, material, flagged_materials, lay):
 
     parts = str(g_val).split() if g_val else []
     base_code = parts[0] if parts else ""
+    if str(g_val or "").upper().strip() in ("NO PAINT", "NO-PAINT", "NOPAINT"):
+        base_code = "NP"
     lookup = _base_code_expr(row)
 
     # Column H (Dimension): plain manual-entry cell (no formula), with dynamic Unit formula in Column I
@@ -269,7 +282,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
     if os.path.exists(output_xlsx_path):
         wb = openpyxl.load_workbook(output_xlsx_path)
         ws = wb["Whiteboard Data"] if "Whiteboard Data" in wb.sheetnames else wb.active
-        # Always ensure Reference Data has the latest 8 columns (including Board Unit & Repair Unit)
         _populate_reference_sheet(wb)
         lay = _layout(ws["J1"].value == "Whiteboard Photo")
     else:
@@ -311,8 +323,6 @@ def write_parsed_data_to_excel(parsed_data, filepath, output_xlsx_path):
 
     ws.column_dimensions[lay.photo_letter].width = 25
 
-    # Save to a temp file first, then swap it in, so a crash mid-save
-    # can never leave a half-written master file.
     tmp_path = os.path.splitext(output_xlsx_path)[0] + "_tmp.xlsx"
     try:
         wb.save(tmp_path)

@@ -78,7 +78,9 @@ REFERENCE_DATA = [
     ["BP", "Bubbly Paint", "Wear and Tear", "Lapsed warranty; degrades due to age, UV, and temperature shifts. Failures are common after several years of exposure.", "Remove bubbles, dry surface, prime, and repaint.", "",
      "CM²", "SQ.M.", F_PAINT, ""],
     ["NP", "No Paint", "Workmanship", "Skipped by previous workers", "Include in next beautification projects.", "",
-     "", "", "", ""],
+     "CM²", "SQ.M.", F_PAINT, ""],
+    ["NO PAINT", "No Paint", "Workmanship", "Skipped by previous workers", "Include in next beautification projects.", "",
+     "CM²", "SQ.M.", F_PAINT, ""],
     ["DG", "Damaged Gasket", "Wear and Tear", "Gaskets degrade due to age, UV, and temperature shifts. Failures are common after several years of exposure", "Remove gasket and reseal.", 3.2,
      "CM", "L.M.", F_GASKET, ""],
     ["DS", "Damaged Sealant", "Wear and Tear", "Lapsed warranty; Cracking or tearing due to joint movement, UV aging, or thermal cycles. Material failure over time is expected even with proper application.", "Remove existing sealant, clean joint, install backer rod and apply new sealant.", "",
@@ -103,7 +105,7 @@ REFERENCE_DATA = [
 # STRICT MATERIAL VALIDATION DICTIONARY
 MATERIAL_RULES = {
     "Concrete": ["CC+", "CC-", "C+", "C-", "BH", "US"],
-    "Paint": ["DP", "FP", "BP", "NP"],
+    "Paint": ["DP", "FP", "BP", "NP", "NO PAINT"],
     "Gasket": ["DG"],
     "Sealant": ["DS", "MS"],
     "Broken Glass": ["BG"],

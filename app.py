@@ -1,5 +1,5 @@
-# app.py
 """Main flow of the Whiteboard AI web app. Everything else lives in:
+
     settings.py          switches and constants
     file_utils.py        processed-photo log, filename cleanup
     extraction.py        Gemini reading + review pass
@@ -13,8 +13,9 @@
     dashboard_data.py    reads the batch Excel files into a table for the dashboard
     dashboard_loader.py  downloads those files in the background so the dashboard is ready
 
-Photos can come from two places: uploaded from this device, or already sitting in any
-SharePoint folder ("Import from SharePoint"). Both end up in the same batch loop.
+Photos can come from two places: uploaded from this device, or already sitting
+in any SharePoint folder ("Import from SharePoint"). Both end up in the same
+batch loop.
 """
 import os
 import datetime
@@ -29,14 +30,23 @@ from settings import LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL, ENABLE_SHAREPOINT_SYNC
 from file_utils import sanitize_batch_filename, load_prefs, save_prefs
 from batch_processor import run_batch, BatchOutcome
 from ui_sections import (
-    init_session_state, show_batch_results, render_photo_previews,
-    render_folder_picker, resolve_subfolder, remember_new_folder,
-    render_action_buttons, render_file_management, render_pending_syncs,
-    hide_uploader_chrome_if_filled, process_blockers,
+    init_session_state,
+    show_batch_results,
+    render_photo_previews,
+    render_folder_picker,
+    resolve_subfolder,
+    remember_new_folder,
+    render_action_buttons,
+    render_file_management,
+    render_pending_syncs,
+    hide_uploader_chrome_if_filled,
+    process_blockers,
 )
 from ui_source_browser import render_source_browser
 from ui_dashboard import render_dashboard_view
 from dashboard_loader import start_warmup_if_due
+from pathlib import Path
+from PIL import Image
 
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
@@ -45,10 +55,17 @@ VIEW_DASHBOARD = "Dashboard"
 SOURCE_LOCAL = "Upload from device"
 SOURCE_SHAREPOINT = "Import from SharePoint"
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="VONOTEC Whiteboard Extractor", layout="wide")
-ui_components.load_local_css("style.css")
 
+# --- PAGE SETUP ---
+icon_path = Path(__file__).with_name("vonotec_icon.png")
+page_icon = Image.open(icon_path) if icon_path.exists() else "📊"
+
+st.set_page_config(
+    page_title="VONOTEC Defect Logger            ",
+    page_icon=page_icon,
+    layout="wide",
+)
+ui_components.load_local_css("style.css")
 # --- HEADER AND VIEW SWITCH ---
 view = ui_components.render_header([VIEW_EXTRACTION, VIEW_DASHBOARD])
 
@@ -207,16 +224,16 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
     _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro)
 
 
-stepper_slot = st.empty()
-
 # 55/45 split gives the results and review list plenty of horizontal room
 form_col, results_col = st.columns([11, 9], gap="large")
 
 # --- LEFT: PHOTO SOURCE, UPLOADER AND BATCH FORM ---
 with form_col:
     with st.container(key="form_panel"):
+        stepper_slot = st.empty()
         ui_components.section_heading(
-            "Input source", "Choose where to import photos from",
+            "",
+            "Choose where to import photos from",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
 
@@ -282,23 +299,24 @@ with form_col:
                          "and you can change it.",
                 )
 
-        photos_missing, destination_missing = process_blockers(
-            active_photo_count, bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
-        )
-        running = bool(st.session_state.get("batch_running", False))
-        if remote_mode:
-            batch_done = bool(st.session_state.batch_results) and list(source_path) == st.session_state.get("last_remote_path") and bool(source_path)
-        else:
-            batch_done = bool(st.session_state.batch_results) and not uploaded_files
+            photos_missing, destination_missing = process_blockers(
+                active_photo_count, bool(source_path), folder_choice, new_folder_raw, batch_name_raw, remote_mode,
+            )
+            running = bool(st.session_state.get("batch_running", False))
+            if remote_mode:
+                batch_done = bool(st.session_state.batch_results) and list(source_path) == st.session_state.get("last_remote_path") and bool(source_path)
+            else:
+                batch_done = bool(st.session_state.batch_results) and not uploaded_files
 
-        process_clicked, clear_clicked = render_action_buttons(
-            photo_count=active_photo_count,
-            source_chosen=bool(source_path) if remote_mode else bool(uploaded_files),
-            blocked_reason=photos_missing or destination_missing,
-            remote=remote_mode,
-            running=running,
-            done=batch_done,
-        )
+            process_clicked, clear_clicked = render_action_buttons(
+                photo_count=active_photo_count,
+                source_chosen=bool(source_path) if remote_mode else bool(uploaded_files),
+                blocked_reason=photos_missing or destination_missing,
+                remote=remote_mode,
+                running=running,
+                done=batch_done,
+            )
+
         if process_clicked:
             st.session_state.batch_running = True
             st.rerun()
@@ -325,6 +343,7 @@ if clear_clicked:
     st.session_state.batch_results = []
     st.session_state.batch_report = None
     st.rerun()
+
 
 # --- RIGHT: RESULTS, DOWNLOAD / DELETE, FILES THAT NEVER REACHED SHAREPOINT ---
 with results_col:

@@ -1,6 +1,4 @@
-# ui_sections.py
-"""Reusable Streamlit sections for the Whiteboard app.
-(Header and CSS stay in ui_components.py.)"""
+"""Reusable Streamlit sections for the Whiteboard app. (Header and CSS stay in ui_components.py.)"""
 import io
 import os
 import html
@@ -20,6 +18,7 @@ PROCESS_BUTTON_LABEL = "Extract photos"
 # Label for creating a subfolder at any nesting level
 NEW_SUBFOLDER_LABEL = "+ Create a new subfolder..."
 MAX_OUTPUT_FOLDER_DEPTH = 10
+
 
 _SESSION_DEFAULTS = {
     "uploader_key": 0,             # changing it resets the uploader (clears all photos)
@@ -327,8 +326,8 @@ def render_photo_previews(uploaded_files):
 
 # ---------------------------------------------------------------------------
 # Multi-Level Cascading SharePoint Output Folder Picker
-#   Supports unlimited drill-down: Folder 1 > Subfolder > Sub-subfolder > ...
-#   Plus multi-level creation by typing "Sub1/Sub2" or drilling down level by level.
+# Supports unlimited drill-down: Folder 1 > Subfolder > Sub-subfolder > ...
+# Plus multi-level creation by typing "Sub1/Sub2" or drilling down level by level.
 # ---------------------------------------------------------------------------
 
 def refresh_folder_list():
@@ -343,7 +342,7 @@ def refresh_folder_list():
 
 
 def _get_nested_folders(relative_path):
-    """Returns the cached list of subfolders inside `relative_path`, fetching once per session."""
+    """Returns the cached list of subfolders inside relative_path, fetching once per session."""
     nested_map = st.session_state.setdefault("sp_nested_folders", {})
     if relative_path not in nested_map:
         try:
@@ -360,8 +359,8 @@ def _direct_parent_label(folder_name):
 def render_folder_picker(disabled=False):
     """Multi-level cascading output folder picker:
     - Level 0: 'Main folder', existing top-level folders, or '+ Create a new folder...'
-    - Level 1..N: Whenever an existing folder is picked, another dropdown appears for the
-      next level down: '(Save directly in <Folder>)', existing subfolders, or '+ Create a new subfolder...'.
+    - Level 1..N: Whenever an existing folder is picked, another dropdown appears for the next level down:
+      '(Save directly in <Folder>)', existing subfolders, or '+ Create a new subfolder...'.
     - When creating a new folder or subfolder at any level, users can also type '/' (e.g. 'Sub1/Sub2')
       to create multiple new nested levels at once.
     Returns (folder_choice, new_folder_raw)."""
@@ -498,8 +497,8 @@ def resolve_subfolder(folder_choice, new_folder_raw):
 
 
 def remember_new_folder(subfolder):
-    """Adds every level of a newly created folder path ('Folder1/Sub1/Sub2') into the session caches
-    so it immediately appears in the cascading dropdowns without re-querying SharePoint."""
+    """Adds every level of a newly created folder path ('Folder1/Sub1/Sub2') into the session
+    caches so it immediately appears in the cascading dropdowns without re-querying SharePoint."""
     parts = [p for p in (subfolder or "").split("/") if p]
     if not parts:
         return
@@ -568,15 +567,33 @@ def _process_label(photo_count, source_chosen, remote, running=False, done=False
 
 
 def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="", remote=False, running=False, done=False):
-    """The sticky action footer: primary action aligned to the right edge with requirement text above it."""
+    """The action footer with uniform spacing inside form_panel."""
     with st.container(key="action_buttons"):
+        st.markdown(
+            "<style>"
+            ".st-key-action_buttons {"
+            "  background: transparent !important;"
+            "  border: none !important;"
+            "  box-shadow: none !important;"
+            "  padding: 8px 0 0 0 !important;"
+            "  margin-top: 8px !important;"
+            "}"
+            ".st-key-action_buttons .footer-hint {"
+            "  margin: 0 0 10px 0 !important;"
+            "  padding: 0 !important;"
+            "}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
         label = _process_label(photo_count, source_chosen, remote, running, done)
         process_disabled = bool(blocked_reason) or running
         if blocked_reason:
             st.markdown(f'<p class="footer-hint">{html.escape(blocked_reason)}</p>', unsafe_allow_html=True)
         if remote:
             process_clicked = st.button(
-                label, type="primary", key="fetch_folder_running" if running else "fetch_folder",
+                label,
+                type="primary",
+                key="fetch_folder_running" if running else "fetch_folder",
                 disabled=process_disabled,
             )
             clear_clicked = False
@@ -591,7 +608,9 @@ def render_action_buttons(photo_count=0, source_chosen=False, blocked_reason="",
                 )
             with process_col:
                 process_clicked = st.button(
-                    label, type="primary", key="extract_data_running" if running else "extract_data",
+                    label,
+                    type="primary",
+                    key="extract_data_running" if running else "extract_data",
                     disabled=process_disabled,
                 )
     return process_clicked, clear_clicked
@@ -693,8 +712,8 @@ def _push_pending(item):
 
 
 def render_pending_syncs():
-    """Lists batch files that are not up to date in SharePoint, each with a
-    Push button. Draws nothing when everything is synced."""
+    """Lists batch files that are not up to date in SharePoint, each with a Push button.
+    Draws nothing when everything is synced."""
     if not ENABLE_SHAREPOINT_SYNC:
         return
 
