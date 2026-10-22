@@ -65,6 +65,9 @@ st.set_page_config(
     page_icon=page_icon,
     layout="wide",
 )
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = bool(load_prefs().get("dark_mode", False))
+
 ui_components.load_local_css("style.css")
 # --- HEADER AND VIEW SWITCH ---
 view = ui_components.render_header([VIEW_EXTRACTION, VIEW_DASHBOARD])
@@ -74,7 +77,7 @@ start_warmup_if_due()
 
 _KEEP_ALIVE_PREFIXES = (
     "photo_source", "batch_name_input", "folder_choice_input",
-    "new_folder_name_input", "src_recursive", "src_lv_",
+    "new_folder_name_input", "src_recursive", "src_lv_", "dark_mode",
 )
 for _key in list(st.session_state.keys()):
     if isinstance(_key, str) and _key.startswith(_KEEP_ALIVE_PREFIXES):
