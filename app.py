@@ -61,7 +61,7 @@ icon_path = Path(__file__).with_name("vonotec_icon.png")
 page_icon = Image.open(icon_path) if icon_path.exists() else "📊"
 
 st.set_page_config(
-    page_title="VONOTEC Defect Logger",
+    page_title="VONOTEC Defect Logger            ",
     page_icon=page_icon,
     layout="wide",
 )
