@@ -177,9 +177,9 @@ def render_header(views):
 
     with st.container(key="top_app_header"):
         try:
-            col_left, col_center, col_right = st.columns([1.05, 0.9, 1.05], vertical_alignment="center")
+            col_left, col_center, col_right, col_theme = st.columns([1.0, 0.78, 1.14, 0.08], vertical_alignment="center")
         except TypeError:
-            col_left, col_center, col_right = st.columns([1.05, 0.9, 1.05])
+            col_left, col_center, col_right, col_theme = st.columns([1.0, 0.78, 1.14, 0.08])
 
         with col_left:
             st.markdown(_brand_html(dark_mode=dark_mode), unsafe_allow_html=True)
@@ -200,13 +200,14 @@ def render_header(views):
                 '</div>',
                 unsafe_allow_html=True,
             )
+        with col_theme:
             toggle_key = "theme_toggle_light" if dark_mode else "theme_toggle_dark"
             with st.container(key=toggle_key):
                 st.button(
-                    "Light" if dark_mode else "Dark",
+                    "",
                     key="theme_toggle_btn",
                     on_click=_toggle_dark_mode,
-                    help="Switch between Light and Dark mode",
+                    help="Switch to Light mode" if dark_mode else "Switch to Dark mode",
                 )
     return view
 
