@@ -211,6 +211,8 @@ def _load_scope(scope, subfolders):
 # Section 1: KPI Cards & Warm-Amber Review Banner
 # ---------------------------------------------------------------------------
 
+# What each sealant location modifier means (the two surfaces the sealant joins), shown in the
+# Description column: "DS CF" -> "Damaged Sealant (Concrete to Frame)"
 SEALANT_LOCATION_NAMES = {
     "CC": "Concrete to Concrete",
     "CF": "Concrete to Frame",
@@ -219,6 +221,7 @@ SEALANT_LOCATION_NAMES = {
     "FF": "Frame to Frame",
 }
 
+# Dashboard-only description overrides (leaves Reference Data in Excel untouched)
 _DASHBOARD_DESC_OVERRIDES = {
     "BH": "Bughole",
     "US": "Uneven Surface",
@@ -513,6 +516,7 @@ def _dimension_table_html(records):
     total_area = 0.0
     total_missing = 0
 
+    # Defects per material, shown on each group's header row
     material_counts = {}
     for record in records:
         material_counts[record["Material"]] = material_counts.get(record["Material"], 0) + int(record["Defects"] or 0)
@@ -620,7 +624,7 @@ def _dimension_section(summary, scope="All"):
         with head_right:
             if records:
                 st.download_button(
-                    label="Download summary  XLSX",
+                    label="Download summary XLSX",
                     data=_summary_to_excel_bytes(summary),
                     file_name=f"Repair_Quantity_Summary_{safe_scope}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
