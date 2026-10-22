@@ -325,11 +325,7 @@ def _render_kpi_cards(df, summary, files_read):
         )
 
 
-<<<<<<< HEAD
 def _data_table_html(shown, float_format=None, link_files=False, flag_missing=False):
-=======
-def _data_table_html(shown, float_format=None, link_files=False):
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
     """The HTML for a plain data table. Every cell is escaped. With link_files=True the File column
     becomes a link that opens that Excel file in SharePoint (only people with access to the site can open it)."""
     table_df = shown.copy()
@@ -343,7 +339,6 @@ def _data_table_html(shown, float_format=None, link_files=False):
                 return name
             return f'<a class="file-link" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener noreferrer">{name}</a>'
         table_df["File"] = [_file_cell(name, link) for name, link in zip(table_df["File"], links)]
-<<<<<<< HEAD
     if flag_missing:
         # Every row in the review queue is missing its dimension: make the defect code stand out and
         # add a red "Missing" tag right after it, so the blank is obvious without scanning the row.
@@ -351,8 +346,6 @@ def _data_table_html(shown, float_format=None, link_files=False):
             position = list(table_df.columns).index("Defect Code")
             table_df["Defect Code"] = [f'<span class="flag-code">{code}</span>' for code in table_df["Defect Code"]]
             table_df.insert(position + 1, "Dimension", ['<span class="flag-missing">Missing</span>'] * len(table_df))
-=======
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
     kwargs = {"float_format": float_format} if float_format else {}
     table = table_df.to_html(index=False, border=0, na_rep="", classes="data-table", escape=False, **kwargs)
     return "".join(line.strip() for line in table.splitlines())
@@ -368,11 +361,7 @@ def _render_missing_dimensions_queue(df):
     count = len(missing_df)
     cols = [c for c in REVIEW_QUEUE_COLUMNS if c in missing_df.columns]
     shown = missing_df[cols + (["File Link"] if "File Link" in missing_df.columns else [])].head(DATA_TABLE_MAX_ROWS)
-<<<<<<< HEAD
     table = _data_table_html(shown, link_files=True, flag_missing=True)
-=======
-    table = _data_table_html(shown, link_files=True)
->>>>>>> ce4714dac1882afb8ebe9fd72c1e072d8ad3b0fa
 
     banner_html = (
         '<details class="review-banner">'
