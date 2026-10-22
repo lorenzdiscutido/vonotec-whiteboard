@@ -3,6 +3,8 @@ import html
 from pathlib import Path
 import streamlit as st
 
+from file_utils import load_prefs, save_prefs
+
 # Uniform Lucide 24x24 SVG icon set (stroke-width="2", round caps & joins)
 _ICON_LAYERS = (
     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -18,9 +20,9 @@ _ICON_SPARK = (
     '<path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>'
 )
 
-# Gray file icon on the right of the "Save settings" card heading (Lucide file-text)
+# File icon on the right of the "Save settings" card heading (Lucide file-text)
 _ICON_FILE = (
-    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ba8b9" '
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" '
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
     '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
@@ -32,6 +34,21 @@ _ICON_HELP = (
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
     '<circle cx="12" cy="12" r="10"/>'
     '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>'
+)
+
+# Sun & Moon Lucide 24x24 SVG icons for Dark Mode reference
+_ICON_SUN = (
+    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/>'
+    '<path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>'
+    '<path d="M2 12h2"/><path d="M20 12h2"/>'
+    '<path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>'
+)
+_ICON_MOON = (
+    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>'
 )
 
 # The how-to text that opens from the Help link.
@@ -47,9 +64,83 @@ _HELP_HTML = (
     '</ol>'
 )
 
+_DARK_THEME_OVERRIDE_CSS = """
+<div data-theme="dark" style="display:none;"></div>
+<style>
+:root {
+  --brand-navy: #2547a8;
+  --brand-navy-mid: #1e3a8a;
+  --brand-navy-dark: #0b1536;
+  --brand-navy-deep: #060d21;
+  --brand-navy-soft: #1e293b;
+  --brand-navy-tint: #172554;
+  --brand-orange: #f97316;
+  --brand-orange-bright: #fb923c;
+  --brand-orange-hover: #ea580c;
+  --brand-orange-soft: rgba(249, 115, 22, 0.18);
+  --brand-orange-tint: rgba(234, 88, 12, 0.12);
+
+  --status-success: #22c55e;
+  --status-success-bg: rgba(22, 163, 74, 0.18);
+  --status-success-border: rgba(34, 197, 94, 0.4);
+  --status-warn: #fb923c;
+  --status-warn-bg: rgba(234, 88, 12, 0.18);
+  --status-warn-border: rgba(251, 146, 60, 0.45);
+  --status-danger: #f87171;
+  --status-danger-bg: rgba(220, 38, 38, 0.18);
+  --status-danger-border: rgba(248, 113, 113, 0.45);
+
+  --bg-canvas: linear-gradient(135deg, #060d21 0%, #0f172a 50%, #431407 88%, #7c2d12 100%);
+  --surface-header: linear-gradient(90deg, #060d21 0%, #0b1536 55%, #112252 100%);
+  --surface-shell: #0f172a;
+  --surface-panel-primary: #0f172a;
+  --surface-panel-secondary: #111c35;
+  --surface-sidebar: linear-gradient(180deg, #080f26 0%, #0d183a 100%);
+  --surface-card: #1e293b;
+  --surface-elevated: #162033;
+  --surface-input: #0f172a;
+  --surface-input-hover: #162238;
+  --surface-table-row-alt: #162033;
+  --surface-table-hover: #1e2d4a;
+  --surface-group-row: #172554;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-body: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-on-navy: #f8fafc;
+  --text-on-navy-muted: #cbd5e1;
+
+  --border-subtle: #334155;
+  --border-strong: #475569;
+  --border-navy: #1e3a8a;
+  --border-shell: rgba(148, 163, 184, 0.18);
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 14px -2px rgba(0, 0, 0, 0.45), 0 12px 28px -4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.55), 0 6px 16px -2px rgba(0, 0, 0, 0.40);
+}
+</style>
+"""
+
+
+def _ensure_dark_mode_state():
+    """Initializes st.session_state['dark_mode'] from saved user preferences if not yet loaded."""
+    if "dark_mode" not in st.session_state:
+        st.session_state["dark_mode"] = bool(load_prefs().get("dark_mode", False))
+    return bool(st.session_state.get("dark_mode", False))
+
+
+def _toggle_dark_mode():
+    """Flips dark_mode in session_state and persists it to user_prefs.json."""
+    new_val = not bool(st.session_state.get("dark_mode", False))
+    st.session_state["dark_mode"] = new_val
+    save_prefs({"dark_mode": new_val})
+
 
 def load_local_css(file_name="style.css"):
-    """Injects the external CSS file into the Streamlit app layout and strips non-breaking spaces."""
+    """Injects the external CSS file into the Streamlit app layout and applies active theme tokens."""
+    _ensure_dark_mode_state()
     css_path = Path(__file__).with_name(file_name)
     if not css_path.exists():
         css_path = Path(file_name)
@@ -58,30 +149,36 @@ def load_local_css(file_name="style.css"):
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     except OSError:
         pass
+    if st.session_state.get("dark_mode", False):
+        st.markdown(_DARK_THEME_OVERRIDE_CSS, unsafe_allow_html=True)
 
 
 def _brand_html():
-    """The logo, a thin divider and the product name (left of the header bar)."""
+    """The logo, a thin orange divider and the product name (left of the header bar)."""
     logo_path = Path(__file__).with_name("vonotec.png")
     if not logo_path.exists():
         logo_path = Path("vonotec.png")
     try:
         logo_base64 = base64.b64encode(logo_path.read_bytes()).decode()
-        logo = f'<img src="data:image/png;base64,{logo_base64}" width="138" alt="VONOTEC">'
+        logo = f'<img src="data:image/png;base64,{logo_base64}" width="132" alt="VONOTEC">'
     except OSError:
         logo = '<span class="brand-text">VONOTEC</span>'
     return f'<div class="brand">{logo}<span class="product-name">Automated Defect Logger</span></div>'
 
 
 def render_header(views):
-    """One white header card with three equal columns: the brand on the left,
-    the view switch (a radio, drawn as two pills) in the middle and the
-    tagline on the right."""
+    """Deep Vonotec Navy header card with three columns: the brand on the left,
+    the view switch (a radio, drawn as two pills) in the middle, and the
+    tagline + Help popover + Dark Mode toggle on the right."""
+    dark_mode = _ensure_dark_mode_state()
+    if dark_mode:
+        st.markdown(_DARK_THEME_OVERRIDE_CSS, unsafe_allow_html=True)
+
     with st.container(key="top_app_header"):
         try:
-            col_left, col_center, col_right = st.columns([1, 1, 1], vertical_alignment="center")
+            col_left, col_center, col_right = st.columns([1.05, 0.9, 1.05], vertical_alignment="center")
         except TypeError:
-            col_left, col_center, col_right = st.columns([1, 1, 1])
+            col_left, col_center, col_right = st.columns([1.05, 0.9, 1.05])
 
         with col_left:
             st.markdown(_brand_html(), unsafe_allow_html=True)
@@ -96,12 +193,19 @@ def render_header(views):
         with col_right:
             st.markdown(
                 '<div class="header-right">'
-                '<span class="header-tagline">Defect Extraction & Repair Analytics</span>'
+                '<span class="header-tagline">Defect Extraction &amp; Repair Analytics</span>'
                 f'<details class="help-pop"><summary>{_ICON_HELP}Help</summary>'
                 f'<div class="help-panel">{_HELP_HTML}</div></details>'
                 '</div>',
                 unsafe_allow_html=True,
             )
+            with st.container(key="theme_toggle"):
+                st.button(
+                    "Light" if dark_mode else "Dark",
+                    key="theme_toggle_btn",
+                    on_click=_toggle_dark_mode,
+                    help="Switch between Light and Dark mode",
+                )
     return view
 
 
@@ -109,7 +213,7 @@ WORKFLOW_STEPS = ("Select photos", "Save destination", "Extract data")
 
 
 def render_stepper(done, current):
-    """A compact "1. Select photos > 2. Save destination > 3. Extract data" line."""
+    """A compact, transparent "1. Select photos > 2. Save destination > 3. Extract data" line."""
     parts = []
     for number, label in enumerate(WORKFLOW_STEPS, start=1):
         state = "done" if number in done else ("current" if number == current else "todo")
