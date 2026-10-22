@@ -175,8 +175,11 @@ header[data-testid="stHeader"] {
 div[data-testid="InputInstructions"],
 section[data-testid="stSidebar"],
 [data-testid="collapsedControl"],
-[data-testid="stExpandSidebarButton"] {
+[data-testid="stExpandSidebarButton"],
+[data-testid="stElementContainer"]:has(> [data-testid="stMarkdownContainer"] > style:only-child) {
   display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* Tier 1: Display & KPI Metrics (26px-28px, Weight 700, Tabular Numerals) */
@@ -313,9 +316,9 @@ h3 {
 }
 
 .st-key-top_app_header [data-testid="stColumn"] > div,
-.st-key-top_app_header [data-testid="stColumn"] [data-testid="stVerticalBlock"],
-.st-key-top_app_header [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-top_app_header [data-testid="stColumn"] [data-testid="stElementContainer"],
+.st-key-top_app_header [data-testid="stColumn"] > [data-testid="stVerticalBlock"],
+.st-key-top_app_header [data-testid="stColumn"] > [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"],
+.st-key-top_app_header [data-testid="stColumn"] [data-testid="stElementContainer"]:not(:has(.st-key-theme_toggle_light)):not(:has(.st-key-theme_toggle_dark)),
 .st-key-top_app_header [data-testid="stColumn"] [data-testid="stMarkdownContainer"] {
   width: 100% !important;
   min-height: 46px !important;
@@ -347,10 +350,14 @@ h3 {
 
 .st-key-top_app_header [data-testid="stColumn"]:nth-child(3),
 .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) > div,
-.st-key-top_app_header [data-testid="stColumn"]:nth-child(3) [data-testid="stVerticalBlock"] {
+.st-key-top_app_header [data-testid="stColumn"]:nth-child(3) > [data-testid="stVerticalBlock"],
+.st-key-top_app_header [data-testid="stColumn"]:nth-child(3) > [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
   justify-content: flex-end !important;
   text-align: right !important;
-  gap: 10px !important;
+  gap: 12px !important;
   flex-wrap: nowrap !important;
 }
 
@@ -358,7 +365,12 @@ h3 {
 .st-key-top_app_header [data-testid="stColumn"]:nth-child(3) [data-testid="stMarkdownContainer"] {
   width: auto !important;
   flex: 0 0 auto !important;
+  min-height: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
   justify-content: flex-end !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .st-key-top_app_header [data-testid="stRadio"],
@@ -385,10 +397,10 @@ h3 {
   display: block;
   height: auto;
   margin: 0 !important;
-  padding: 5px 10px !important;
-  background: #ffffff !important;
-  border-radius: var(--radius-control) !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22) !important;
+  padding: 5px 12px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
 .brand-text {
@@ -420,6 +432,7 @@ h3 {
   height: 46px;
   margin: 0 !important;
   padding: 0 !important;
+  flex-wrap: nowrap;
 }
 
 .header-tagline {
@@ -446,18 +459,21 @@ h3 {
   list-style: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
-  color: var(--text-on-navy) !important;
+  color: #f8fafc !important;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  min-height: 38px;
-  padding: 0 12px;
-  border-radius: var(--radius-control);
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
   user-select: none;
+  white-space: nowrap;
   margin: 0 !important;
   transition: all var(--ease-out-expo);
 }
@@ -520,61 +536,89 @@ h3 {
   margin-bottom: 4px;
 }
 
-/* Header Dark Mode Toggle Button (.st-key-theme_toggle) */
-.st-key-theme_toggle,
-.st-key-theme_toggle div.stButton {
+/* Header Dark / Light Mode Toggle Button (.st-key-theme_toggle_light & .st-key-theme_toggle_dark) */
+.st-key-theme_toggle_light,
+.st-key-theme_toggle_dark,
+.st-key-theme_toggle_light > [data-testid="stVerticalBlock"],
+.st-key-theme_toggle_dark > [data-testid="stVerticalBlock"],
+.st-key-theme_toggle_light [data-testid="stElementContainer"],
+.st-key-theme_toggle_dark [data-testid="stElementContainer"],
+.st-key-theme_toggle_light div.stButton,
+.st-key-theme_toggle_dark div.stButton {
   width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  flex: 0 0 auto !important;
   margin: 0 !important;
+  padding: 0 !important;
   display: inline-flex !important;
+  flex-direction: row !important;
   align-items: center !important;
+  justify-content: flex-end !important;
 }
 
-.st-key-theme_toggle div.stButton > button:first-child {
-  height: 38px !important;
-  min-height: 38px !important;
+.st-key-theme_toggle_light div.stButton > button:first-child,
+.st-key-theme_toggle_dark div.stButton > button:first-child {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
   width: auto !important;
-  padding: 0 12px !important;
+  min-width: 88px !important;
+  border-radius: 8px !important;
   background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: var(--radius-control) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   box-shadow: none !important;
-  color: var(--text-on-navy) !important;
+  color: #f8fafc !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
   transition: all var(--ease-out-expo) !important;
 }
 
-.st-key-theme_toggle div.stButton > button:first-child:hover {
+.st-key-theme_toggle_light div.stButton > button:first-child:hover,
+.st-key-theme_toggle_dark div.stButton > button:first-child:hover {
   background: rgba(249, 115, 22, 0.20) !important;
   border-color: var(--brand-orange-bright) !important;
   transform: translateY(-1px);
 }
 
-.st-key-theme_toggle div.stButton > button:first-child p {
+.st-key-theme_toggle_light div.stButton > button:first-child p,
+.st-key-theme_toggle_dark div.stButton > button:first-child p {
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 6px !important;
-  color: var(--text-on-navy) !important;
-  font-size: 12.5px !important;
+  color: #f8fafc !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
+  line-height: 1 !important;
   white-space: nowrap !important;
   margin: 0 !important;
 }
 
-/* Moon icon when currently in Light mode (button says "Dark") */
-.st-key-theme_toggle div.stButton > button:first-child p::before {
-  content: "";
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%23fb923c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'/%3E%3C/svg%3E");
+.st-key-theme_toggle_light button p::before,
+.st-key-theme_toggle_dark button p::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex: 0 0 16px !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
 }
 
-/* Sun icon when currently in Dark mode (button says "Light") */
-:root:has([data-theme="dark"]) .st-key-theme_toggle div.stButton > button:first-child p::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%23fb923c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2'/%3E%3Cpath d='M12 20v2'/%3E%3Cpath d='m4.93 4.93 1.41 1.41'/%3E%3Cpath d='m17.66 17.66 1.41 1.41'/%3E%3Cpath d='M2 12h2'/%3E%3Cpath d='M20 12h2'/%3E%3Cpath d='m6.34 17.66-1.41 1.41'/%3E%3Cpath d='m19.07 4.93-1.41 1.41'/%3E%3C/svg%3E");
+/* Lucide Sun SVG when in Dark Mode (button label is "Light") */
+.st-key-theme_toggle_light button p::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23fb923c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2'/%3E%3Cpath d='M12 20v2'/%3E%3Cpath d='m4.93 4.93 1.41 1.41'/%3E%3Cpath d='m17.66 17.66 1.41 1.41'/%3E%3Cpath d='M2 12h2'/%3E%3Cpath d='M20 12h2'/%3E%3Cpath d='m6.34 17.66-1.41 1.41'/%3E%3Cpath d='m19.07 4.93-1.41 1.41'/%3E%3C/svg%3E") !important;
+}
+
+/* Lucide Moon SVG when in Light Mode (button label is "Dark") */
+.st-key-theme_toggle_dark button p::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f8fafc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'/%3E%3C/svg%3E") !important;
 }
 
 /* --------------------------------------------------------------------------
