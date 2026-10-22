@@ -65,8 +65,6 @@ _HELP_HTML = (
 )
 
 _DARK_THEME_OVERRIDE_CSS = """
-<div data-theme="dark" style="display:none;"></div>
-<style>
 :root {
   --brand-navy: #2547a8;
   --brand-navy-mid: #1e3a8a;
@@ -79,7 +77,6 @@ _DARK_THEME_OVERRIDE_CSS = """
   --brand-orange-hover: #ea580c;
   --brand-orange-soft: rgba(249, 115, 22, 0.18);
   --brand-orange-tint: rgba(234, 88, 12, 0.12);
-
   --status-success: #22c55e;
   --status-success-bg: rgba(22, 163, 74, 0.18);
   --status-success-border: rgba(34, 197, 94, 0.4);
@@ -89,7 +86,6 @@ _DARK_THEME_OVERRIDE_CSS = """
   --status-danger: #f87171;
   --status-danger-bg: rgba(220, 38, 38, 0.18);
   --status-danger-border: rgba(248, 113, 113, 0.45);
-
   --bg-canvas: linear-gradient(135deg, #060d21 0%, #0f172a 50%, #431407 88%, #7c2d12 100%);
   --surface-header: linear-gradient(90deg, #060d21 0%, #0b1536 55%, #112252 100%);
   --surface-shell: #0f172a;
@@ -103,24 +99,20 @@ _DARK_THEME_OVERRIDE_CSS = """
   --surface-table-row-alt: #162033;
   --surface-table-hover: #1e2d4a;
   --surface-group-row: #172554;
-
   --text-primary: #f8fafc;
   --text-secondary: #e2e8f0;
   --text-body: #cbd5e1;
   --text-muted: #94a3b8;
   --text-on-navy: #f8fafc;
   --text-on-navy-muted: #cbd5e1;
-
   --border-subtle: #334155;
   --border-strong: #475569;
   --border-navy: #1e3a8a;
   --border-shell: rgba(148, 163, 184, 0.18);
-
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 6px 14px -2px rgba(0, 0, 0, 0.45), 0 12px 28px -4px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.55), 0 6px 16px -2px rgba(0, 0, 0, 0.40);
 }
-</style>
 """
 
 
@@ -138,22 +130,32 @@ def _toggle_dark_mode():
     save_prefs({"dark_mode": new_val})
 
 
+def _compact_css(raw_css):
+    """Strips blank lines and leading/trailing spaces so CommonMark never parses indented
+    CSS lines as a <pre><code> block or terminates HTML blocks early."""
+    return " ".join(line.strip() for line in raw_css.splitlines() if line.strip())
+
+
 def load_local_css(file_name="style.css"):
-    """Injects the external CSS file into the Streamlit app layout and applies active theme tokens."""
-    _ensure_dark_mode_state()
+    """Injects the external CSS file into the Streamlit app layout and applies active theme tokens
+    in a single compact <style> block."""
+    dark_mode = _ensure_dark_mode_state()
     css_path = Path(__file__).with_name(file_name)
     if not css_path.exists():
         css_path = Path(file_name)
+    css_parts = []
     try:
         css = css_path.read_text(encoding="utf-8").replace("\u00a0", " ")
-        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+        css_parts.append(_compact_css(css))
     except OSError:
         pass
-    if st.session_state.get("dark_mode", False):
-        st.markdown(_DARK_THEME_OVERRIDE_CSS, unsafe_allow_html=True)
+    if dark_mode:
+        css_parts.append(_compact_css(_DARK_THEME_OVERRIDE_CSS))
+    if css_parts:
+        st.markdown(f"<style>{' '.join(css_parts)}</style>", unsafe_allow_html=True)
 
 
-def _brand_html():
+def _brand_html(dark_mode=False):
     """The logo, a thin orange divider and the product name (left of the header bar)."""
     logo_path = Path(__file__).with_name("vonotec.png")
     if not logo_path.exists():
@@ -163,7 +165,8 @@ def _brand_html():
         logo = f'<img src="data:image/png;base64,{logo_base64}" width="132" alt="VONOTEC">'
     except OSError:
         logo = '<span class="brand-text">VONOTEC</span>'
-    return f'<div class="brand">{logo}<span class="product-name">Automated Defect Logger</span></div>'
+    theme_marker = '<span data-theme="dark" style="display:none;"></span>' if dark_mode else ""
+    return f'<div class="brand">{theme_marker}{logo}<span class="product-name">Automated Defect Logger</span></div>'
 
 
 def render_header(views):
@@ -171,8 +174,6 @@ def render_header(views):
     the view switch (a radio, drawn as two pills) in the middle, and the
     tagline + Help popover + Dark Mode toggle on the right."""
     dark_mode = _ensure_dark_mode_state()
-    if dark_mode:
-        st.markdown(_DARK_THEME_OVERRIDE_CSS, unsafe_allow_html=True)
 
     with st.container(key="top_app_header"):
         try:
@@ -181,7 +182,7 @@ def render_header(views):
             col_left, col_center, col_right = st.columns([1.05, 0.9, 1.05])
 
         with col_left:
-            st.markdown(_brand_html(), unsafe_allow_html=True)
+            st.markdown(_brand_html(dark_mode=dark_mode), unsafe_allow_html=True)
         with col_center:
             view = st.radio(
                 "View",
@@ -199,7 +200,8 @@ def render_header(views):
                 '</div>',
                 unsafe_allow_html=True,
             )
-            with st.container(key="theme_toggle"):
+            toggle_key = "theme_toggle_light" if dark_mode else "theme_toggle_dark"
+            with st.container(key=toggle_key):
                 st.button(
                     "Light" if dark_mode else "Dark",
                     key="theme_toggle_btn",
