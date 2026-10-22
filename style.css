@@ -3,7 +3,8 @@
 
 /* ---------- Font & Page (Crisp Antialiased & Medium Base Weight) ---------- */
 .stApp, .stApp *:not([data-testid="stIconMaterial"]):not([class*="material"]):not(svg):not(svg *) { font-family: "DM Sans", sans-serif !important; -webkit-font-smoothing: antialiased !important; -moz-osx-font-smoothing: grayscale !important; }
-.stApp { background-color: #f4f7f9; color: #1e293b; font-weight: 500; }
+.stApp { background-color: #1e3a8a; background-image: linear-gradient(135deg, #14275f 0%, #1e3a8a 38%, #b9592a 78%, #f97316 100%); background-attachment: fixed; color: #1e293b; font-weight: 500; }
+header[data-testid="stHeader"] [data-testid="stToolbar"], header[data-testid="stHeader"] [data-testid="stToolbar"] button, header[data-testid="stHeader"] [data-testid="stToolbar"] svg { color: #ffffff !important; }
 .stMainBlockContainer, [data-testid="stMainBlockContainer"] { max-width: 1440px; padding: 1.4rem 22px 3rem !important; }
 div[data-testid="InputInstructions"] { display: none !important; }
 
@@ -13,7 +14,7 @@ header[data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] *, [data-testid="collapsedControl"], [data-testid="collapsedControl"] * { color: #1e3a8a !important; fill: #1e3a8a !important; }
 
 /* ---------- Header Card: Brand (Left) | View Switch (Center) | Tagline (Right) - Perfectly Vertically Centered ---------- */
-.st-key-top_app_header { background: #ffffff !important; border: 1px solid rgba(226, 232, 240, 0.9) !important; border-radius: 14px !important; box-shadow: 0 3px 16px rgba(30, 58, 138, 0.05) !important; padding: 12px 26px !important; margin: 0 auto 18px auto !important; max-width: 1440px !important; }
+.st-key-top_app_header { background: #ffffff !important; border: 1px solid rgba(226, 232, 240, 0.9) !important; border-radius: 14px !important; box-shadow: 0 3px 16px rgba(30, 58, 138, 0.05) !important; padding: 12px 26px !important; margin: 0 auto !important; max-width: 1440px !important; }
 .st-key-top_app_header [data-testid="stHorizontalBlock"] { width: 100% !important; min-height: 46px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 1rem !important; margin: 0 !important; padding: 0 !important; }
 .st-key-top_app_header [data-testid="stColumn"], .st-key-top_app_header [data-testid="column"] { flex: 1 1 0% !important; min-width: 0 !important; min-height: 46px !important; display: flex !important; flex-direction: row !important; align-items: center !important; align-self: center !important; margin: 0 !important; padding: 0 !important; }
 .st-key-top_app_header [data-testid="stColumn"] > div, .st-key-top_app_header [data-testid="stColumn"] [data-testid="stVerticalBlock"], .st-key-top_app_header [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"], .st-key-top_app_header [data-testid="stColumn"] [data-testid="stElementContainer"], .st-key-top_app_header [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { width: 100% !important; min-height: 46px !important; display: flex !important; flex-direction: row !important; align-items: center !important; margin: 0 !important; padding: 0 !important; gap: 0 !important; }
@@ -45,12 +46,12 @@ h3 { color: #1e3a8a !important; font-weight: 700 !important; }
 .status-badge.complete > span { background: #16865b; }
 
 /* ---------- Unified Split-Pane Workspace Card ---------- */
-[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: clip !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.6) !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(15, 23, 42, 0.18) !important; overflow: clip !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] { display: flex !important; flex-direction: column !important; align-self: stretch !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] > div, [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"], [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-form_panel), [data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"] [data-testid="stElementContainer"]:has(.st-key-results_panel) { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
 .st-key-form_panel, .st-key-results_panel { flex: 1 1 auto !important; height: 100% !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 28px !important; margin: 0 !important; display: flex !important; flex-direction: column !important; }
-.st-key-form_panel { background: #ffffff !important; }
-.st-key-results_panel { background: #fbfcfe !important; }
+.st-key-form_panel { background: transparent !important; }
+.st-key-results_panel { background: #ffffff !important; }
 .st-key-results_panel, .st-key-results_panel > [data-testid="stVerticalBlock"] { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; height: 100% !important; }
 .st-key-results_panel [data-testid="stElementContainer"]:has(.tip-card) { margin-top: auto !important; padding-top: 20px !important; }
 .st-key-form_panel p, .st-key-dashboard_sidebar p { color: #475569; font-size: 12.5px; font-weight: 500; line-height: 1.55; }
@@ -132,9 +133,9 @@ div.stButton > button:first-child:hover, .stDownloadButton > button:first-child:
 .st-key-chart_dimensions [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child [data-testid="stVerticalBlock"], .st-key-chart_dimensions [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child [data-testid="stElementContainer"] { width: auto !important; display: flex !important; justify-content: flex-end !important; align-items: center !important; margin-left: auto !important; }
 .st-key-download_dimensions_summary { width: auto !important; display: flex !important; justify-content: flex-end !important; margin: 2px 0 0 auto !important; }
 .st-key-download_dimensions_summary .stDownloadButton { width: auto !important; display: flex !important; justify-content: flex-end !important; margin-left: auto !important; }
-.st-key-download_dimensions_summary .stDownloadButton > button:first-child { height: 38px !important; padding: 0 16px !important; width: auto !important; background-color: #ffffff !important; border: 1px solid #cbd8ed !important; border-radius: 8px !important; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important; margin: 0 !important; }
-.st-key-download_dimensions_summary .stDownloadButton > button:first-child p { color: #1e3a8a !important; font-size: 13px !important; font-weight: 700 !important; white-space: nowrap !important; }
-.st-key-download_dimensions_summary .stDownloadButton > button:first-child:hover { background-color: #f2f6fd !important; border-color: #2f5597 !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child { height: 38px !important; padding: 0 18px !important; width: auto !important; background-color: #1e3a8a !important; border: none !important; border-radius: 8px !important; box-shadow: 0 2px 4px rgba(30, 58, 138, 0.25) !important; margin: 0 !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child p { color: #ffffff !important; font-size: 13px !important; font-weight: 700 !important; white-space: nowrap !important; }
+.st-key-download_dimensions_summary .stDownloadButton > button:first-child:hover { background-color: #1e40af !important; }
 
 .st-key-action_buttons { margin-top: 18px; margin-bottom: 4px; }
 .st-key-action_buttons div[data-testid="stHorizontalBlock"] { gap: .5rem !important; justify-content: flex-end !important; flex-wrap: wrap !important; }
@@ -237,13 +238,13 @@ div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary { b
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within, .stApp [data-testid="stTextInput"] [data-baseweb="input"]:focus-within { background-color: #ffffff !important; border-color: #1e3a8a !important; border-top-color: #1e3a8a !important; border-right-color: #1e3a8a !important; border-bottom-color: #1e3a8a !important; border-left-color: #1e3a8a !important; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14) !important; }
 
 /* ---------- Dashboard view: one connected card, controls panel on the left, charts on the right ---------- */
-[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid #e3e9ef !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(30, 58, 138, 0.045) !important; overflow: hidden !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) { gap: 0 !important; align-items: stretch !important; background: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.6) !important; border-radius: 12px !important; box-shadow: 0 4px 22px rgba(15, 23, 42, 0.18) !important; overflow: hidden !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"], [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"] { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; height: 100% !important; min-width: 0 !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"]:nth-child(1), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"]:nth-child(1) { flex: 0 0 22% !important; width: 22% !important; min-width: 240px !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"]:nth-child(2), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="column"]:nth-child(2) { flex: 1 1 0 !important; width: auto !important; }
 [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) > [data-testid="stColumn"] > [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) div:has(.st-key-dashboard_sidebar), [data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) div:has(.st-key-dashboard_main) { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; height: 100% !important; }
-.st-key-dashboard_sidebar { background-color: #fbfcfd !important; border: none !important; border-right: 1px solid #e3e9ef !important; border-radius: 0 !important; padding: 25px 19px !important; height: 100% !important; flex: 1 1 auto !important; }
-.st-key-dashboard_main { background-color: #f7f9fb !important; border: none !important; border-radius: 0 !important; padding: 26px 28px !important; height: 100% !important; flex: 1 1 auto !important; }
+.st-key-dashboard_sidebar { background-color: transparent !important; border: none !important; border-right: 1px solid #e3e9ef !important; border-radius: 0 !important; padding: 25px 19px !important; height: 100% !important; flex: 1 1 auto !important; }
+.st-key-dashboard_main { background-color: #ffffff !important; border: none !important; border-radius: 0 !important; padding: 26px 28px !important; height: 100% !important; flex: 1 1 auto !important; }
 .st-key-dashboard_sidebar .side-title { color: #1e293b !important; font-weight: 700 !important; font-size: 15.5px !important; margin: .75rem 0 .5rem 0 !important; }
 .st-key-dashboard_sidebar div.stButton > button:first-child { height: 38px; }
 section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stExpandSidebarButton"] { display: none !important; }
@@ -262,7 +263,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .st-key-thumbnail_scroll_gallery::-webkit-scrollbar, .st-key-thumbnail_scroll_gallery *::-webkit-scrollbar { width: 8px; }
 .st-key-thumbnail_scroll_gallery::-webkit-scrollbar-thumb, .st-key-thumbnail_scroll_gallery *::-webkit-scrollbar-thumb { background: #c3cfe0; border-radius: 8px; }
 .st-key-thumbnail_scroll_gallery::-webkit-scrollbar-track, .st-key-thumbnail_scroll_gallery *::-webkit-scrollbar-track { background: transparent; }
-[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:last-child { background-color: #fbfcfe !important; border-left: 1px solid #e3e9ef !important; display: flex !important; flex-direction: column !important; }
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:last-child { background-color: #ffffff !important; border-left: 1px solid #e3e9ef !important; display: flex !important; flex-direction: column !important; }
 .card-heading-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .card-heading-right svg { margin-top: 0 !important; }
 .st-key-file_card [data-testid="stHorizontalBlock"] { gap: 10px !important; justify-content: flex-start !important; flex-wrap: wrap !important; }
@@ -276,7 +277,7 @@ section[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid
 .chart-legend { display: inline-flex; align-items: center; margin: 8px 0 14px 0 !important; padding: 6px 12px; background: #ffffff; border: 1px solid #e3e9ef; border-radius: 999px; color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; line-height: 1.4; }
 
 /* ---------- Process from SharePoint: folder card ---------- */
-.st-key-source_card { background: #f7f9fe !important; border: 1px solid #dfe6f1 !important; border-radius: 12px !important; padding: 18px 20px 14px !important; margin: 4px 0 8px 0 !important; box-shadow: none !important; }
+.st-key-source_card { background: #ffffff !important; border: 1px solid #dfe6f1 !important; border-radius: 12px !important; padding: 18px 20px 14px !important; margin: 4px 0 8px 0 !important; box-shadow: none !important; }
 .source-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
 .source-head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .source-icon { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; background: #e2eafb; color: #2f5597; }
@@ -321,7 +322,7 @@ div[data-testid="stToggle"] label p, .st-key-src_recursive label p, .st-key-anal
 [data-testid="stFileUploaderDropzone"]::after, [data-testid="stFileUploadDropzone"]::after { color: #475569 !important; font-size: 12px !important; font-weight: 500 !important; }
 
 /* ---------- Workspace upgrade: stepper, Help link, sticky footer, compact batch results ---------- */
-.workflow-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 14px 2px; }
+.workflow-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding: 12px 26px; background: #ffffff; border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; box-shadow: 0 3px 16px rgba(15, 23, 42, 0.12); }
 .wf-step { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #475569; }
 .wf-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #94a3b8; font-size: 12px; font-weight: 700; color: #475569; background: #ffffff; }
 .wf-current { color: #1e3a8a; }
@@ -450,7 +451,7 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 
 /* ---------- Dashboard Section 2: Bill of Quantities ("Dimensions by defect" table) ---------- */
 .boq-header .eyebrow { margin-bottom: 3px !important; }
-.dim-table-wrap { max-height: 520px; overflow: auto; margin-top: 6px; background-color: #ffffff; border: 1px solid #edf1f5; border-radius: 9px; }
+.dim-table-wrap { max-height: 600px; overflow: auto; margin-top: 16px; background-color: #ffffff; border: 1px solid #edf1f5; border-radius: 9px; }
 .dim-table-wrap table.dim-table { width: 100%; border-collapse: collapse; font-size: 13px; background-color: #ffffff; }
 .dim-table-wrap table.dim-table thead th { position: sticky; top: 0; z-index: 2; background-color: #f1f5f9 !important; color: #475569 !important; font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: 0.04em; text-transform: uppercase; text-align: left !important; padding: 11px 14px !important; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
 .dim-table-wrap table.dim-table thead th .th-unit { color: #94a3b8 !important; font-weight: 600 !important; font-size: 11px !important; margin-left: 3px; }
@@ -490,3 +491,148 @@ details.rs-row[open] .rs-chevron { transform: rotate(90deg); }
 .audit-drawer-body { padding: 0 18px 16px 18px; border-top: 1px solid #edf1f5; }
 .audit-cap-note { margin: 8px 0 0 0 !important; color: #64748b !important; font-size: 12px !important; }
 .boq-chevron { transition: transform 0.18s ease; }
+.dim-table-wrap table.dim-table tbody tr.boq-group td { background-color: #eef3fb !important; color: #1e3a8a !important; font-size: 12.5px !important; font-weight: 700 !important; letter-spacing: 0.04em; text-transform: uppercase; padding: 9px 14px !important; border-top: 1px solid #dbe4f2; border-bottom: 1px solid #dbe4f2; }
+.dim-table-wrap table.dim-table tbody tr.boq-group:hover td { background-color: #eef3fb !important; }
+.boq-group-meta { color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-left: 10px; }
+.data-table-wrap table.data-table td a.file-link { color: #1d4ed8 !important; text-decoration: none; font-weight: 600; }
+.data-table-wrap table.data-table td a.file-link:hover { text-decoration: underline; }
+
+
+/* =====================================================================
+   OVERRIDES (keep this whole block at the very end of the file so it wins)
+   ===================================================================== */
+
+/* ---------- 1. Repair Quantity Summary card: grow with the table (fixes the table leaking out) ---------- */
+div.st-key-chart_dimensions {
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  padding-bottom: 26px !important;
+}
+div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] { height: auto !important; }
+.st-key-chart_dimensions .dim-table-wrap { margin-bottom: 4px; }
+
+/* ---------- 2. Help popup: lift the header (and its popup) above everything below it ---------- */
+.st-key-top_app_header { position: relative !important; z-index: 1000 !important; overflow: visible !important; }
+[data-testid="stElementContainer"]:has(.st-key-top_app_header),
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .st-key-top_app_header) { position: relative !important; z-index: 1000 !important; overflow: visible !important; }
+.help-pop { position: relative; z-index: 1001; }
+.help-panel { z-index: 1002 !important; }
+
+/* ---------- 3. Connected look: one neutral surface across both workspaces ---------- */
+:root {
+  --surface: #ffffff;                          /* shell: solid white so text and numbers stay sharp */
+  --surface-muted: #ffffff;                    /* secondary panes: solid white too */
+  --border: #e3e9ef;
+  --radius-card: 12px;
+  --radius-inner: 10px;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Shell for Extraction and Dashboard: same surface, radius and shadow */
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel),
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) {
+  background: var(--surface) !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* Primary panes: transparent so the shell colour shows evenly */
+.st-key-form_panel,
+.st-key-dashboard_main { background: transparent !important; }
+
+/* Secondary panes: same muted tint, no gradient bleed-through, no seam */
+.st-key-results_panel,
+[data-testid="stHorizontalBlock"]:has(.st-key-form_panel) > [data-testid="stColumn"]:last-child,
+.st-key-dashboard_sidebar { background: var(--surface-muted) !important; }
+
+/* Sticky action bar: no empty white box, but still covers content scrolling underneath */
+.st-key-action_buttons,
+.st-key-form_panel [data-testid="stElementContainer"]:has(.st-key-action_buttons),
+.st-key-form_panel div:has(> .st-key-action_buttons) {
+  background: linear-gradient(to top, var(--surface) 75%, transparent) !important;
+}
+
+/* Inputs: one consistent white style on the muted panes */
+.stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+.stApp [data-testid="stTextInput"] [data-baseweb="input"] {
+  background-color: #ffffff !important;
+  border-color: #d5dde8 !important;
+}
+
+/* ---------- Toggle: keep the OFF state clearly visible ---------- */
+div[data-testid="stToggle"] label > div:first-of-type,
+.st-key-src_recursive label > div:first-of-type,
+.st-key-analytics_hide_unknown label > div:first-of-type,
+div[data-testid="stToggle"] [data-baseweb="checkbox"] > div:first-child {
+  background-color: #94a3b8 !important;      /* darker slate track so it stands out on the lavender pane */
+  border: 1.5px solid #64748b !important;    /* defined edge */
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.15) !important;
+}
+
+/* Knob: white with a soft shadow so it reads against the track */
+div[data-testid="stToggle"] label > div:first-of-type div,
+.st-key-src_recursive label > div:first-of-type div,
+.st-key-analytics_hide_unknown label > div:first-of-type div {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35) !important;
+}
+
+/* ON state: brand blue */
+div[data-testid="stToggle"] label:has(input:checked) > div:first-of-type,
+.st-key-src_recursive label:has(input:checked) > div:first-of-type,
+.st-key-analytics_hide_unknown label:has(input:checked) > div:first-of-type,
+div[data-testid="stToggle"] [data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+  background-color: #2f5597 !important;
+  border-color: #1e3a8a !important;
+}
+
+/* ---------- Action footer: always right-aligned, in every source mode ---------- */
+.st-key-action_buttons,
+.st-key-action_buttons > [data-testid="stVerticalBlock"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  width: 100% !important;
+}
+.st-key-action_buttons [data-testid="stElementContainer"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  width: 100% !important;
+}
+.st-key-action_buttons div.stButton {
+  width: auto !important;
+  margin-left: auto !important;
+}
+.st-key-action_buttons .footer-hint { text-align: right !important; }
+
+/* ---------- Disabled primary button: readable instead of faded ---------- */
+.st-key-action_buttons button:disabled {
+  opacity: 1 !important;
+  background-color: #cbd5e1 !important;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+.st-key-action_buttons button:disabled p { color: #475569 !important; }
+.st-key-action_buttons button:disabled p::before { filter: invert(1) opacity(0.55); }  /* sparkle icon: dark instead of white */
+
+/* ...but keep the in-progress button blue, as before */
+.st-key-action_buttons .st-key-extract_data_running button:disabled,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled {
+  background-color: #1e3a8a !important;
+  border-color: #1e3a8a !important;
+  opacity: 0.8 !important;
+  cursor: progress !important;
+}
+.st-key-action_buttons .st-key-extract_data_running button:disabled p,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled p { color: #ffffff !important; }
+.st-key-action_buttons .st-key-extract_data_running button:disabled p::before,
+.st-key-action_buttons .st-key-fetch_folder_running button:disabled p::before { filter: none; }
+.source-head-right { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.source-site { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: #eaf0fb; border: 1px solid #c7d6f0; color: #1e3a8a; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+.data-table-wrap table.data-table td .flag-code { color: #b45309; font-weight: 800; }
+.data-table-wrap table.data-table td .flag-missing { display: inline-block; padding: 2px 9px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: 12px; font-weight: 800; }

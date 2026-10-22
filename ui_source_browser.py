@@ -21,7 +21,7 @@ from settings import PHOTO_BROWSE_ROOT
 RECURSIVE_KEY = "src_recursive"
 PLACEHOLDER_TOP = "Type to search or select a folder..."
 PLACEHOLDER_SUB = "Type to search subfolder (optional)..."
-LEVELS_PER_ROW = 2     # selectors side by side (the site box takes the first slot)
+LEVELS_PER_ROW = 2     # folder selectors side by side
 MAX_LEVELS = 12        # safety stop for very deep folder trees
 COUNT_CACHE_SECONDS = 180
 
@@ -79,19 +79,19 @@ def _header_html(connected):
         '<span class="source-status"><span></span>Connected</span>' if connected
         else '<span class="source-status error"><span></span>Not connected</span>'
     )
+    # The SharePoint site never changes, so it is a small pill next to the status
+    # and the whole width below is left for the folder fields.
+    status = (
+        '<span class="source-head-right">'
+        f'<span class="source-site" title="SharePoint site">{html.escape(SHAREPOINT_SITE_NAME.upper())}</span>'
+        f'{status}</span>'
+    )
     return (
         '<div class="source-head"><div class="source-head-left">'
         f'<span class="source-icon">{_ICON_FOLDER}</span>'
         '<div><div class="source-title">Choose a SharePoint folder</div>'
         '<div class="source-sub">Click any folder field and type to search, or pick from the list.</div></div>'
         f'</div>{status}</div>'
-    )
-
-
-def _site_box_html():
-    return (
-        '<div class="source-field"><div class="source-field-label">SharePoint site</div>'
-        f'<div class="source-field-box">{html.escape(SHAREPOINT_SITE_NAME.upper())}</div></div>'
     )
 
 
@@ -151,10 +151,7 @@ def render_source_browser():
             st.warning(f"Could not reach SharePoint right now: {connection_error}")
             return [], include_subfolders, 0
 
-        columns = st.columns(LEVELS_PER_ROW, gap="medium")
-        with columns[0]:
-            st.markdown(_site_box_html(), unsafe_allow_html=True)
-
+        columns = None
         for level in range(MAX_LEVELS):
             current = root + selections
             try:
@@ -167,7 +164,7 @@ def render_source_browser():
                     st.caption("No folders were found to choose from.")
                 break
 
-            slot = level + 1  # slot 0 is the SharePoint site box
+            slot = level
             if slot % LEVELS_PER_ROW == 0:
                 columns = st.columns(LEVELS_PER_ROW, gap="medium")
 
