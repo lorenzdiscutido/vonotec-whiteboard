@@ -3,14 +3,14 @@ import os
 import re
 import json
 
-from settings import LOG_FILE, PREFS_FILE
+import settings
 
 
 def load_processed_log():
     """Loads the list of already processed photo fingerprints."""
-    if os.path.exists(LOG_FILE):
+    if os.path.exists(settings.LOG_FILE):
         try:
-            with open(LOG_FILE, "r") as f:
+            with open(settings.LOG_FILE, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
             return []
@@ -19,18 +19,18 @@ def load_processed_log():
 
 def save_processed_log(log_list):
     """Saves the log safely (write to a temp file, then swap it in)."""
-    tmp_path = LOG_FILE + ".tmp"
+    tmp_path = settings.LOG_FILE + ".tmp"
     with open(tmp_path, "w") as f:
         json.dump(log_list, f)
-    os.replace(tmp_path, LOG_FILE)
+    os.replace(tmp_path, settings.LOG_FILE)
 
 
 def load_prefs():
     """The remembered choices (last photo folder, last save folder...) as a dict.
     Returns {} if nothing was saved yet or the file can't be read."""
-    if os.path.exists(PREFS_FILE):
+    if os.path.exists(settings.PREFS_FILE):
         try:
-            with open(PREFS_FILE, "r", encoding="utf-8") as f:
+            with open(settings.PREFS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
         except (json.JSONDecodeError, OSError):
@@ -44,11 +44,11 @@ def save_prefs(updates):
     must not stop a batch."""
     prefs = load_prefs()
     prefs.update(updates)
-    tmp_path = PREFS_FILE + ".tmp"
+    tmp_path = settings.PREFS_FILE + ".tmp"
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(prefs, f, indent=2)
-        os.replace(tmp_path, PREFS_FILE)
+        os.replace(tmp_path, settings.PREFS_FILE)
     except OSError:
         pass
 

@@ -65,8 +65,35 @@ def _retry_wait_seconds(error, attempt):
     return (2 ** attempt) + random.random()
 
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-flash-lite-latest")
+def _get_model():
+    """Lazily configure and retrieve the Gemini model."""
+    global _model_instance
+    if _model_instance is not None:
+        return _model_instance
+    api_key = None
+    try:
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            api_key = st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        api_key = None
+    if not api_key:
+        import os
+        api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        genai.configure(api_key=api_key)
+        _model_instance = genai.GenerativeModel("gemini-flash-lite-latest")
+    return _model_instance
+
+_model_instance = None
+
+class _LazyModelProxy:
+    def __getattr__(self, name):
+        m = _get_model()
+        if m is None:
+            raise RuntimeError("Gemini API key is not configured. Please set GEMINI_API_KEY in Streamlit secrets or environment.")
+        return getattr(m, name)
+
+model = _LazyModelProxy()
 
 
 def _defect_reference_text():

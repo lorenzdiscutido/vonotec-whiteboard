@@ -260,7 +260,7 @@ def list_xlsx_files(subfolder=""):
             name = item.get("name", "")
             if "file" not in item:
                 continue
-            if name.startswith("~\$") or not name.lower().endswith(".xlsx"):
+            if name.startswith("~$") or not name.lower().endswith(".xlsx"):
                 continue
             files.append({
                 "name": name,
