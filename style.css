@@ -275,8 +275,7 @@ h3 {
   z-index: 1000 !important;
   overflow: visible !important;
   background: var(--surface-header) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  border-bottom: 2.5px solid var(--brand-orange-bright) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: var(--radius-shell) !important;
   box-shadow: var(--shadow-lg) !important;
   padding: 12px 24px !important;
@@ -524,7 +523,6 @@ h3 {
   padding: 18px 20px;
   background: var(--surface-card);
   border: 1px solid var(--border-strong);
-  border-top: 3px solid var(--brand-orange-bright);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-lg);
   color: var(--text-primary);
@@ -755,20 +753,26 @@ h3 {
   height: 100% !important;
 }
 
+/* Dashboard shell: inset padding + gap so the sidebar floats as a fully rounded card */
+[data-testid="stHorizontalBlock"]:has(.st-key-dashboard_sidebar) {
+  padding: 12px !important;
+  gap: 12px !important;
+}
+
 .st-key-dashboard_sidebar {
   background: var(--surface-sidebar) !important;
-  border: none !important;
-  border-right: 2px solid var(--brand-orange-bright) !important;
-  border-radius: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
   padding: 24px 20px !important;
   height: 100% !important;
   flex: 1 1 auto !important;
+  box-shadow: var(--shadow-md) !important;
 }
 
 .st-key-dashboard_main {
   background: var(--surface-panel-primary) !important;
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: 14px !important;
   padding: 28px !important;
   height: 100% !important;
   flex: 1 1 auto !important;
@@ -835,7 +839,7 @@ h3 {
   color: #ffffff !important;
 }
 
-/* Inner Cards with Prominent Navy & Orange Top Accent Borders */
+/* Inner Cards: clean uniform 1px perimeter border */
 .st-key-save_settings,
 .st-key-save_settings_muted,
 .st-key-file_card,
@@ -843,16 +847,9 @@ h3 {
 [class*="st-key-chart_"] {
   background: var(--surface-card) !important;
   border: 1px solid var(--border-subtle) !important;
-  border-top: 3px solid var(--brand-navy) !important;
   border-radius: var(--radius-card) !important;
   box-shadow: var(--shadow-sm) !important;
   transition: box-shadow var(--ease-out-expo), border-color var(--ease-out-expo);
-}
-
-/* Featured Cards with Vibrant Safety Orange Top Border */
-.st-key-save_settings,
-div.st-key-chart_dimensions {
-  border-top: 3px solid var(--brand-orange-bright) !important;
 }
 
 .st-key-save_settings,
@@ -864,7 +861,6 @@ div.st-key-chart_dimensions {
 .st-key-save_settings_muted {
   opacity: 0.52 !important;
   background: var(--surface-elevated) !important;
-  border-top: 3px solid var(--border-strong) !important;
   pointer-events: none !important;
   user-select: none !important;
 }
@@ -1040,7 +1036,6 @@ div.st-key-chart_dimensions {
   gap: 14px;
   align-items: center;
   border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--brand-navy);
   border-radius: var(--radius-card);
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
@@ -1141,7 +1136,6 @@ div.st-key-chart_dimensions {
   gap: 12px;
   align-items: flex-start;
   border: 1px solid var(--status-warn-border);
-  border-left: 4px solid var(--brand-orange-bright);
   border-radius: var(--radius-card);
   background: var(--brand-orange-tint);
   color: var(--text-primary);
@@ -1170,7 +1164,6 @@ div.st-key-chart_dimensions {
 .tip-card-ok {
   background: var(--status-success-bg) !important;
   border-color: var(--status-success-border) !important;
-  border-left: 4px solid var(--status-success) !important;
 }
 
 .tip-icon-ok {
@@ -1319,17 +1312,11 @@ div.st-key-chart_dimensions {
   font-weight: 700 !important;
 }
 
+/* No orange underline bar inside the active pill: the filled background is enough */
 .stApp [data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked)::after,
 .stApp [data-testid="stRadio"] div[role="radiogroup"] label:has(input[aria-checked="true"])::after {
-  content: "" !important;
-  position: absolute !important;
-  right: 14px !important;
-  bottom: 3px !important;
-  left: 14px !important;
-  height: 2.5px !important;
-  border-radius: 2px !important;
-  background-color: var(--brand-orange-bright) !important;
-  display: block !important;
+  display: none !important;
+  content: none !important;
 }
 
 .stApp [data-testid="stRadio"] div[role="radiogroup"] label::before {
@@ -1597,8 +1584,7 @@ div.stButton > button:first-child:active:not(:disabled),
 
 .st-key-file_card .stDownloadButton > button:first-child {
   background-color: var(--brand-navy) !important;
-  border: 1px solid var(--brand-navy) !important;
-  border-bottom: 2.5px solid var(--brand-orange-bright) !important;
+  border: 1px solid var(--border-subtle) !important;
   width: auto !important;
 }
 
@@ -1775,8 +1761,7 @@ div[data-testid="stFileUploader"] {
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
-  border: 2px dashed var(--brand-navy) !important;
-  border-top: 3px solid var(--brand-orange-bright) !important;
+  border: 2px dashed var(--border-strong, #cbd5e1) !important;
   border-radius: var(--radius-card) !important;
   background-color: var(--surface-panel-secondary) !important;
   text-align: center !important;
@@ -2165,7 +2150,6 @@ div[data-testid="stExpander"] summary {
   padding: 10px 14px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border-subtle);
-  border-top: 3px solid var(--brand-navy);
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
 }
@@ -2185,17 +2169,17 @@ div[data-testid="stExpander"] summary {
 }
 
 .rs-metric-added {
-  border-top-color: var(--status-success);
+  border-color: var(--status-success-border);
   background: var(--status-success-bg);
 }
 
 .rs-metric-review {
-  border-top-color: var(--brand-orange-bright);
+  border-color: var(--status-warn-border);
   background: var(--status-warn-bg);
 }
 
 .rs-metric-failed {
-  border-top-color: var(--status-danger);
+  border-color: var(--status-danger-border);
   background: var(--status-danger-bg);
 }
 
@@ -2223,15 +2207,15 @@ div[data-testid="stExpander"] summary {
 }
 
 .rs-row-added {
-  border-left: 4px solid var(--status-success);
+  border-color: var(--status-success-border);
 }
 
 .rs-row-review {
-  border-left: 4px solid var(--brand-orange-bright);
+  border-color: var(--status-warn-border);
 }
 
 .rs-row-failed {
-  border-left: 4px solid var(--status-danger);
+  border-color: var(--status-danger-border);
 }
 
 details.rs-row:hover,
@@ -2373,8 +2357,7 @@ details.rs-row[open] .rs-chevron {
   padding: 20px;
   margin-bottom: 16px;
   background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-top: 3px solid var(--brand-navy);
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
   height: 100%;
@@ -2387,8 +2370,11 @@ details.rs-row[open] .rs-chevron {
   box-shadow: var(--shadow-md);
 }
 
+.kpi-blue,
+.kpi-teal,
+.kpi-green,
 .kpi-orange {
-  border-top: 3px solid var(--brand-orange-bright) !important;
+  border: 1px solid var(--border-subtle) !important;
 }
 
 .kpi-icon {
@@ -2464,8 +2450,7 @@ details.rs-row[open] .rs-chevron {
 .review-banner {
   margin: 4px 0 16px 0;
   background: var(--brand-orange-tint);
-  border: 1px solid var(--status-warn-border);
-  border-left: 4px solid var(--brand-orange-bright);
+  border: 1px solid var(--status-warn-border) !important;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -2650,7 +2635,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   text-transform: uppercase;
   text-align: left !important;
   padding: 12px 14px !important;
-  border-bottom: 2px solid var(--brand-orange-bright);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   white-space: nowrap;
 }
 
@@ -2675,7 +2660,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   background-color: var(--surface-table-hover) !important;
 }
 
-/* Material Group Banner Row with Left Orange Accent Bar & Navy Surface */
+/* Material Group Banner Row: navy-tinted surface, no side accent bar */
 .dim-table-wrap table.dim-table tbody tr.boq-group td {
   background-color: var(--surface-group-row) !important;
   color: var(--brand-navy) !important;
@@ -2684,7 +2669,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 10px 14px !important;
-  border-left: 4px solid var(--brand-orange-bright) !important;
+  border-left: none !important;
   border-top: 1px solid var(--border-navy);
   border-bottom: 1px solid var(--border-navy);
 }
@@ -2744,7 +2729,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   font-size: 13.5px !important;
   font-weight: 700 !important;
   padding: 12px 14px !important;
-  border-top: 2px solid var(--brand-navy);
+  border-top: 1px solid var(--border-strong);
 }
 
 /* Section 3: Location Analysis & Chart Cards */
@@ -2837,8 +2822,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
 .audit-drawer {
   margin-top: 16px;
   background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-top: 3px solid var(--brand-navy);
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -2950,7 +2934,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   letter-spacing: 0.05em;
   text-align: left !important;
   padding: 10px 12px !important;
-  border-bottom: 2px solid var(--brand-orange-bright);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   white-space: nowrap;
 }
 
