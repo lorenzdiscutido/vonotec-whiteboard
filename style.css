@@ -226,14 +226,24 @@ h3 {
 
 /* Tier 3: Body & Controls (14px, Weight 500, Line-Height 1.5) */
 .instruction-text,
-.status-msg,
+.status-msg {
+  color: var(--text-primary) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
+
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] div,
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] span,
 .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] div,
 .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] span,
 .stApp [data-testid="stTextInput"] input,
+.stApp [data-testid="stTextInputField"],
+.st-key-batch_name_input input,
 .stApp [data-baseweb="select"] input {
-  color: var(--text-primary) !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a !important;
   font-size: 14px !important;
   font-weight: 500 !important;
   line-height: 1.5 !important;
@@ -1420,10 +1430,14 @@ label[data-testid="stWidgetLabel"] p {
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
 .stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div,
 .stApp [data-testid="stTextInput"] [data-baseweb="input"] > div,
-.stApp [data-testid="stTextInput"] input {
+.stApp [data-testid="stTextInput"] input,
+.stApp [data-testid="stTextInputField"],
+.st-key-batch_name_input input {
   background-color: transparent !important;
   border: none !important;
-  color: var(--text-primary) !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a !important;
   font-size: 14px !important;
   font-weight: 500 !important;
 }
@@ -1431,7 +1445,7 @@ label[data-testid="stWidgetLabel"] p {
 .stApp [data-testid="stSelectbox"] [data-baseweb="select"] input {
   caret-color: var(--brand-orange-bright) !important;
   cursor: text !important;
-  color: var(--text-primary) !important;
+  color: #0f172a !important;
 }
 
 .stApp div[data-baseweb="select"] svg {
