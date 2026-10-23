@@ -48,6 +48,12 @@ from dashboard_loader import start_warmup_if_due
 from pathlib import Path
 from PIL import Image
 
+def load_css():
+    css_path = Path(__file__).parent / "style.css"
+    with open(css_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+load_css()
+
 VIEW_EXTRACTION = "Extraction"
 VIEW_DASHBOARD = "Dashboard"
 
