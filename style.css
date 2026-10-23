@@ -2635,7 +2635,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   text-transform: uppercase;
   text-align: left !important;
   padding: 12px 14px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid var(--border-strong, #cbd5e1) !important;
   white-space: nowrap;
 }
 
@@ -2651,7 +2651,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   color: var(--text-body) !important;
   font-weight: 500 !important;
   padding: 11px 14px !important;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle, #edf1f5) !important;
   vertical-align: middle;
   white-space: nowrap;
 }
@@ -2670,8 +2670,8 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   text-transform: uppercase;
   padding: 10px 14px !important;
   border-left: none !important;
-  border-top: 1px solid var(--border-navy);
-  border-bottom: 1px solid var(--border-navy);
+  border-top: 1px solid var(--border-subtle, #dbe4f2) !important;
+  border-bottom: 1px solid var(--border-subtle, #dbe4f2) !important;
 }
 
 :root:has([data-theme="dark"]) .dim-table-wrap table.dim-table tbody tr.boq-group td {
@@ -2729,7 +2729,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   font-size: 13.5px !important;
   font-weight: 700 !important;
   padding: 12px 14px !important;
-  border-top: 1px solid var(--border-strong);
+  border-top: 1.5px solid var(--border-strong, #cbd5e1) !important;
 }
 
 /* Section 3: Location Analysis & Chart Cards */
@@ -2934,7 +2934,7 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   letter-spacing: 0.05em;
   text-align: left !important;
   padding: 10px 12px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid var(--border-strong, #cbd5e1) !important;
   white-space: nowrap;
 }
 
@@ -2943,8 +2943,31 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   color: var(--text-body) !important;
   font-weight: 500 !important;
   padding: 9px 12px !important;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle, #edf1f5) !important;
   white-space: nowrap;
+}
+
+/* Summary Table & Audit Log Table Headers */
+.dim-table-wrap table.dim-table thead th,
+.data-table-wrap table.data-table th {
+  border-bottom: 1px solid var(--border-strong, #cbd5e1) !important;
+}
+
+/* Summary Table & Audit Log Table Body Cells */
+.dim-table-wrap table.dim-table tbody td,
+.data-table-wrap table.data-table td {
+  border-bottom: 1px solid var(--border-subtle, #edf1f5) !important;
+}
+
+/* Material Group Header Rows (e.g. CONCRETE, SEALANT) */
+.dim-table-wrap table.dim-table tbody tr.boq-group td {
+  border-top: 1px solid var(--border-subtle, #dbe4f2) !important;
+  border-bottom: 1px solid var(--border-subtle, #dbe4f2) !important;
+}
+
+/* Summary Table Footer (Portfolio Total) */
+.dim-table-wrap table.dim-table tfoot td {
+  border-top: 1.5px solid var(--border-strong, #cbd5e1) !important;
 }
 
 .data-table-wrap table.data-table tbody tr:nth-child(even) td {
