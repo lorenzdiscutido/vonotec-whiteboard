@@ -1,11 +1,19 @@
 # pptx_writer.py
 """Generates a PowerPoint (.pptx) report from chronologically sorted daily photo chunks.
 
-Loads `template.pptx` (when present), resizes high-resolution photos in memory using PIL
-(`Image.thumbnail`, max width 1024px) so original files are untouched and the
-presentation stays lightweight, and lays each chunk out as up to 6 PORTRAIT photos
-side by side, evenly spaced, with the extracted metadata (Date, Drop, Floor, Defect)
-captioned under each photo. The day's date goes into the slide title.
+Loads `template.pptx` (or creates a 16:9 presentation), resizes high-resolution photos
+in memory using PIL (`Image.thumbnail`, max width 1024px) so original files are untouched
+and the presentation stays lightweight.
+
+Each slide features an architectural/engineering drawing sheet title block:
+- Left-most cell: VONOTEC Logo
+- Right-most cell:
+    CREATED BY: MARJORIE BELOY
+    CHECKED BY: ANNA CAOILE
+    APPROVED BY:
+- Cell 2: Date
+- Upper content area: Up to 6 portrait photos arranged side by side with even spacing
+  and metadata captions (Date, Drop, Floor, Defect) underneath each photo.
 """
 import io
 import os
@@ -13,7 +21,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 from pptx import Presentation
-from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE, PP_PLACEHOLDER
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
@@ -25,19 +34,35 @@ JPEG_QUALITY = 85
 # orientation is applied is turned 90° clockwise (how most phones store sideways shots).
 FORCE_PORTRAIT = True
 
-# --- Slide grid (up to 6 portrait slots in one row) ---
+# --- Slide & Sheet Title Block Geometry ---
 SLOTS_PER_SLIDE = 6
 PORTRAIT_RATIO = 4 / 3          # frame height / width (typical phone photo 3:4)
-SIDE_MARGIN = Inches(0.5)       # left / right slide margin
-SLOT_GAP = Inches(0.28)         # space between neighbouring photos
-TITLE_TOP = Inches(0.3)
-TITLE_HEIGHT = Inches(0.7)
-PHOTO_TOP = Inches(1.15)        # photos start below the title
-CAPTION_GAP = Inches(0.12)      # space between a photo and its caption
+
+BORDER_MARGIN_X = Inches(0.25)
+BORDER_MARGIN_Y = Inches(0.20)
+BORDER_WIDTH = Inches(12.833)
+BORDER_HEIGHT = Inches(7.10)
+LINE_COLOR = RGBColor(0, 0, 0)
+LINE_WIDTH = Pt(1.5)
+
+TB_TOP = Inches(6.25)
+TB_HEIGHT = BORDER_MARGIN_Y + BORDER_HEIGHT - TB_TOP
+
+# Vertical divider X-positions
+DIVIDER_X_POSITIONS = (Inches(3.34), Inches(7.49), Inches(9.02), Inches(11.23))
+
+TITLE_BLOCK_CREATED_BY = "CREATED BY: MARJORIE BELOY"
+TITLE_BLOCK_CHECKED_BY = "CHECKED BY: ANNA CAOILE"
+TITLE_BLOCK_APPROVED_BY = "APPROVED BY:"
+
+# Upper Photo Grid
+CONTENT_LEFT = BORDER_MARGIN_X + Inches(0.35)
+CONTENT_WIDTH = BORDER_WIDTH - Inches(0.70)
+PHOTO_TOP = Inches(0.55)
+SLOT_GAP = Inches(0.26)
+CAPTION_GAP = Inches(0.12)
 CAPTION_HEIGHT = Inches(1.35)
-BOTTOM_MARGIN = Inches(0.3)
 CAPTION_FONT_SIZE = Pt(9.5)
-TITLE_FONT_SIZE = Pt(22)
 
 MATERIALS = ("Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass")
 
@@ -111,42 +136,96 @@ def _extract_metadata(photo_item, chunk_date=""):
     return date_str, drop_str, floor_str, defect_str
 
 
-# ---------------------------------------------------------------------------
-# Layout
-# ---------------------------------------------------------------------------
-
-def _select_slide_layout(prs):
-    """Picks a template layout with a title and no picture/body placeholders ("Title Only"),
-    falling back to a blank layout, then to the layout with the fewest placeholders."""
-    layouts = list(prs.slide_layouts)
-    if not layouts:
-        raise RuntimeError("The PowerPoint template contains no slide layouts.")
-
-    for layout in layouts:
-        if layout.name.strip().lower() == "title only":
-            return layout
-    for layout in layouts:
-        if layout.name.strip().lower() == "blank":
-            return layout
-    return min(layouts, key=lambda layout: len(layout.placeholders))
+def _get_logo_path():
+    """Finds the best available Vonotec banner logo asset."""
+    base_dir = Path(__file__).parent
+    candidates = [
+        base_dir / "vonotec_crisp_logo.png",
+        base_dir / "vonotec_slide_logo.png",
+        base_dir / "vonotec.png",
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path)
+    return None
 
 
-def _slot_geometry(slide_width, slide_height, photo_count):
-    """Returns one (left, top, width, height) portrait frame per photo, plus the caption top.
+def _draw_sheet_title_block(slide, chunk_date=""):
+    """Draws the architectural sheet border and bottom title block on `slide`:
+    - Outer border rectangle
+    - Title block horizontal line
+    - 4 vertical dividers creating 5 cells
+    - Left-most cell: VONOTEC logo
+    - Cell 2: Date
+    - Right-most cell: Created by, Checked by, Approved by
+    """
+    # 1. Outer Border
+    rect = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, BORDER_MARGIN_X, BORDER_MARGIN_Y, BORDER_WIDTH, BORDER_HEIGHT)
+    rect.fill.background()
+    rect.line.color.rgb = LINE_COLOR
+    rect.line.width = LINE_WIDTH
 
-    Frames are sized for SLOTS_PER_SLIDE photos in one row so every slide uses the same photo
-    size; when a chunk has fewer photos the row is centred horizontally."""
-    usable_width = slide_width - 2 * SIDE_MARGIN - (SLOTS_PER_SLIDE - 1) * SLOT_GAP
-    slot_w = usable_width / SLOTS_PER_SLIDE
+    # 2. Horizontal divider for the bottom title block
+    h_line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, BORDER_MARGIN_X, TB_TOP, BORDER_WIDTH, Pt(1.5))
+    h_line.fill.solid()
+    h_line.fill.fore_color.rgb = LINE_COLOR
+    h_line.line.fill.background()
 
-    usable_height = slide_height - PHOTO_TOP - CAPTION_GAP - CAPTION_HEIGHT - BOTTOM_MARGIN
+    # 3. Vertical divider lines
+    for dx in DIVIDER_X_POSITIONS:
+        v_line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, dx, TB_TOP, Pt(1.5), TB_HEIGHT)
+        v_line.fill.solid()
+        v_line.fill.fore_color.rgb = LINE_COLOR
+        v_line.line.fill.background()
+
+    # 4. Cell 1 (Left-most): VONOTEC Logo
+    logo_path = _get_logo_path()
+    if logo_path:
+        slide.shapes.add_picture(logo_path, Inches(0.55), Inches(6.38), width=Inches(2.5), height=Inches(0.75))
+
+    # 5. Cell 2: Date label
+    if chunk_date:
+        cell2_box = slide.shapes.add_textbox(Inches(3.45), Inches(6.35), Inches(3.95), TB_HEIGHT - Inches(0.2))
+        c2_tf = cell2_box.text_frame
+        c2_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        c2_tf.word_wrap = True
+        c2_p = c2_tf.paragraphs[0]
+        c2_p.alignment = PP_ALIGN.CENTER
+        c2_run = c2_p.add_run()
+        c2_run.text = f"DATE: {str(chunk_date).upper()}"
+        c2_run.font.bold = True
+        c2_run.font.size = Pt(13)
+        c2_run.font.color.rgb = RGBColor(0, 55, 109)
+
+    # 6. Cell 5 (Right-most): Sign-off block
+    cell5_box = slide.shapes.add_textbox(Inches(11.28), Inches(6.28), Inches(1.75), TB_HEIGHT - Inches(0.08))
+    c5_tf = cell5_box.text_frame
+    c5_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    c5_tf.word_wrap = True
+    c5_tf.margin_left = c5_tf.margin_right = c5_tf.margin_top = c5_tf.margin_bottom = Emu(0)
+
+    lines_c5 = [
+        TITLE_BLOCK_CREATED_BY,
+        TITLE_BLOCK_CHECKED_BY,
+        TITLE_BLOCK_APPROVED_BY,
+    ]
+    for idx, line_text in enumerate(lines_c5):
+        p = c5_tf.paragraphs[0] if idx == 0 else c5_tf.add_paragraph()
+        r = p.add_run()
+        r.text = line_text
+        r.font.size = Pt(8.5)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(30, 30, 30)
+
+
+def _slot_geometry(photo_count):
+    """Calculates coordinates for up to SLOTS_PER_SLIDE portrait photo slots inside the sheet content area.
+    When a chunk has fewer than 6 photos, the row is centered horizontally."""
+    slot_w = (CONTENT_WIDTH - (SLOTS_PER_SLIDE - 1) * SLOT_GAP) / SLOTS_PER_SLIDE
     slot_h = slot_w * PORTRAIT_RATIO
-    if slot_h > usable_height:  # short slides (e.g. 4:3) -> shrink to fit
-        slot_h = usable_height
-        slot_w = slot_h / PORTRAIT_RATIO
 
     row_width = photo_count * slot_w + (photo_count - 1) * SLOT_GAP
-    start_left = (slide_width - row_width) / 2
+    start_left = CONTENT_LEFT + (CONTENT_WIDTH - row_width) / 2
 
     frames = []
     for i in range(photo_count):
@@ -157,53 +236,20 @@ def _slot_geometry(slide_width, slide_height, photo_count):
 
 
 def _fit_inside(frame, img_w, img_h):
-    """Largest (left, top, width, height) with the image's aspect ratio that fits inside the
-    frame, centred, so photos are never cropped or stretched."""
+    """Centers and scales the image inside the target frame while preserving its aspect ratio."""
     left, top, frame_w, frame_h = frame
     scale = min(frame_w / img_w, frame_h / img_h)
     pic_w, pic_h = int(img_w * scale), int(img_h * scale)
     return left + (frame_w - pic_w) // 2, top + (frame_h - pic_h) // 2, pic_w, pic_h
 
 
-def _clear_unused_placeholders(slide, keep=()):
-    """Removes empty placeholders (e.g. 'Click to add text') that the layout put on the slide."""
+def _clear_unused_placeholders(slide):
+    """Removes leftover template text placeholders so they don't cover drawing content."""
     for ph in list(slide.placeholders):
-        if ph in keep:
-            continue
-        ph._element.getparent().remove(ph._element)
-
-
-def _set_title(slide, prs, chunk_date):
-    """Writes the day's date into the title placeholder, or into a textbox if there is none."""
-    title_text = f"Date: {chunk_date}" if chunk_date else "Photo Report"
-    title = slide.shapes.title
-    if title is None:
-        for ph in slide.placeholders:
-            if ph.placeholder_format.type in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE):
-                title = ph
-                break
-
-    if title is not None:
-        title.text = title_text
-        # Keep the title clear of the photo row (and inside the slide on widescreen decks)
-        overlaps_photos = (title.top or 0) + (title.height or 0) > PHOTO_TOP
-        too_wide = (title.left or 0) + (title.width or 0) > prs.slide_width
-        if overlaps_photos or too_wide:
-            title.left, title.top = SIDE_MARGIN, TITLE_TOP
-            title.width, title.height = prs.slide_width - 2 * SIDE_MARGIN, TITLE_HEIGHT
-            for paragraph in title.text_frame.paragraphs:
-                paragraph.alignment = PP_ALIGN.LEFT
-                for run in paragraph.runs:
-                    run.font.size = TITLE_FONT_SIZE
-                    run.font.bold = True
-        return title
-
-    box = slide.shapes.add_textbox(SIDE_MARGIN, TITLE_TOP, prs.slide_width - 2 * SIDE_MARGIN, TITLE_HEIGHT)
-    tf = box.text_frame
-    tf.text = title_text
-    tf.paragraphs[0].runs[0].font.size = TITLE_FONT_SIZE
-    tf.paragraphs[0].runs[0].font.bold = True
-    return None
+        try:
+            ph._element.getparent().remove(ph._element)
+        except Exception:
+            pass
 
 
 def _add_caption(slide, left, top, width, date_str, drop_str, floor_str, defect_str):
@@ -232,13 +278,13 @@ def _add_caption(slide, left, top, width, date_str, drop_str, floor_str, defect_
         value_run.font.size = CAPTION_FONT_SIZE
 
 
-def _inject_chunk_into_slide(slide, prs, chunk_items, chunk_date=""):
-    """Places up to 6 portrait photos side by side with their metadata captions."""
-    title = _set_title(slide, prs, chunk_date)
-    _clear_unused_placeholders(slide, keep=(title,) if title is not None else ())
+def _inject_chunk_into_slide(slide, chunk_items, chunk_date=""):
+    """Draws the title block and places up to 6 portrait photos side by side with their metadata captions."""
+    _clear_unused_placeholders(slide)
+    _draw_sheet_title_block(slide, chunk_date=chunk_date)
 
     items = list(chunk_items)[:SLOTS_PER_SLIDE]
-    frames, caption_top = _slot_geometry(prs.slide_width, prs.slide_height, len(items))
+    frames, caption_top = _slot_geometry(len(items))
 
     for item, frame in zip(items, frames):
         date_str, drop_str, floor_str, defect_str = _extract_metadata(item, chunk_date)
@@ -251,6 +297,17 @@ def _inject_chunk_into_slide(slide, prs, chunk_items, chunk_date=""):
 
         frame_left, _frame_top, frame_w, _frame_h = frame
         _add_caption(slide, frame_left, caption_top, frame_w, date_str, drop_str, floor_str, defect_str)
+
+
+def _select_blank_layout(prs):
+    """Selects the cleanest layout available (blank or fewest placeholders)."""
+    layouts = list(prs.slide_layouts)
+    if not layouts:
+        raise RuntimeError("The PowerPoint template contains no slide layouts.")
+    for layout in layouts:
+        if layout.name.strip().lower() == "blank":
+            return layout
+    return min(layouts, key=lambda layout: len(layout.placeholders))
 
 
 def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH):
@@ -274,7 +331,13 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
         prs.slide_width = Inches(13.333)
         prs.slide_height = Inches(7.5)
 
-    layout = _select_slide_layout(prs)
+    # Clean out any initial dummy slides in template so only real batch slides are exported
+    while len(prs.slides) > 0:
+        rId = prs.slides._sldIdLst[0].rId
+        prs.part.drop_rel(rId)
+        del prs.slides._sldIdLst[0]
+
+    layout = _select_blank_layout(prs)
 
     for chunk_entry in daily_chunks:
         if isinstance(chunk_entry, dict):
@@ -288,7 +351,7 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
             continue
 
         slide = prs.slides.add_slide(layout)
-        _inject_chunk_into_slide(slide, prs, chunk_photos, chunk_date=chunk_date)
+        _inject_chunk_into_slide(slide, chunk_photos, chunk_date=chunk_date)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     prs.save(str(output_path))
