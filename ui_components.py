@@ -175,11 +175,16 @@ def render_header(views=None):
     tagline + Help popover + Dark Mode toggle on the right."""
     dark_mode = _ensure_dark_mode_state()
 
+    # style.css lays the header out as 4 columns (brand | center | right-aligned tagline + Help |
+    # 44px theme toggle). The center column is kept as an empty spacer so the tagline, Help
+    # and the dark-mode toggle stay pinned to the right edge.
     with st.container(key="top_app_header"):
         try:
-            col_left, col_right, col_theme = st.columns([1.4, 1.5, 0.10], vertical_alignment="center")
+            col_left, _col_spacer, col_right, col_theme = st.columns(
+                [1.0, 0.5, 1.4, 0.10], vertical_alignment="center"
+            )
         except TypeError:
-            col_left, col_right, col_theme = st.columns([1.4, 1.5, 0.10])
+            col_left, _col_spacer, col_right, col_theme = st.columns([1.0, 0.5, 1.4, 0.10])
 
         with col_left:
             st.markdown(_brand_html(dark_mode=dark_mode), unsafe_allow_html=True)

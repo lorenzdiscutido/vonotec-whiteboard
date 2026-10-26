@@ -1,10 +1,11 @@
 # pptx_writer.py
 """Generates a PowerPoint (.pptx) report from chronologically sorted daily photo chunks.
 
-Loads `template.pptx`, resizes high-resolution photos in memory using PIL
+Loads `template.pptx` (when present), resizes high-resolution photos in memory using PIL
 (`Image.thumbnail`, max width 1024px) so original files are untouched and the
-presentation stays lightweight, and injects both images and extracted metadata
-(Date, Drop, Floor, Defect) into each slide's placeholders.
+presentation stays lightweight, and lays each chunk out as up to 4 PORTRAIT photos
+side by side, evenly spaced, with the extracted metadata (Date, Drop, Floor, Defect)
+captioned under each photo. The day's date goes into the slide title.
 """
 import io
 import os
@@ -13,19 +14,38 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from pptx import Presentation
 from pptx.enum.shapes import PP_PLACEHOLDER
-from pptx.util import Inches, Pt
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.util import Emu, Inches, Pt
 
 TEMPLATE_PATH = Path(__file__).with_name("template.pptx")
-SLIDE_LAYOUT_INDEX = 0
 MAX_IMAGE_WIDTH = 1024
 JPEG_QUALITY = 85
+
+# Phone photos are shown in portrait. A photo that is still landscape after its EXIF
+# orientation is applied is turned 90° clockwise (how most phones store sideways shots).
+FORCE_PORTRAIT = True
+
+# --- Slide grid (4 portrait slots in one row) ---
+SLOTS_PER_SLIDE = 4
+PORTRAIT_RATIO = 4 / 3          # frame height / width (typical phone photo 3:4)
+SIDE_MARGIN = Inches(0.6)       # left / right slide margin
+SLOT_GAP = Inches(0.45)         # space between neighbouring photos
+TITLE_TOP = Inches(0.3)
+TITLE_HEIGHT = Inches(0.7)
+PHOTO_TOP = Inches(1.15)        # photos start below the title
+CAPTION_GAP = Inches(0.12)      # space between a photo and its caption
+CAPTION_HEIGHT = Inches(1.15)
+BOTTOM_MARGIN = Inches(0.3)
+CAPTION_FONT_SIZE = Pt(10.5)
+TITLE_FONT_SIZE = Pt(24)
 
 MATERIALS = ("Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass")
 
 
-def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH):
-    """Resizes a raw image in memory using PIL `Image.thumbnail` (max width 1024px)
-    and returns a seeked `io.BytesIO` JPEG stream ready for python-pptx."""
+def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH, force_portrait=FORCE_PORTRAIT):
+    """Resizes a raw image in memory using PIL `Image.thumbnail` (max width 1024px), turning
+    it to portrait when needed. Returns (jpeg_stream, width_px, height_px); the stream is a
+    seeked `io.BytesIO` ready for python-pptx. The original bytes/file are never modified."""
     if isinstance(image_source, (bytes, bytearray)):
         src_stream = io.BytesIO(image_source)
     elif hasattr(image_source, "read"):
@@ -36,19 +56,19 @@ def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH):
 
     with Image.open(src_stream) as img:
         img = ImageOps.exif_transpose(img)
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-        elif img.mode == "L":
+        if img.mode != "RGB":
             img = img.convert("RGB")
 
-        # Proportional in-memory downscaling capped at max_width (1024px)
-        max_height = int(round(img.height * (max_width / max(img.width, 1)))) if img.width > max_width else img.height
-        img.thumbnail((max_width, max(max_height, max_width)), Image.Resampling.LANCZOS)
+        if force_portrait and img.width > img.height:
+            img = img.transpose(Image.Transpose.ROTATE_270)  # 90° clockwise
+
+        # Width capped at max_width; height follows the aspect ratio
+        img.thumbnail((max_width, max_width * 4), Image.Resampling.LANCZOS)
 
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
         buffer.seek(0)
-        return buffer
+        return buffer, img.width, img.height
 
 
 def format_defect_text(parsed_data):
@@ -91,124 +111,146 @@ def _extract_metadata(photo_item, chunk_date=""):
     return date_str, drop_str, floor_str, defect_str
 
 
-def _format_caption(date_str, drop_str, floor_str, defect_str):
-    """Formats the metadata caption injected into a photo's text placeholder."""
-    return (
-        f"Date: {date_str}\n"
-        f"Drop: {drop_str} | Floor: {floor_str}\n"
-        f"Defect: {defect_str}"
-    )
+# ---------------------------------------------------------------------------
+# Layout
+# ---------------------------------------------------------------------------
 
-
-def _sort_placeholders(placeholders):
-    """Sorts slide placeholders in visual reading order (top-to-bottom, left-to-right, then idx)."""
-    return sorted(
-        placeholders,
-        key=lambda ph: (
-            int(getattr(ph, "top", 0) or 0),
-            int(getattr(ph, "left", 0) or 0),
-            int(ph.placeholder_format.idx),
-        ),
-    )
-
-
-def _select_slide_layout(prs, chunk_len):
-    """Selects the custom layout from the template that best matches a photo chunk."""
+def _select_slide_layout(prs):
+    """Picks a template layout with a title and no picture/body placeholders ("Title Only"),
+    falling back to a blank layout, then to the layout with the fewest placeholders."""
     layouts = list(prs.slide_layouts)
     if not layouts:
         raise RuntimeError("The PowerPoint template contains no slide layouts.")
 
-    # Prefer a layout that has picture placeholders matching or accommodating the chunk
     for layout in layouts:
-        pic_count = sum(
-            1 for ph in layout.placeholders
-            if ph.placeholder_format.type == PP_PLACEHOLDER.PICTURE or hasattr(ph, "insert_picture")
-        )
-        if pic_count >= chunk_len and pic_count > 0:
+        if layout.name.strip().lower() == "title only":
             return layout
-
     for layout in layouts:
-        pic_count = sum(
-            1 for ph in layout.placeholders
-            if ph.placeholder_format.type == PP_PLACEHOLDER.PICTURE or hasattr(ph, "insert_picture")
-        )
-        if pic_count > 0:
+        if layout.name.strip().lower() == "blank":
             return layout
-
-    idx = min(SLIDE_LAYOUT_INDEX, len(layouts) - 1)
-    return layouts[idx]
+    return min(layouts, key=lambda layout: len(layout.placeholders))
 
 
-def _fallback_grid_geometry(slot_index):
-    """2x2 grid coordinates (left, top, width, height) when a template layout lacks picture placeholders."""
-    col = slot_index % 2
-    row = slot_index // 2
-    left = Inches(0.6 + col * 6.1)
-    top = Inches(1.1 + row * 3.0)
-    width = Inches(3.2)
-    height = Inches(2.5)
-    return left, top, width, height
+def _slot_geometry(slide_width, slide_height, photo_count):
+    """Returns one (left, top, width, height) portrait frame per photo, plus the caption top.
+
+    Frames are sized for SLOTS_PER_SLIDE photos in one row so every slide uses the same photo
+    size; when a chunk has fewer photos the row is centred horizontally."""
+    usable_width = slide_width - 2 * SIDE_MARGIN - (SLOTS_PER_SLIDE - 1) * SLOT_GAP
+    slot_w = usable_width / SLOTS_PER_SLIDE
+
+    usable_height = slide_height - PHOTO_TOP - CAPTION_GAP - CAPTION_HEIGHT - BOTTOM_MARGIN
+    slot_h = slot_w * PORTRAIT_RATIO
+    if slot_h > usable_height:  # short slides (e.g. 4:3) -> shrink to fit
+        slot_h = usable_height
+        slot_w = slot_h / PORTRAIT_RATIO
+
+    row_width = photo_count * slot_w + (photo_count - 1) * SLOT_GAP
+    start_left = (slide_width - row_width) / 2
+
+    frames = []
+    for i in range(photo_count):
+        left = start_left + i * (slot_w + SLOT_GAP)
+        frames.append((int(left), int(PHOTO_TOP), int(slot_w), int(slot_h)))
+    caption_top = int(PHOTO_TOP + slot_h + CAPTION_GAP)
+    return frames, caption_top
 
 
-def _inject_chunk_into_slide(slide, chunk_items, chunk_date=""):
-    """Injects up to 4 optimized images and their Date/Drop/Floor/Defect metadata into `slide`."""
-    picture_placeholders = []
-    text_placeholders = []
+def _fit_inside(frame, img_w, img_h):
+    """Largest (left, top, width, height) with the image's aspect ratio that fits inside the
+    frame, centred, so photos are never cropped or stretched."""
+    left, top, frame_w, frame_h = frame
+    scale = min(frame_w / img_w, frame_h / img_h)
+    pic_w, pic_h = int(img_w * scale), int(img_h * scale)
+    return left + (frame_w - pic_w) // 2, top + (frame_h - pic_h) // 2, pic_w, pic_h
 
-    for ph in slide.placeholders:
-        ph_type = ph.placeholder_format.type
-        if ph_type == PP_PLACEHOLDER.PICTURE or hasattr(ph, "insert_picture"):
-            picture_placeholders.append(ph)
-        elif ph.has_text_frame:
-            text_placeholders.append(ph)
 
-    picture_placeholders = _sort_placeholders(picture_placeholders)
-    text_placeholders = _sort_placeholders(text_placeholders)
+def _clear_unused_placeholders(slide, keep=()):
+    """Removes empty placeholders (e.g. 'Click to add text') that the layout put on the slide."""
+    for ph in list(slide.placeholders):
+        if ph in keep:
+            continue
+        ph._element.getparent().remove(ph._element)
 
-    # If there is a title/header placeholder in addition to per-photo text placeholders, populate it with the Date
-    if text_placeholders and len(text_placeholders) == len(picture_placeholders) + 1 and chunk_date:
-        header_ph = text_placeholders.pop(0)
-        header_ph.text = f"Date: {chunk_date}"
-    elif slide.shapes.title and slide.shapes.title in text_placeholders and len(text_placeholders) > len(chunk_items):
-        title_ph = slide.shapes.title
-        text_placeholders.remove(title_ph)
-        if chunk_date:
-            title_ph.text = f"Date: {chunk_date}"
 
-    for idx, item in enumerate(chunk_items):
+def _set_title(slide, prs, chunk_date):
+    """Writes the day's date into the title placeholder, or into a textbox if there is none."""
+    title_text = f"Date: {chunk_date}" if chunk_date else "Photo Report"
+    title = slide.shapes.title
+    if title is None:
+        for ph in slide.placeholders:
+            if ph.placeholder_format.type in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE):
+                title = ph
+                break
+
+    if title is not None:
+        title.text = title_text
+        # Keep the title clear of the photo row (and inside the slide on widescreen decks)
+        overlaps_photos = (title.top or 0) + (title.height or 0) > PHOTO_TOP
+        too_wide = (title.left or 0) + (title.width or 0) > prs.slide_width
+        if overlaps_photos or too_wide:
+            title.left, title.top = SIDE_MARGIN, TITLE_TOP
+            title.width, title.height = prs.slide_width - 2 * SIDE_MARGIN, TITLE_HEIGHT
+            for paragraph in title.text_frame.paragraphs:
+                paragraph.alignment = PP_ALIGN.LEFT
+                for run in paragraph.runs:
+                    run.font.size = TITLE_FONT_SIZE
+                    run.font.bold = True
+        return title
+
+    box = slide.shapes.add_textbox(SIDE_MARGIN, TITLE_TOP, prs.slide_width - 2 * SIDE_MARGIN, TITLE_HEIGHT)
+    tf = box.text_frame
+    tf.text = title_text
+    tf.paragraphs[0].runs[0].font.size = TITLE_FONT_SIZE
+    tf.paragraphs[0].runs[0].font.bold = True
+    return None
+
+
+def _add_caption(slide, left, top, width, date_str, drop_str, floor_str, defect_str):
+    """Adds the Date / Drop / Floor / Defect caption under one photo."""
+    box = slide.shapes.add_textbox(left, top, width, CAPTION_HEIGHT)
+    tf = box.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+    tf.margin_left = tf.margin_right = Emu(0)
+
+    lines = [
+        ("Date: ", date_str),
+        ("Drop: ", drop_str),
+        ("Floor: ", floor_str),
+        ("Defect: ", defect_str),
+    ]
+    for i, (label, value) in enumerate(lines):
+        paragraph = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        paragraph.alignment = PP_ALIGN.LEFT
+        label_run = paragraph.add_run()
+        label_run.text = label
+        label_run.font.bold = True
+        label_run.font.size = CAPTION_FONT_SIZE
+        value_run = paragraph.add_run()
+        value_run.text = value
+        value_run.font.size = CAPTION_FONT_SIZE
+
+
+def _inject_chunk_into_slide(slide, prs, chunk_items, chunk_date=""):
+    """Places up to 4 portrait photos side by side with their metadata captions."""
+    title = _set_title(slide, prs, chunk_date)
+    _clear_unused_placeholders(slide, keep=(title,) if title is not None else ())
+
+    items = list(chunk_items)[:SLOTS_PER_SLIDE]
+    frames, caption_top = _slot_geometry(prs.slide_width, prs.slide_height, len(items))
+
+    for item, frame in zip(items, frames):
         date_str, drop_str, floor_str, defect_str = _extract_metadata(item, chunk_date)
         image_source = item.get("image_bytes") or item.get("image_path")
 
-        # 1. Optimize image in memory (max width 1024px) and inject into picture placeholder
         if image_source is not None:
-            img_stream = optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH)
-            if idx < len(picture_placeholders):
-                picture_placeholders[idx].insert_picture(img_stream)
-            else:
-                left, top, width, _height = _fallback_grid_geometry(idx)
-                slide.shapes.add_picture(img_stream, left, top, width=width)
+            img_stream, img_w, img_h = optimize_image_in_memory(image_source)
+            pic_left, pic_top, pic_w, pic_h = _fit_inside(frame, img_w, img_h)
+            slide.shapes.add_picture(img_stream, pic_left, pic_top, width=pic_w, height=pic_h)
 
-        # 2. Inject extracted metadata (Date, Drop, Floor, Defect) into text placeholders
-        # Case A: 4 separate text placeholders per photo slot (Date, Drop, Floor, Defect)
-        if len(text_placeholders) >= len(chunk_items) * 4:
-            base = idx * 4
-            text_placeholders[base].text = date_str
-            text_placeholders[base + 1].text = drop_str
-            text_placeholders[base + 2].text = floor_str
-            text_placeholders[base + 3].text = defect_str
-        # Case B: 1 combined text placeholder per photo slot
-        elif idx < len(text_placeholders):
-            text_placeholders[idx].text = _format_caption(date_str, drop_str, floor_str, defect_str)
-        # Case C: Fallback textbox when the slide layout does not provide enough text placeholders
-        else:
-            left, top, _width, _height = _fallback_grid_geometry(idx)
-            tb = slide.shapes.add_textbox(left + Inches(3.3), top, Inches(2.6), Inches(2.4))
-            tf = tb.text_frame
-            tf.word_wrap = True
-            tf.text = _format_caption(date_str, drop_str, floor_str, defect_str)
-            for paragraph in tf.paragraphs:
-                for run in paragraph.runs:
-                    run.font.size = Pt(11)
+        frame_left, _frame_top, frame_w, _frame_h = frame
+        _add_caption(slide, frame_left, caption_top, frame_w, date_str, drop_str, floor_str, defect_str)
 
 
 def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH):
@@ -232,6 +274,8 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
         prs.slide_width = Inches(13.333)
         prs.slide_height = Inches(7.5)
 
+    layout = _select_slide_layout(prs)
+
     for chunk_entry in daily_chunks:
         if isinstance(chunk_entry, dict):
             chunk_date = str(chunk_entry.get("date") or "")
@@ -243,9 +287,8 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
         if not chunk_photos:
             continue
 
-        layout = _select_slide_layout(prs, len(chunk_photos))
         slide = prs.slides.add_slide(layout)
-        _inject_chunk_into_slide(slide, chunk_photos, chunk_date=chunk_date)
+        _inject_chunk_into_slide(slide, prs, chunk_photos, chunk_date=chunk_date)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     prs.save(str(output_path))

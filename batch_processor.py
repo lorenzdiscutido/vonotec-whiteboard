@@ -217,6 +217,13 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
 
     if ENABLE_SHAREPOINT_SYNC and creating_new_folder:
         _create_folder(subfolder, outcome)
+    elif ENABLE_SHAREPOINT_SYNC:
+        # Make sure the landing folder ("Image sorter") and the chosen subfolder exist before
+        # the presentation is uploaded. Existing folders are left untouched.
+        try:
+            sharepoint_client.ensure_subfolder(subfolder)
+        except Exception:
+            traceback.print_exc()
 
     processed_log = load_processed_log()
     seen_hashes = set()
