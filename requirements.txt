@@ -1,0 +1,5 @@
+streamlit
+python-pptx
+Pillow
+google-generativeai
+requests

@@ -1,0 +1,69 @@
+# file_utils.py
+import os
+import re
+import json
+
+import settings
+
+
+def load_processed_log():
+    """Loads the list of already processed photo fingerprints."""
+    if os.path.exists(settings.LOG_FILE):
+        try:
+            with open(settings.LOG_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return []
+    return []
+
+
+def save_processed_log(log_list):
+    """Saves the log safely (write to a temp file, then swap it in)."""
+    tmp_path = settings.LOG_FILE + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(log_list, f)
+    os.replace(tmp_path, settings.LOG_FILE)
+
+
+def load_prefs():
+    """The remembered choices (last photo folder, last save folder...) as a dict.
+    Returns {} if nothing was saved yet or the file can't be read."""
+    if os.path.exists(settings.PREFS_FILE):
+        try:
+            with open(settings.PREFS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_prefs(updates):
+    """Adds `updates` (a dict) to the remembered choices and saves them safely
+    (temp file, then swap it in). Never raises: failing to remember a choice
+    must not stop a batch."""
+    prefs = load_prefs()
+    prefs.update(updates)
+    tmp_path = settings.PREFS_FILE + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(prefs, f, indent=2)
+        os.replace(tmp_path, settings.PREFS_FILE)
+    except OSError:
+        pass
+
+
+def sanitize_batch_filename(name):
+    """Turns what the person typed into a safe .pptx filename, or None if
+    nothing usable was entered."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    name = re.sub(r'[\\/:*?"<>|]', "_", name)  # characters not allowed in Windows/SharePoint filenames
+    name = name.rstrip(". ")  # trailing dots/spaces aren't allowed either
+    name = name[:150]
+    if not name:
+        return None
+    if name.lower().endswith(".xlsx"):
+        name = name[:-5]
+    return name if name.lower().endswith(".pptx") else f"{name}.pptx"
