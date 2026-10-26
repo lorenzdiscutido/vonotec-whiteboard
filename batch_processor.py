@@ -204,7 +204,7 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
             os.remove(temp_path)
 
 
-def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=False, on_progress=None):
+def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=False, on_progress=None, title_block_info=None):
     """Extracts every photo in `uploaded_files`, sorts them chronologically by Date,
     groups by Day into chunks of max 6 photos, writes the PowerPoint presentation
     to `output_path`, and syncs to SharePoint."""
@@ -265,9 +265,9 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
     if not extracted_records:
         return outcome
 
-    # Sort chronologically by Date, group by Day, and split into chunks of max 4 photos
+    # Sort chronologically by Date, group by Day, and split into chunks of max 6 photos
     daily_chunks = sort_and_chunk_photos(extracted_records, max_per_chunk=MAX_PHOTOS_PER_CHUNK)
-    write_chunks_to_pptx(daily_chunks, output_path)
+    write_chunks_to_pptx(daily_chunks, output_path, title_block_info=title_block_info)
 
     sync_failed = False
     if ENABLE_SHAREPOINT_SYNC:

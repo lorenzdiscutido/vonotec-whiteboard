@@ -68,6 +68,9 @@ _KEEP_ALIVE_PREFIXES = (
     "batch_name_input",
     "folder_choice_input",
     "new_folder_name_input",
+    "tb_title_input",
+    "tb_service_input",
+    "tb_logo_",
     "src_recursive",
     "src_lv_",
     "dark_mode",
@@ -111,7 +114,7 @@ def _prepare_output(batch_name_raw, folder_choice, new_folder_raw):
     return filename, subfolder, creating_new_folder, None
 
 
-def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro=None):
+def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro=None, title_block_info=None):
     """Runs the batch for `files`, then stores the messages and resets the uploader."""
     local_dir = os.path.join(LOCAL_BATCH_DIR, subfolder) if subfolder else LOCAL_BATCH_DIR
     os.makedirs(local_dir, exist_ok=True)
@@ -137,7 +140,7 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
             )
 
     try:
-        outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress)
+        outcome = run_batch(files, output_path, subfolder, creating_new_folder, on_progress, title_block_info=title_block_info)
     except Exception as e:
         traceback.print_exc()
         stopped = ("error", f"The batch stopped unexpectedly: {e}")
@@ -164,7 +167,7 @@ def _fail(kind, text):
     st.rerun()
 
 
-def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
+def start_batch(files, batch_name_raw, folder_choice, new_folder_raw, title_block_info=None):
     """Local photos: validates the form, then runs the batch."""
     if not files:
         _fail("error", "Please select at least one photo before processing.")
@@ -177,10 +180,10 @@ def start_batch(files, batch_name_raw, folder_choice, new_folder_raw):
         _fail("error", error)
         return
 
-    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder)
+    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, title_block_info=title_block_info)
 
 
-def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders):
+def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders, title_block_info=None):
     """SharePoint photos: lists the photos in the folder opened in the browser, then runs the batch."""
     filename, subfolder, creating_new_folder, error = _prepare_output(
         batch_name_raw, folder_choice, new_folder_raw
@@ -215,7 +218,7 @@ def start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_pat
         f"Found {len(files)} photo(s) in {where}"
         f"{' and the folders below it' if include_subfolders else ''}.",
     )]
-    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro)
+    _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_folder, intro, title_block_info=title_block_info)
 
 
 # 55/45 split gives the results and review list plenty of horizontal room
@@ -305,6 +308,52 @@ with form_col:
                 batch_name_raw,
                 remote_mode,
             )
+
+            st.markdown("<hr style='margin: 16px 0 14px 0; border: none; border-top: 1px solid var(--border-subtle);' />", unsafe_allow_html=True)
+            ui_components.card_heading("Slide title block details (optional)", "Slide information")
+
+            tb_col1, tb_col2 = st.columns(2, gap="medium")
+            with tb_col1:
+                project_title = st.text_input(
+                    "Title",
+                    key="tb_title_input",
+                    placeholder="e.g. Project Name / Location",
+                    disabled=not photos_gate_open,
+                    help="Custom title placed in Field 2 of each slide's bottom title block. Leave blank to keep empty.",
+                )
+                service_offered = st.text_input(
+                    "Service offered",
+                    key="tb_service_input",
+                    placeholder="e.g. Facade Inspection / Repair Log",
+                    disabled=not photos_gate_open,
+                    help="Service type placed in Field 3 of each slide's bottom title block. Leave blank to keep empty.",
+                )
+            with tb_col2:
+                st.markdown(
+                    "<div style='font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;'>"
+                    "Location logo (Field 4)"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                with st.container(key="compact_logo_uploader"):
+                    loc_logo_file = st.file_uploader(
+                        "Location logo (optional)",
+                        type=["png", "jpg", "jpeg"],
+                        key=f"tb_logo_{st.session_state.uploader_key}",
+                        disabled=not photos_gate_open,
+                        label_visibility="collapsed",
+                        help="Optional logo of the location placed in Field 4 of each slide's bottom title block.",
+                    )
+                if loc_logo_file is not None:
+                    st.image(loc_logo_file, caption="Field 4 Logo Preview", width=110)
+
+            loc_logo_bytes = loc_logo_file.getvalue() if loc_logo_file is not None else None
+            title_block_info = {
+                "title": project_title.strip() if project_title else "",
+                "service_offered": service_offered.strip() if service_offered else "",
+                "location_logo_bytes": loc_logo_bytes,
+            }
+
             running = bool(st.session_state.get("batch_running", False))
             if remote_mode:
                 batch_done = (
@@ -349,6 +398,8 @@ if clear_clicked:
     st.session_state.uploader_key += 1
     st.session_state.batch_results = []
     st.session_state.batch_report = None
+    st.session_state.tb_title_input = ""
+    st.session_state.tb_service_input = ""
     st.rerun()
 
 
@@ -385,9 +436,9 @@ with results_col:
 
         try:
             if extract_clicked:
-                start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw)
+                start_batch(uploaded_files, batch_name_raw, folder_choice, new_folder_raw, title_block_info=title_block_info)
             if fetch_clicked:
-                start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders)
+                start_remote_batch(batch_name_raw, folder_choice, new_folder_raw, source_path, include_subfolders, title_block_info=title_block_info)
         finally:
             st.session_state.batch_running = False
 

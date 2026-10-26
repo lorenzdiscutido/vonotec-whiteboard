@@ -1902,6 +1902,66 @@ div[data-testid="stFileUploader"] {
   cursor: default !important;
 }
 
+/* --------------------------------------------------------------------------
+   Compact Location Logo Uploader (Slide Title Block Field 4)
+   -------------------------------------------------------------------------- */
+.st-key-compact_logo_uploader [data-testid="stFileUploader"],
+[class*="st-key-tb_logo_"] {
+  margin-bottom: 4px !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"],
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"],
+[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"],
+[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"] {
+  min-height: 56px !important;
+  max-height: 62px !important;
+  padding: 6px 12px !important;
+  margin-top: 2px !important;
+  border-width: 1.5px !important;
+  border-style: dashed !important;
+  border-radius: var(--radius-control) !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"]::before,
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::before,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"]::before,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"]::before {
+  display: none !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"]::after,
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::after,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"]::after,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"]::after {
+  display: none !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::before,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzoneInstructions"]::before {
+  content: "Drop location logo or browse" !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::after,
+[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzoneInstructions"]::after {
+  content: "PNG / JPG (optional)" !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderFile"] {
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+}
+
 /* Thumbnail Scroll Gallery */
 .st-key-thumbnail_scroll_gallery {
   padding: 4px 6px 4px 2px !important;

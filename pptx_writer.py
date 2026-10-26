@@ -150,15 +150,22 @@ def _get_logo_path():
     return None
 
 
-def _draw_sheet_title_block(slide, chunk_date=""):
+def _draw_sheet_title_block(slide, chunk_date="", title_block_info=None):
     """Draws the architectural sheet border and bottom title block on `slide`:
     - Outer border rectangle
     - Title block horizontal line
     - 4 vertical dividers creating 5 cells
-    - Left-most cell: VONOTEC logo
-    - Cell 2: Date
-    - Right-most cell: Created by, Checked by, Approved by
+    - Field 1 (Left-most): VONOTEC logo
+    - Field 2: Custom "Title" (if provided; no indicator label)
+    - Field 3: Custom "Service offered" (if provided; no indicator label)
+    - Field 4: Custom location / client logo (if uploaded)
+    - Field 5 (Right-most): Created by, Checked by, Approved by
     """
+    info = title_block_info or {}
+    title_text = str(info.get("title") or "").strip()
+    service_text = str(info.get("service_offered") or "").strip()
+    loc_logo_bytes = info.get("location_logo_bytes")
+
     # 1. Outer Border
     rect = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, BORDER_MARGIN_X, BORDER_MARGIN_Y, BORDER_WIDTH, BORDER_HEIGHT)
     rect.fill.background()
@@ -171,33 +178,63 @@ def _draw_sheet_title_block(slide, chunk_date=""):
     h_line.fill.fore_color.rgb = LINE_COLOR
     h_line.line.fill.background()
 
-    # 3. Vertical divider lines
+    # 3. Vertical divider lines (creating 5 cells)
     for dx in DIVIDER_X_POSITIONS:
         v_line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, dx, TB_TOP, Pt(1.5), TB_HEIGHT)
         v_line.fill.solid()
         v_line.fill.fore_color.rgb = LINE_COLOR
         v_line.line.fill.background()
 
-    # 4. Cell 1 (Left-most): VONOTEC Logo
+    # 4. Field 1 (Left-most, x: 0.25" to 3.34"): VONOTEC Logo
     logo_path = _get_logo_path()
     if logo_path:
         slide.shapes.add_picture(logo_path, Inches(0.55), Inches(6.38), width=Inches(2.5), height=Inches(0.75))
 
-    # 5. Cell 2: Date label
-    if chunk_date:
-        cell2_box = slide.shapes.add_textbox(Inches(3.45), Inches(6.35), Inches(3.95), TB_HEIGHT - Inches(0.2))
-        c2_tf = cell2_box.text_frame
+    # 5. Field 2 (x: 3.34" to 7.49"): User-specified "Title" (empty if none; no label printed)
+    if title_text:
+        c2_box = slide.shapes.add_textbox(Inches(3.38), Inches(6.28), Inches(4.07), TB_HEIGHT - Inches(0.06))
+        c2_tf = c2_box.text_frame
         c2_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
         c2_tf.word_wrap = True
+        c2_tf.margin_left = c2_tf.margin_right = Inches(0.1)
         c2_p = c2_tf.paragraphs[0]
         c2_p.alignment = PP_ALIGN.CENTER
         c2_run = c2_p.add_run()
-        c2_run.text = f"DATE: {str(chunk_date).upper()}"
+        c2_run.text = title_text
         c2_run.font.bold = True
-        c2_run.font.size = Pt(13)
-        c2_run.font.color.rgb = RGBColor(0, 55, 109)
+        c2_run.font.size = Pt(13 if len(title_text) < 40 else 11)
+        c2_run.font.color.rgb = RGBColor(15, 23, 42)
 
-    # 6. Cell 5 (Right-most): Sign-off block
+    # 6. Field 3 (x: 7.49" to 9.02"): User-specified "Service offered" (empty if none; no label printed)
+    if service_text:
+        c3_box = slide.shapes.add_textbox(Inches(7.53), Inches(6.28), Inches(1.45), TB_HEIGHT - Inches(0.06))
+        c3_tf = c3_box.text_frame
+        c3_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        c3_tf.word_wrap = True
+        c3_tf.margin_left = c3_tf.margin_right = Inches(0.08)
+        c3_p = c3_tf.paragraphs[0]
+        c3_p.alignment = PP_ALIGN.CENTER
+        c3_run = c3_p.add_run()
+        c3_run.text = service_text
+        c3_run.font.bold = True
+        c3_run.font.size = Pt(9.5 if len(service_text) < 30 else 8.5)
+        c3_run.font.color.rgb = RGBColor(15, 23, 42)
+
+    # 7. Field 4 (x: 9.02" to 11.23"): Location logo (empty if none uploaded)
+    if loc_logo_bytes is not None:
+        try:
+            f4_left, f4_top, f4_w, f4_h = Inches(9.08), Inches(6.30), Inches(2.10), TB_HEIGHT - Inches(0.10)
+            im = Image.open(io.BytesIO(loc_logo_bytes))
+            im = ImageOps.exif_transpose(im)
+            scale = min(f4_w / im.width, f4_h / im.height)
+            pw, ph = int(im.width * scale), int(im.height * scale)
+            px = f4_left + (f4_w - pw) // 2
+            py = f4_top + (f4_h - ph) // 2
+            slide.shapes.add_picture(io.BytesIO(loc_logo_bytes), px, py, width=pw, height=ph)
+        except Exception:
+            pass
+
+    # 8. Field 5 (Right-most, x: 11.23" to 13.08"): Sign-off block
     cell5_box = slide.shapes.add_textbox(Inches(11.28), Inches(6.28), Inches(1.75), TB_HEIGHT - Inches(0.08))
     c5_tf = cell5_box.text_frame
     c5_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -278,10 +315,10 @@ def _add_caption(slide, left, top, width, date_str, drop_str, floor_str, defect_
         value_run.font.size = CAPTION_FONT_SIZE
 
 
-def _inject_chunk_into_slide(slide, chunk_items, chunk_date=""):
+def _inject_chunk_into_slide(slide, chunk_items, chunk_date="", title_block_info=None):
     """Draws the title block and places up to 6 portrait photos side by side with their metadata captions."""
     _clear_unused_placeholders(slide)
-    _draw_sheet_title_block(slide, chunk_date=chunk_date)
+    _draw_sheet_title_block(slide, chunk_date=chunk_date, title_block_info=title_block_info)
 
     items = list(chunk_items)[:SLOTS_PER_SLIDE]
     frames, caption_top = _slot_geometry(len(items))
@@ -310,7 +347,7 @@ def _select_blank_layout(prs):
     return min(layouts, key=lambda layout: len(layout.placeholders))
 
 
-def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH):
+def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH, title_block_info=None):
     """Builds a PowerPoint presentation from `daily_chunks` and saves it to `output_path`.
 
     Parameters
@@ -322,6 +359,9 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
         Destination `.pptx` file path.
     template_path : str or Path
         Path to `template.pptx` (loaded as the base presentation when present).
+    title_block_info : dict, optional
+        Metadata for slide title block: "title" (Field 2), "service_offered" (Field 3),
+        "location_logo_bytes" (Field 4).
     """
     resolved_template = Path(template_path) if template_path else TEMPLATE_PATH
     if resolved_template.exists():
@@ -351,7 +391,7 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
             continue
 
         slide = prs.slides.add_slide(layout)
-        _inject_chunk_into_slide(slide, chunk_photos, chunk_date=chunk_date)
+        _inject_chunk_into_slide(slide, chunk_photos, chunk_date=chunk_date, title_block_info=title_block_info)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     prs.save(str(output_path))
