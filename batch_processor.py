@@ -1,6 +1,6 @@
 # batch_processor.py
 """Processes a batch of whiteboard photos, sorts them chronologically by Date,
-groups them by Day into chunks of up to 4 photos, and generates a PowerPoint (.pptx) report.
+groups them by Day into chunks of up to 6 photos, and generates a PowerPoint (.pptx) report.
 
 A "photo" is any object with a .name and a .getvalue() that returns the image
 bytes: a Streamlit UploadedFile, or app.py's RemoteFile (which downloads the
@@ -22,7 +22,7 @@ from file_utils import load_processed_log, save_processed_log
 from pptx_writer import format_defect_text, write_chunks_to_pptx
 from settings import ENABLE_SHAREPOINT_SYNC
 
-MAX_PHOTOS_PER_CHUNK = 4
+MAX_PHOTOS_PER_CHUNK = 6
 
 _DATE_FORMATS = (
     "%B %d, %Y",
@@ -92,7 +92,7 @@ def _parse_date(date_raw):
 def sort_and_chunk_photos(photo_records, max_per_chunk=MAX_PHOTOS_PER_CHUNK):
     """Sorts processed photo records chronologically by their AI-extracted Date,
     groups them by Date (Day), and splits each day's photos into chunks of up to
-    `max_per_chunk` (default 4) photos per slide."""
+    `max_per_chunk` (default 6) photos per slide."""
     sorted_records = sorted(
         photo_records,
         key=lambda item: (item["sort_date"], item["day_key"], item["order_index"]),
@@ -206,7 +206,7 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
 
 def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=False, on_progress=None):
     """Extracts every photo in `uploaded_files`, sorts them chronologically by Date,
-    groups by Day into chunks of max 4 photos, writes the PowerPoint presentation
+    groups by Day into chunks of max 6 photos, writes the PowerPoint presentation
     to `output_path`, and syncs to SharePoint."""
     outcome = BatchOutcome()
     total = len(uploaded_files)

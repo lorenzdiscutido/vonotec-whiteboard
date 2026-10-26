@@ -55,7 +55,7 @@ _ICON_MOON = (
 _HELP_HTML = (
     '<div class="help-title">How to use the Photo Sorter &amp; PowerPoint Generator</div>'
     '<p>Add whiteboard photos from your device or from a SharePoint folder. The AI extracts the metadata, '
-    'sorts the photos chronologically by Date, groups them into daily slides (up to 4 photos per slide), '
+    'sorts the photos chronologically by Date, groups them into daily slides (up to 6 photos per slide), '
     'and generates a PowerPoint (.pptx) report.</p>'
     '<ol>'
     '<li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>'
@@ -347,7 +347,7 @@ def render_instructions():
             """
             <div class="instruction-text">
                 Add whiteboard photos from your device or from a SharePoint folder. The AI will automatically extract the metadata,
-                sort the photos chronologically by Date, and build a PowerPoint (.pptx) report with up to 4 photos per slide.
+                sort the photos chronologically by Date, and build a PowerPoint (.pptx) report with up to 6 photos per slide.
                 <ol>
                     <li>Choose where to import from: <b>Upload from device</b> or <b>Import from SharePoint</b>, then select your photos or folder.</li>
                     <li>Choose the SharePoint folder to save into and give the batch a name. The name becomes the PowerPoint file name.</li>

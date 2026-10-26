@@ -3,7 +3,7 @@
 
 Loads `template.pptx` (when present), resizes high-resolution photos in memory using PIL
 (`Image.thumbnail`, max width 1024px) so original files are untouched and the
-presentation stays lightweight, and lays each chunk out as up to 4 PORTRAIT photos
+presentation stays lightweight, and lays each chunk out as up to 6 PORTRAIT photos
 side by side, evenly spaced, with the extracted metadata (Date, Drop, Floor, Defect)
 captioned under each photo. The day's date goes into the slide title.
 """
@@ -25,19 +25,19 @@ JPEG_QUALITY = 85
 # orientation is applied is turned 90° clockwise (how most phones store sideways shots).
 FORCE_PORTRAIT = True
 
-# --- Slide grid (4 portrait slots in one row) ---
-SLOTS_PER_SLIDE = 4
+# --- Slide grid (up to 6 portrait slots in one row) ---
+SLOTS_PER_SLIDE = 6
 PORTRAIT_RATIO = 4 / 3          # frame height / width (typical phone photo 3:4)
-SIDE_MARGIN = Inches(0.6)       # left / right slide margin
-SLOT_GAP = Inches(0.45)         # space between neighbouring photos
+SIDE_MARGIN = Inches(0.5)       # left / right slide margin
+SLOT_GAP = Inches(0.28)         # space between neighbouring photos
 TITLE_TOP = Inches(0.3)
 TITLE_HEIGHT = Inches(0.7)
 PHOTO_TOP = Inches(1.15)        # photos start below the title
 CAPTION_GAP = Inches(0.12)      # space between a photo and its caption
-CAPTION_HEIGHT = Inches(1.15)
+CAPTION_HEIGHT = Inches(1.35)
 BOTTOM_MARGIN = Inches(0.3)
-CAPTION_FONT_SIZE = Pt(10.5)
-TITLE_FONT_SIZE = Pt(24)
+CAPTION_FONT_SIZE = Pt(9.5)
+TITLE_FONT_SIZE = Pt(22)
 
 MATERIALS = ("Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass")
 
@@ -233,7 +233,7 @@ def _add_caption(slide, left, top, width, date_str, drop_str, floor_str, defect_
 
 
 def _inject_chunk_into_slide(slide, prs, chunk_items, chunk_date=""):
-    """Places up to 4 portrait photos side by side with their metadata captions."""
+    """Places up to 6 portrait photos side by side with their metadata captions."""
     title = _set_title(slide, prs, chunk_date)
     _clear_unused_placeholders(slide, keep=(title,) if title is not None else ())
 
@@ -259,7 +259,7 @@ def write_chunks_to_pptx(daily_chunks, output_path, template_path=TEMPLATE_PATH)
     Parameters
     ----------
     daily_chunks : list[dict] or list[list[dict]]
-        Chronologically ordered chunks of up to 4 photo records per day.
+        Chronologically ordered chunks of up to 6 photo records per day.
         Each item may be a dict `{"date": "...", "photos": [...]}` or a raw list of photo dicts.
     output_path : str or Path
         Destination `.pptx` file path.
