@@ -70,7 +70,6 @@ _KEEP_ALIVE_PREFIXES = (
     "new_folder_name_input",
     "tb_title_input",
     "tb_service_input",
-    "tb_logo_",
     "src_recursive",
     "src_lv_",
     "dark_mode",
