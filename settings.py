@@ -6,8 +6,8 @@ LOG_FILE = "processed_log.json"
 
 # If Gemini returns broken JSON, try again this many extra times
 EXTRACTION_RETRIES = 2
-# Second AI "review" pass on photos where the automatic checks find problems
-ENABLE_REVIEW_PASS = True
+# Second AI "review" pass on photos (disabled for fast pure photo sorting)
+ENABLE_REVIEW_PASS = False
 # Push the generated PowerPoint (.pptx) file to SharePoint after every batch
 ENABLE_SHAREPOINT_SYNC = True
 

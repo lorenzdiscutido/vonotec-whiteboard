@@ -66,6 +66,8 @@ class KeySlot:
         self.call_times = collections.deque()
         self.lock = threading.Lock()
         self.total_calls = 0
+        self.last_call_time = 0.0
+        self.cooldown_until = 0.0
 
     def get_model(self):
         if self.model is None:
@@ -77,16 +79,32 @@ class KeySlot:
         return self.model
 
     def wait_for_slot(self, max_rpm=REQUESTS_PER_MINUTE, window_sec=RATE_WINDOW_SECONDS):
+        """Enforces both sliding-window RPM limit and smooth minimum-interval pacing per key."""
+        min_interval = window_sec / max(max_rpm, 1)  # e.g. 60 / 12 = 5.0 seconds per key
         while True:
             with self.lock:
                 now = time.monotonic()
-                while self.call_times and now - self.call_times[0] >= window_sec:
-                    self.call_times.popleft()
-                if len(self.call_times) < max_rpm:
-                    self.call_times.append(now)
-                    return
-                wait = window_sec - (now - self.call_times[0])
-            time.sleep(max(wait, 0.2))
+                if now < self.cooldown_until:
+                    wait = self.cooldown_until - now
+                else:
+                    while self.call_times and now - self.call_times[0] >= window_sec:
+                        self.call_times.popleft()
+                    if len(self.call_times) < max_rpm:
+                        elapsed = now - self.last_call_time
+                        if elapsed < min_interval:
+                            wait = min_interval - elapsed
+                        else:
+                            self.call_times.append(now)
+                            self.last_call_time = now
+                            return
+                    else:
+                        wait = window_sec - (now - self.call_times[0])
+            time.sleep(max(wait, 0.1))
+
+    def set_cooldown(self, seconds: float):
+        """Puts this key slot on temporary cooldown after hitting a rate-limit error."""
+        with self.lock:
+            self.cooldown_until = max(self.cooldown_until, time.monotonic() + seconds)
 
     def record_success(self):
         with self.lock:
@@ -221,8 +239,11 @@ class KeyPool:
                     f"All configured Gemini API keys ({len(self._slots)} key(s)) have exhausted "
                     f"their daily quota. Please check Google AI Studio or add additional keys."
                 )
-            self._current_idx = (self._current_idx + 1) % len(active)
-            return active[self._current_idx]
+            now = time.monotonic()
+            ready_slots = [s for s in active if now >= s.cooldown_until]
+            candidates = ready_slots if ready_slots else active
+            self._current_idx = (self._current_idx + 1) % len(candidates)
+            return candidates[self._current_idx]
 
 
 key_pool = KeyPool()
@@ -269,59 +290,28 @@ def _defect_reference_text():
     )
 
 
+SORTER_JSON_KEYS = ["Date", "Drop", "Floor", "Tower", "Submitter"]
+
+
 def _extraction_prompt():
-    modifiers_quoted = ", ".join(f"'{m}'" for m in SEALANT_LOCATION_MODIFIERS)
     return (
-        f"Extract inspection data from this image into a flat JSON object using exactly these keys: {JSON_KEYS}. "
-        "The photo may be a whiteboard grid OR an on-site photo with a camera watermark/timestamp overlay (such as Timemark). "
-        "Follow these strict extraction and grounding rules: "
-        "1. 'Submitter': Extract ONLY the person's name (e.g., from the bottom right corner of a whiteboard, or from 'Name:' in a timestamp overlay). Strip away prefixes like 'R.A.T.S. drop by'. "
-        "2. 'Date': Scan the photo to locate and extract the date (from whiteboard or camera timestamp). "
+        "Extract inspection photo metadata from this image into a flat JSON object with exactly these keys: "
+        f"{SORTER_JSON_KEYS}. "
+        "The photo may be a construction whiteboard OR an on-site inspection photo with a camera watermark/timestamp overlay (such as Timemark). "
+        "Strict extraction rules: "
+        "1. 'Date': Scan the photo to locate the date (from whiteboard or camera timestamp). "
         "CRITICAL DATE FORMATTING RULES: "
         "- DAY/MONTH/YEAR ORDER: When dates are written numerically with slashes, dots, or dashes (e.g., '01/07/2026' or '04/07/2004'), "
         "the format is strictly DAY/MONTH/YEAR (DD/MM/YYYY). For example, '01/07/2026' is 1st of July (July 1, 2026), NOT January 7. '04/07/2026' is 4th of July (July 4, 2026), NOT April 7. "
         "Convert numeric dates into standard 'Month Day, Year' format (e.g., 'July 1, 2026' or 'July 4, 2026') or output as 'DD/MM/YYYY'. "
-        "- TEXTUAL MONTHS: If the board or watermark explicitly writes out the month name (e.g., 'June 5, 2026' or '5 June 2026'), take that as it is and format as 'Month Day, Year' (e.g., 'June 5, 2026'). "
+        "- TEXTUAL MONTHS: If the board or watermark explicitly writes out the month name (e.g., 'June 5, 2026' or '5 June 2026'), format as 'Month Day, Year'. "
         "- YEAR: Ensure the year is standardized to 2026 (e.g., convert '04/07/2004' or '04/07/24' to 'July 4, 2026'). "
         "- IGNORE WEEKDAYS AND TIME: Do not include weekdays (e.g. 'Wed', 'Wednesday') or times (e.g. '14:28') in the Date field. "
-        "3. 'Tower': This is the tower code (e.g., 'TOWER 1'). Do not include any person name. Explicitly ignore words like 'RAT' or 'RATS'. If a valid tower number is not clearly written, return an empty string \"\". "
-        "4. 'Drop': This is the specific drop number (from 'DROP' on a whiteboard, or from 'Drop X' / 'Notes: Drop X' in a camera overlay). Return only the number or code (e.g., '6'). "
-        "5. 'Floor': This is the specific floor number (from 'FLR' on a whiteboard, or from floor notes in a camera overlay like '36D' -> '36' or '36D'). "
-        "6. Materials (Sealant, Concrete, Paint, Gasket, With Film, Broken Glass): "
-        "CRITICAL DEFECT GROUNDING RULES (TEXT-ONLY EXTRACTION): "
-        "- TEXT-BASED DEFECT EXTRACTION ONLY: Extract defect codes and dimensions ONLY when they are EXPLICITLY WRITTEN in text (e.g., written in marker on a whiteboard, or explicitly typed in a notes field). "
-        "- NEVER PERFORM VISUAL DEFECT INSPECTION ON PHYSICAL OBJECTS: DO NOT inspect physical construction materials in the photo (e.g., do NOT examine the physical sealant bead, concrete wall, glass, or paint to guess if it has defects). Normal construction features, sealant tooling ripples, joint contours, shadows, and stucco texture are NOT defects. "
-        "- ZERO DEFECTS IS COMPLETELY NORMAL: If there is no defect code written in text anywhere on the photo, ALL damage and dimension arrays MUST be empty []. Never guess, infer, or invent defect codes. "
-        "- CAMERA OVERLAYS / TIMEMARKS: When a photo has a camera timestamp overlay (e.g. 'Timemark'), text like 'Drop 6', '36D', 'MBR' are location identifiers (Drop 6, Floor 36 Unit D, Master Bedroom), NOT defect codes. If no defect code is written in the notes, return empty arrays [] for all materials. "
-        "- Each material gets two keys: '[Material] Damage' and '[Material] Dimension'. Both must be formatted as arrays of strings. "
-        "- Example exact JSON output for Sealant:\n"
-        "\"Sealant Damage\": [\"DS CC\", \"MS FG\"],\n"
-        "\"Sealant Dimension\": [\"340 CM\", \"120 CM\"]\n"
-        + _defect_reference_text()
-        + "CRITICAL FORMATTING FOR RULE 6: "
-        "- FORCE UPPERCASE: Convert all text to uppercase (e.g., 'ds' to 'DS'). "
-        "- UNITS DEPEND ON THE DEFECT CODE: write each dimension with the unit that belongs to the defect code in the SAME position of the damage array, "
-        "exactly as listed above (for example Concrete 'US' and 'BH' use 'CM²', but Concrete 'CC-', 'CC+', 'C-', 'C+' use 'CM'; Paint 'DP', 'FP', 'BP', 'NP' use 'CM²'; Gasket and Sealant use 'CM'). "
-        "Use the unit with the superscript ² for square units (CM²). "
-        "If a field is empty on the board, return an empty array [] for materials, or an empty string \"\" for static fields. Return ONLY raw JSON. "
-        "After the word \"DS\" or \"MS\" there should be a space, then the next characters. If there is no space, add one. "
-        "HYPHENATED MODIFIER RULE: If a sealant location modifier contains a hyphen (e.g., 'C-C', 'c-f', 'F-G'), you MUST remove the hyphen and output the standard two-letter code (e.g., 'CC', 'CF', 'FG'). "
-        "INTERCHANGED MODIFIER RULE: If a sealant location modifier is written in reverse (e.g., 'FC' instead of 'CF', or 'GF' instead of 'FG'), standardizing it to 'CF' or 'FG' is preferred, but outputting 'FC' or 'GF' is also acceptable. "
-        "WITH FILM RULE: If the board has a row for 'WITH FILM' and the worker wrote 'Glass Frame' or 'Frame', you MUST extract it as 'GLASS-FRAME' (with a hyphen) so it functions as a single code. "
-        "NO PAINT RULE: If the worker wrote 'No Paint' or 'NP' in the Paint row, extract the damage code as 'NP'. "
-        "In the concrete row, it is not 'CT' it is 'C+'. If you see 'CT' in the concrete row, replace it with 'C+'. "
-        "Also in the concrete row, it is not 'DS', it is 'US' (Uneven Surface). If you see 'DS' in the concrete row, replace it with 'US'. "
-        "NO-DIMENSION RULE: The defect codes 'BG' (under Broken Glass) and 'GLASS-FRAME'/'FRAME' (under With Film) have no dimension. "
-        "Whenever you extract 'BG', 'GLASS-FRAME', or 'FRAME', you MUST output an empty string \"\" for its matching dimension to keep the Damage and Dimension arrays perfectly aligned. "
-        "Example: \"Broken Glass Damage\": [\"BG\"], \"Broken Glass Dimension\": [\"\"]. "
-        "CRITICAL RULE FOR DEFECT CODES (DAMAGE COLUMN): "
-        "If you detect multiple known defect codes written closely together without spaces (e.g., 'C+C-', 'BPFP', 'DSMS'), you MUST insert a single space between them in your final JSON output (e.g., output 'C+ C-', 'BP FP', 'DS MS'). "
-        f"DO NOT treat the sealant location modifiers ({modifiers_quoted}) as separate damage entries. They must remain attached to the main defect code in the same string (e.g., output [\"DS CC\"], NEVER [\"DS\", \"CC\"]). "
-        "SHARED DIMENSION RULE: Every dimension you output must be physically written on the board for that defect. "
-        "NEVER copy or repeat one dimension onto other defects. If a material row lists several defect codes but only ONE dimension is written, "
-        "output every defect code in the Damage array, put the dimension on the FIRST defect only, and use an empty string \"\" for the other defects, "
-        "so both arrays have the same length. Example: board shows 'US BH C-' and '200 CM' -> "
-        "\"Concrete Damage\": [\"US\", \"BH\", \"C-\"], \"Concrete Dimension\": [\"200 CM\", \"\", \"\"]."
+        "2. 'Drop': Extract the drop number/code (e.g. '6' from 'DROP' or 'Drop 6'). "
+        "3. 'Floor': Extract the floor number/code (e.g. '36D' or '36' from 'FLR' or notes like '36D'). "
+        "4. 'Tower': Extract the tower code if clearly present (e.g., 'TOWER 1'), else \"\". Ignore words like 'RAT' or 'RATS'. "
+        "5. 'Submitter': Extract the person name if written (e.g., from bottom right corner of whiteboard or 'Name:' in timestamp), else \"\". "
+        "If a field is not found in the photo, return an empty string \"\" for that key. Return ONLY valid raw JSON."
     )
 
 
@@ -367,14 +357,20 @@ def _generate_text(parts):
                 print(f"[Gemini Key Pool] Key #{slot.index + 1} ({slot.masked}) daily quota reached. Switching to next key...")
                 continue
 
-            # If multiple active keys exist, rotate to the next key immediately without sleeping
-            if len(key_pool.active_slots()) > 1:
+            # Temporary per-minute throttle / 429
+            retry_after = _retry_wait_seconds(e, attempt)
+            slot.set_cooldown(retry_after)
+
+            # If other active keys are ready without cooldown, rotate immediately
+            now = time.monotonic()
+            other_ready = [s for s in key_pool.active_slots() if s.index != slot.index and now >= s.cooldown_until]
+            if other_ready:
                 continue
 
             # Single key or all keys throttling: do standard backoff
             if attempt == max_attempts - 1:
                 raise
-            time.sleep(_retry_wait_seconds(e, attempt))
+            time.sleep(retry_after)
         except Exception as e:
             err_msg = str(e).lower()
             if "429" in err_msg or "resource_exhausted" in err_msg:
