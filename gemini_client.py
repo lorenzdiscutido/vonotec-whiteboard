@@ -73,7 +73,10 @@ class KeySlot:
         if self.model is None:
             from google.generativeai import client as genai_client
             genai.configure(api_key=self.key)
-            m = genai.GenerativeModel("gemini-flash-lite-latest")
+            m = genai.GenerativeModel(
+                "gemini-flash-lite-latest",
+                generation_config={"response_mime_type": "application/json"},
+            )
             m._client = genai_client.get_default_generative_client()
             self.model = m
         return self.model
@@ -221,7 +224,8 @@ class KeyPool:
         return {
             "active_count": len(active),
             "total_count": len(total),
-            "daily_quota": len(active) * 500,
+            "rpm_capacity": len(active) * REQUESTS_PER_MINUTE,
+            "daily_quota": len(active) * 1500,
             "slots": [
                 {
                     "index": s.index + 1,

@@ -276,6 +276,7 @@ def hide_uploader_chrome_if_filled(uploaded_files):
 PREVIEW_SCROLL_HEIGHT = 290
 PREVIEW_COLUMNS = 6
 PREVIEW_PIXELS = 240
+MAX_PREVIEW_THUMBNAILS = 18
 
 
 @st.cache_data(show_spinner=False, max_entries=300)
@@ -304,26 +305,31 @@ def _format_size(num_bytes):
 
 
 def render_photo_previews(uploaded_files):
-    """A count and a grid of small previews of the selected photos."""
+    """A count and a grid of small previews of the selected photos (capped for instant UI response on large batches)."""
     if not uploaded_files:
         return
 
     photos = list(uploaded_files)
     total_bytes = sum(getattr(photo, "size", 0) or 0 for photo in photos)
-    st.caption(f"{len(photos)} photo{'s' if len(photos) != 1 else ''} selected \u00b7 {_format_size(total_bytes)}")
+    st.caption(f"{len(photos)} photo{'s' if len(photos) != 1 else ''} selected - {_format_size(total_bytes)}")
+
+    visible_photos = photos[:MAX_PREVIEW_THUMBNAILS]
+    hidden_count = max(0, len(photos) - len(visible_photos))
 
     def draw_grid():
-        for start in range(0, len(photos), PREVIEW_COLUMNS):
+        for start in range(0, len(visible_photos), PREVIEW_COLUMNS):
             columns = st.columns(PREVIEW_COLUMNS)
-            for column, photo in zip(columns, photos[start:start + PREVIEW_COLUMNS]):
+            for column, photo in zip(columns, visible_photos[start:start + PREVIEW_COLUMNS]):
                 thumbnail = _thumbnail_bytes(photo.name, photo.size, getattr(photo, "file_id", ""), photo.getvalue())
                 with column:
                     if thumbnail:
                         st.image(thumbnail)
                     else:
                         st.caption("(no preview)")
+        if hidden_count > 0:
+            st.caption(f"+ {hidden_count} additional photo{'s' if hidden_count != 1 else ''} queued and ready for extraction.")
 
-    if len(photos) > PREVIEW_COLUMNS:
+    if len(visible_photos) > PREVIEW_COLUMNS:
         with st.container(height=PREVIEW_SCROLL_HEIGHT, border=False, key="thumbnail_scroll_gallery"):
             draw_grid()
     else:

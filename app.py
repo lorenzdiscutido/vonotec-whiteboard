@@ -53,7 +53,7 @@ SOURCE_SHAREPOINT = "Import from SharePoint"
 
 # --- PAGE SETUP ---
 icon_path = Path(__file__).with_name("vonotec_icon.png")
-page_icon = Image.open(icon_path) if icon_path.exists() else "📊"
+page_icon = Image.open(icon_path) if icon_path.exists() else None
 
 st.set_page_config(
     page_title="VONOTEC Photo Sorter & PowerPoint Generator",
@@ -244,17 +244,21 @@ with form_col:
         )
 
         pool_stats = get_key_pool_stats()
-        if pool_stats["total_count"] > 1:
+        if pool_stats["total_count"] >= 1:
+            active_n = pool_stats["active_count"]
+            rpm_cap = pool_stats.get("rpm_capacity", active_n * 12)
+            key_label = "API Key" if active_n == 1 else "API Keys"
             st.markdown(
-                f'<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; '
-                f'border-radius: 9999px; background: rgba(30, 58, 138, 0.08); font-size: 12px; '
-                f'font-weight: 600; color: #1e3a8a; margin: 2px 0 10px 0;">'
-                f'<span>⚡</span> Gemini Key Pool: {pool_stats["active_count"]} active keys (~{pool_stats["daily_quota"]:,} daily requests)'
+                f'<div style="display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; '
+                f'border-radius: 9999px; background: rgba(22, 163, 74, 0.08); border: 1px solid rgba(22, 163, 74, 0.22); '
+                f'font-size: 12px; font-weight: 600; color: #15803d; margin: 2px 0 10px 0;">'
+                f'<span style="width: 7px; height: 7px; border-radius: 50%; background: #16a34a; display: inline-block;"></span>'
+                f'<span>Active Capacity: {active_n} {key_label} ({rpm_cap} photos / min)</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
         elif pool_stats["total_count"] == 0:
-            st.warning("⚠️ No Gemini API key detected. Please configure GEMINI_API_KEY in secrets.")
+            st.warning("No Gemini API key detected. Please configure GEMINI_API_KEY in secrets.")
 
         if ENABLE_SHAREPOINT_SYNC:
             with st.container(key="source_mode_switcher"):
@@ -399,7 +403,7 @@ with form_col:
                 if is_appending:
                     st.markdown(
                         '<div style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #16a34a; margin-top: 4px; font-weight: 600;">'
-                        '<span>&#10024;</span> <b>Smart Append Mode:</b> Merging into existing presentation by date.'
+                        '<span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a; display: inline-block;"></span> <b>Smart Append Mode:</b> Merging into existing presentation by date.'
                         '</div>',
                         unsafe_allow_html=True,
                     )

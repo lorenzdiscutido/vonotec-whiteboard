@@ -190,14 +190,9 @@ def _build_file_status(name, parsed_data):
 
 
 def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, outcome=None):
-    """Runs AI extraction on one photo and returns its structured record, or None on error."""
-    extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
-    temp_path = f"temp_{uuid.uuid4().hex}{extension}"
-    with open(temp_path, "wb") as f:
-        f.write(file_bytes)
-
+    """Runs AI extraction on one photo in memory and returns its structured record, or None on error."""
     try:
-        parsed_data = extract_data(temp_path)
+        parsed_data = extract_data(file_bytes)
         sort_date, day_key, date_display = _parse_date(parsed_data.get("Date", ""))
         drop_val = str(parsed_data.get("Drop", "") or "").strip()
         floor_val = str(parsed_data.get("Floor", "") or "").strip()
@@ -236,12 +231,6 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
             short = str(e).strip().splitlines()[0][:90] if str(e).strip() else type(e).__name__
             outcome.add_file(uploaded_file.name, "failed", f"Extraction error: {short}", str(e))
         return None
-    finally:
-        if os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass
 
 
 def load_existing_presentation(output_path):
