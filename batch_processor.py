@@ -8,12 +8,17 @@ photo from SharePoint at the moment getvalue() is called).
 """
 import datetime
 import hashlib
+import json
 import os
 import re
+import shutil
 import traceback
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+
+from pptx import Presentation
+from pptx.util import Inches
 
 import sharepoint_client
 import sync_tracker
@@ -204,6 +209,177 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
             os.remove(temp_path)
 
 
+def load_existing_presentation(output_path):
+    """Loads existing photo records and title block information from an existing presentation
+    file (either via local .meta.json companion cache or by parsing the .pptx directly).
+
+    Returns
+    -------
+    tuple[list[dict], dict]
+        (existing_records, existing_title_block_info)
+    """
+    if not os.path.exists(output_path):
+        return [], {}
+
+    # 1. Try companion cache first if present
+    meta_path = output_path + ".meta.json"
+    cache_dir = output_path + ".cache"
+    if os.path.exists(meta_path) and os.path.exists(cache_dir):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cached_records = data.get("records", [])
+            tb_info = data.get("title_block_info", {})
+
+            records = []
+            for r in cached_records:
+                img_file = r.get("image_cache_file")
+                if img_file:
+                    img_full_path = os.path.join(cache_dir, img_file)
+                    if os.path.exists(img_full_path):
+                        with open(img_full_path, "rb") as imf:
+                            r["image_bytes"] = imf.read()
+                sort_dt, day_key, display_date = _parse_date(r.get("date") or r.get("date_display"))
+                r["sort_date"] = sort_dt
+                r["day_key"] = day_key
+                r["date_display"] = display_date
+                if r.get("image_bytes"):
+                    records.append(r)
+
+            logo_file = tb_info.get("logo_cache_file")
+            if logo_file:
+                logo_path = os.path.join(cache_dir, logo_file)
+                if os.path.exists(logo_path):
+                    with open(logo_path, "rb") as lf:
+                        tb_info["location_logo_bytes"] = lf.read()
+
+            if records:
+                return records, tb_info
+        except Exception:
+            pass  # Fallback to direct PPTX extraction
+
+    # 2. Fallback: Parse the .pptx presentation directly
+    try:
+        prs = Presentation(output_path)
+        records = []
+        tb_info = {"title": "", "service_offered": "", "location_logo_bytes": None}
+        tb_top_threshold = Inches(6.0)
+
+        for slide_idx, slide in enumerate(prs.slides):
+            pic_shapes = [s for s in slide.shapes if s.shape_type == 13 and s.top < tb_top_threshold]
+            caption_boxes = [s for s in slide.shapes if s.has_text_frame and "Date:" in s.text and "Drop:" in s.text]
+
+            pic_shapes.sort(key=lambda s: s.left)
+            caption_boxes.sort(key=lambda s: s.left)
+
+            for p_shape, c_box in zip(pic_shapes, caption_boxes):
+                blob = p_shape.image.blob
+                cap_text = c_box.text
+
+                date_val, drop_val, floor_val, defect_val = "", "", "", ""
+                for line in cap_text.splitlines():
+                    line = line.strip()
+                    if line.startswith("Date:"):
+                        date_val = line[5:].strip()
+                    elif line.startswith("Drop:"):
+                        drop_val = line[5:].strip()
+                    elif line.startswith("Floor:"):
+                        floor_val = line[6:].strip()
+                    elif line.startswith("Defect:"):
+                        defect_val = line[7:].strip()
+
+                sort_dt, day_key, display_date = _parse_date(date_val)
+                p_hash = hashlib.sha256(blob).hexdigest()
+
+                records.append({
+                    "image_bytes": blob,
+                    "name": f"slide_{slide_idx + 1}_{drop_val}.jpg",
+                    "date_display": display_date,
+                    "date": date_val,
+                    "sort_date": sort_dt,
+                    "day_key": day_key,
+                    "drop": drop_val,
+                    "floor": floor_val,
+                    "defect": defect_val,
+                    "parsed_data": {"Date": date_val, "Drop": drop_val, "Floor": floor_val, "Defect": defect_val},
+                    "file_hash": p_hash,
+                    "order_index": len(records),
+                })
+
+            if slide_idx == 0:
+                for shape in slide.shapes:
+                    if shape.top >= tb_top_threshold:
+                        if shape.has_text_frame:
+                            txt = shape.text.strip()
+                            if Inches(3.2) <= shape.left < Inches(7.4):
+                                tb_info["title"] = txt
+                            elif Inches(7.4) <= shape.left < Inches(9.0):
+                                tb_info["service_offered"] = txt
+                        elif shape.shape_type == 13:
+                            if Inches(8.9) <= shape.left < Inches(11.3):
+                                tb_info["location_logo_bytes"] = shape.image.blob
+
+        return records, tb_info
+    except Exception:
+        traceback.print_exc()
+        return [], {}
+
+
+def save_presentation_cache(output_path, records, title_block_info):
+    """Saves a companion metadata file and cached images next to output_path
+    so future batches can instantly load and merge existing photos."""
+    try:
+        cache_dir = output_path + ".cache"
+        os.makedirs(cache_dir, exist_ok=True)
+        meta_path = output_path + ".meta.json"
+
+        cached_records = []
+        for r in records:
+            file_hash = r.get("file_hash") or hashlib.sha256(r.get("image_bytes", b"")).hexdigest()
+            img_filename = f"{file_hash[:16]}.jpg"
+            img_path = os.path.join(cache_dir, img_filename)
+
+            if not os.path.exists(img_path) and r.get("image_bytes"):
+                with open(img_path, "wb") as f:
+                    f.write(r["image_bytes"])
+
+            entry = {
+                "file_hash": file_hash,
+                "name": r.get("name", ""),
+                "date": str(r.get("date") or ""),
+                "date_display": str(r.get("date_display") or ""),
+                "day_key": str(r.get("day_key") or ""),
+                "drop": str(r.get("drop") or ""),
+                "floor": str(r.get("floor") or ""),
+                "defect": str(r.get("defect") or ""),
+                "parsed_data": r.get("parsed_data") or {},
+                "order_index": r.get("order_index", 0),
+                "image_cache_file": img_filename,
+            }
+            cached_records.append(entry)
+
+        tb_copy = {
+            "title": (title_block_info or {}).get("title", ""),
+            "service_offered": (title_block_info or {}).get("service_offered", ""),
+        }
+        logo_bytes = (title_block_info or {}).get("location_logo_bytes")
+        if logo_bytes:
+            logo_filename = "location_logo.png"
+            with open(os.path.join(cache_dir, logo_filename), "wb") as f:
+                f.write(logo_bytes)
+            tb_copy["logo_cache_file"] = logo_filename
+
+        meta_data = {
+            "records": cached_records,
+            "title_block_info": tb_copy,
+            "total_photos": len(cached_records),
+        }
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta_data, f, indent=2)
+    except Exception:
+        pass
+
+
 def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=False, on_progress=None, title_block_info=None):
     """Extracts every photo in `uploaded_files`, sorts them chronologically by Date,
     groups by Day into chunks of max 6 photos, writes the PowerPoint presentation
@@ -265,9 +441,50 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
     if not extracted_records:
         return outcome
 
+    # Smart Append: Check if presentation already exists locally or in SharePoint
+    if ENABLE_SHAREPOINT_SYNC and not os.path.exists(output_path):
+        try:
+            remote_filename = os.path.basename(output_path)
+            sharepoint_client.download_file(remote_filename, output_path, subfolder=subfolder)
+        except Exception:
+            pass
+
+    existing_records, existing_title_info = load_existing_presentation(output_path)
+
+    if existing_records:
+        merged_records = list(existing_records)
+        existing_hashes = {r.get("file_hash") for r in existing_records if r.get("file_hash")}
+        new_added = 0
+        for r in extracted_records:
+            h = r.get("file_hash")
+            if not h or h not in existing_hashes:
+                r_copy = dict(r)
+                r_copy["order_index"] = len(existing_records) + new_added
+                merged_records.append(r_copy)
+                if h:
+                    existing_hashes.add(h)
+                new_added += 1
+
+        all_records = merged_records
+
+        # Inherit existing title block fields if not explicitly provided in this run
+        merged_title_info = dict(existing_title_info or {})
+        if title_block_info:
+            if title_block_info.get("title"):
+                merged_title_info["title"] = title_block_info["title"]
+            if title_block_info.get("service_offered"):
+                merged_title_info["service_offered"] = title_block_info["service_offered"]
+            if title_block_info.get("location_logo_bytes"):
+                merged_title_info["location_logo_bytes"] = title_block_info["location_logo_bytes"]
+    else:
+        all_records = extracted_records
+        merged_title_info = title_block_info
+        new_added = len(extracted_records)
+
     # Sort chronologically by Date, group by Day, and split into chunks of max 6 photos
-    daily_chunks = sort_and_chunk_photos(extracted_records, max_per_chunk=MAX_PHOTOS_PER_CHUNK)
-    write_chunks_to_pptx(daily_chunks, output_path, title_block_info=title_block_info)
+    daily_chunks = sort_and_chunk_photos(all_records, max_per_chunk=MAX_PHOTOS_PER_CHUNK)
+    write_chunks_to_pptx(daily_chunks, output_path, title_block_info=merged_title_info)
+    save_presentation_cache(output_path, all_records, merged_title_info)
 
     sync_failed = False
     if ENABLE_SHAREPOINT_SYNC:
@@ -302,8 +519,15 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
         outcome.processed += 1
 
     save_processed_log(processed_log)
-    outcome.notice(
-        "status",
-        f"Generated {len(daily_chunks)} slide(s) across {len({c['day_key'] for c in daily_chunks})} day(s).",
-    )
+    if existing_records:
+        outcome.notice(
+            "status",
+            f"Appended to existing report: {len(existing_records)} existing + {new_added} new photo(s) "
+            f"= {len(all_records)} total across {len(daily_chunks)} slide(s) ({len({c['day_key'] for c in daily_chunks})} day(s)).",
+        )
+    else:
+        outcome.notice(
+            "status",
+            f"Generated {len(daily_chunks)} slide(s) across {len({c['day_key'] for c in daily_chunks})} day(s).",
+        )
     return outcome

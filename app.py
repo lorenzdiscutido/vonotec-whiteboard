@@ -69,6 +69,7 @@ _KEEP_ALIVE_PREFIXES = (
     "batch_name_input",
     "folder_choice_input",
     "new_folder_name_input",
+    "append_presentation_picker",
     "tb_title_input",
     "tb_service_input",
     "src_recursive",
@@ -304,14 +305,51 @@ with form_col:
             with folder_column:
                 folder_choice, new_folder_raw = render_folder_picker(disabled=not photos_gate_open)
             with name_column:
+                subfolder_cand, _, _ = resolve_subfolder(folder_choice, new_folder_raw)
+                target_dir = os.path.join(LOCAL_BATCH_DIR, subfolder_cand) if subfolder_cand else LOCAL_BATCH_DIR
+                existing_pptx_list = []
+                if os.path.exists(target_dir):
+                    existing_pptx_list = sorted(
+                        [f for f in os.listdir(target_dir) if f.lower().endswith(".pptx")],
+                        key=lambda f: os.path.getmtime(os.path.join(target_dir, f)),
+                        reverse=True,
+                    )
+
+                if existing_pptx_list and photos_gate_open:
+                    def _on_append_select():
+                        chosen = st.session_state.get("append_presentation_picker")
+                        if chosen and chosen != "-- New presentation --":
+                            st.session_state.batch_name_input = os.path.splitext(chosen)[0]
+
+                    st.selectbox(
+                        "Target existing presentation (optional)",
+                        ["-- New presentation --"] + existing_pptx_list,
+                        key="append_presentation_picker",
+                        on_change=_on_append_select,
+                        disabled=not photos_gate_open,
+                        help="Choose an existing presentation to smart-append new photos into matching date slides.",
+                    )
+
                 batch_name_raw = st.text_input(
                     "Batch name",
                     key="batch_name_input",
                     disabled=not photos_gate_open,
                     help="This becomes the PowerPoint (.pptx) file name, both here and in SharePoint. "
-                         "With 'Import from SharePoint' it starts as the chosen folder's name, "
-                         "and you can change it.",
+                         "If an existing presentation is chosen, new photos will automatically append and merge by date.",
                 )
+
+                target_filename = sanitize_batch_filename(batch_name_raw)
+                is_appending = False
+                if target_filename and os.path.exists(os.path.join(target_dir, target_filename)):
+                    is_appending = True
+
+                if is_appending:
+                    st.markdown(
+                        '<div style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #16a34a; margin-top: 4px; font-weight: 600;">'
+                        '<span>✨</span> <b>Smart Append Mode:</b> Merging into existing presentation by date.'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
 
             photos_missing, destination_missing = process_blockers(
                 active_photo_count,

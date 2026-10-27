@@ -3,6 +3,7 @@ import hashlib
 import html
 import io
 import os
+import shutil
 import traceback
 
 from PIL import Image, ImageOps
@@ -650,6 +651,15 @@ def render_file_management():
                     if st.button("Yes, delete file", type="primary", key="confirm_delete"):
                         if os.path.exists(path):
                             os.remove(path)
+                        meta_path = path + ".meta.json"
+                        if os.path.exists(meta_path):
+                            try:
+                                os.remove(meta_path)
+                            except OSError:
+                                pass
+                        cache_dir = path + ".cache"
+                        if os.path.exists(cache_dir):
+                            shutil.rmtree(cache_dir, ignore_errors=True)
                         sync_tracker.forget(path)
                         st.session_state.last_output_path = None
                         st.session_state.last_output_label = None
