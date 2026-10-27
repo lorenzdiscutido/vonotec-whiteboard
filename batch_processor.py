@@ -479,6 +479,8 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
 
         if num_workers > 1:
             outcome_lock = threading.Lock()
+            # Show initial progress immediately
+            notify(0, valid_work_items[0][1].name, finished=False)
 
             def _worker_task(u_file, f_bytes, f_hash, order_idx):
                 return _extract_photo_record(u_file, f_bytes, f_hash, order_idx, outcome=None)

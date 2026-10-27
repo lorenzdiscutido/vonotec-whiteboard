@@ -14,7 +14,9 @@ Photos can come from two places: uploaded from this device, or already sitting
 in any SharePoint folder ("Import from SharePoint"). Both end up in the same
 batch loop.
 """
+import base64
 import datetime
+import html
 import importlib
 import os
 import traceback
@@ -133,11 +135,16 @@ def _run_and_finish(files, batch_name_raw, filename, subfolder, creating_new_fol
     status_text = st.empty()
 
     def on_progress(index, total, name, finished):
-        if finished:
-            progress_bar.progress((index + 1) / total)
+        progress_val = min(max((index + 1) / total, 0.0), 1.0)
+        progress_bar.progress(progress_val)
+        if index + 1 >= total and finished:
+            status_text.markdown(
+                f'<p class="status-msg">Processing image {index + 1} of {total}: {name} &mdash; Finalizing presentation...</p>',
+                unsafe_allow_html=True,
+            )
         else:
             status_text.markdown(
-                f'<p class="status-msg">Extracting {index + 1} of {total}: {name}</p>',
+                f'<p class="status-msg">Processing image {index + 1} of {total}: {name}</p>',
                 unsafe_allow_html=True,
             )
 
@@ -432,17 +439,57 @@ with form_col:
                     "</div>",
                     unsafe_allow_html=True,
                 )
-                with st.container(key="compact_logo_uploader"):
-                    loc_logo_file = st.file_uploader(
-                        "Location logo (optional)",
-                        type=["png", "jpg", "jpeg"],
-                        key=f"tb_logo_{st.session_state.uploader_key}",
-                        disabled=not photos_gate_open,
-                        label_visibility="collapsed",
-                        help="Optional logo of the location placed in Field 4 of each slide's bottom title block.",
-                    )
-                if loc_logo_file is not None:
-                    st.image(loc_logo_file, caption="Field 4 Logo Preview", width=110)
+                logo_reset_key = st.session_state.get("logo_reset_count", 0)
+                active_logo_key = f"tb_logo_{st.session_state.uploader_key}_{logo_reset_key}"
+                curr_logo = st.session_state.get(active_logo_key)
+
+                if curr_logo is not None:
+                    # File already chosen: keep widget hidden in DOM to maintain Streamlit state
+                    with st.container(key="hidden_logo_uploader"):
+                        loc_logo_file = st.file_uploader(
+                            "Location logo (optional)",
+                            type=["png", "jpg", "jpeg"],
+                            key=active_logo_key,
+                            disabled=not photos_gate_open,
+                            label_visibility="collapsed",
+                        )
+                    loc_logo_bytes = loc_logo_file.getvalue() if loc_logo_file is not None else None
+                    if loc_logo_bytes:
+                        b64_img = base64.b64encode(loc_logo_bytes).decode("utf-8")
+                        mime = "image/png" if loc_logo_file.name.lower().endswith(".png") else "image/jpeg"
+                        filesize_kb = len(loc_logo_bytes) / 1024
+
+                        card_col, action_col = st.columns([3.2, 1], gap="small", vertical_alignment="center")
+                        with card_col:
+                            st.markdown(
+                                f"""
+                                <div class="logo-preview-card">
+                                    <div class="logo-preview-thumb">
+                                        <img src="data:{mime};base64,{b64_img}" alt="Field 4 Logo" />
+                                    </div>
+                                    <div class="logo-preview-info">
+                                        <div class="logo-preview-name" title="{html.escape(loc_logo_file.name)}">{html.escape(loc_logo_file.name)}</div>
+                                        <div class="logo-preview-badge">{filesize_kb:.1f} KB &bull; Field 4 Slide Logo</div>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        with action_col:
+                            if st.button("Remove", key="remove_loc_logo_btn", help="Remove this logo"):
+                                st.session_state.logo_reset_count = logo_reset_key + 1
+                                st.rerun()
+                else:
+                    with st.container(key="compact_logo_uploader"):
+                        loc_logo_file = st.file_uploader(
+                            "Location logo (optional)",
+                            type=["png", "jpg", "jpeg"],
+                            key=active_logo_key,
+                            disabled=not photos_gate_open,
+                            label_visibility="collapsed",
+                            help="Optional logo of the location placed in Field 4 of each slide's bottom title block.",
+                        )
+                    loc_logo_bytes = loc_logo_file.getvalue() if loc_logo_file is not None else None
 
             loc_logo_bytes = loc_logo_file.getvalue() if loc_logo_file is not None else None
             title_block_info = {

@@ -1902,64 +1902,124 @@ div[data-testid="stFileUploader"] {
   cursor: default !important;
 }
 
+/* Hidden uploader container when logo is already active */
+.st-key-hidden_logo_uploader {
+  display: none !important;
+}
+
 /* --------------------------------------------------------------------------
-   Compact Location Logo Uploader (Slide Title Block Field 4)
+   Compact Location Logo Uploader & Preview Card (Slide Title Block Field 4)
    -------------------------------------------------------------------------- */
-.st-key-compact_logo_uploader [data-testid="stFileUploader"],
-[class*="st-key-tb_logo_"] {
-  margin-bottom: 4px !important;
+.st-key-compact_logo_uploader [data-testid="stFileUploader"] {
+  margin-bottom: 0 !important;
 }
 
 .st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"],
-.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"],
-[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"],
-[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"] {
-  min-height: 56px !important;
-  max-height: 62px !important;
-  padding: 6px 12px !important;
-  margin-top: 2px !important;
-  border-width: 1.5px !important;
-  border-style: dashed !important;
-  border-radius: var(--radius-control) !important;
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"] {
+  min-height: 112px !important;
+  max-height: 120px !important;
+  padding: 12px 14px !important;
+  margin-top: 0 !important;
+  border: 1.5px dashed var(--border-strong, #cbd5e1) !important;
+  border-radius: var(--radius-control, 8px) !important;
+  background: var(--bg-surface, #ffffff) !important;
   display: flex !important;
-  flex-direction: row !important;
+  flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
+  cursor: pointer !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease !important;
+}
+
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"]:hover,
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]:hover {
+  border-color: var(--color-brand, #ea580c) !important;
+  background: rgba(234, 88, 12, 0.02) !important;
 }
 
 .st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"]::before,
-.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::before,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"]::before,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"]::before {
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::before {
   display: none !important;
 }
 
 .st-key-compact_logo_uploader [data-testid="stFileUploaderDropzone"]::after,
-.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::after,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzone"]::after,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploadDropzone"]::after {
+.st-key-compact_logo_uploader [data-testid="stFileUploadDropzone"]::after {
   display: none !important;
 }
 
-.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::before,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzoneInstructions"]::before {
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::before {
   content: "Drop location logo or browse" !important;
   font-size: 12px !important;
   font-weight: 600 !important;
-  line-height: 1.2 !important;
+  color: var(--text-primary, #0f172a) !important;
+  display: block !important;
+  margin-bottom: 2px !important;
 }
 
-.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::after,
-[class*="st-key-tb_logo_"] [data-testid="stFileUploaderDropzoneInstructions"]::after {
-  content: "PNG / JPG (optional)" !important;
-  font-size: 10px !important;
-  font-weight: 500 !important;
-  color: var(--text-muted) !important;
-}
-
-.st-key-compact_logo_uploader [data-testid="stFileUploaderFile"] {
+.st-key-compact_logo_uploader [data-testid="stFileUploaderDropzoneInstructions"]::after {
+  content: "PNG / JPG (transparent recommended)" !important;
   font-size: 11px !important;
-  padding: 4px 6px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted, #64748b) !important;
+  display: block !important;
+}
+
+/* Logo Preview Card */
+.logo-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface, #ffffff);
+  border: 1.5px solid var(--border-subtle, #e2e8f0);
+  border-radius: var(--radius-card, 10px);
+  padding: 10px 14px;
+  min-height: 68px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.logo-preview-thumb {
+  width: 80px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logo-preview-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-preview-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.logo-preview-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo-preview-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-brand, #ea580c);
+  margin-top: 2px;
 }
 
 /* Thumbnail Scroll Gallery */
