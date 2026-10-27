@@ -30,6 +30,7 @@ from settings import ENABLE_SHAREPOINT_SYNC
 MAX_PHOTOS_PER_CHUNK = 6
 
 _DATE_FORMATS = (
+    # Textual month formats first (unambiguous, e.g. "June 5, 2026", "5 June 2026")
     "%B %d, %Y",
     "%b %d, %Y",
     "%B %d %Y",
@@ -38,15 +39,20 @@ _DATE_FORMATS = (
     "%d %b %Y",
     "%d %B, %Y",
     "%d %b, %Y",
+    # Year-first ISO
     "%Y-%m-%d",
     "%Y/%m/%d",
-    "%m/%d/%Y",
-    "%d/%m/%Y",
-    "%m-%d-%Y",
-    "%d-%m-%Y",
-    "%m/%d/%y",
-    "%d/%m/%y",
     "%Y.%m.%d",
+    # Day/Month/Year numeric (Prioritized: DD/MM/YYYY e.g. 04/07/2026 -> July 4, 2026)
+    "%d/%m/%Y",
+    "%d-%m-%Y",
+    "%d.%m.%Y",
+    "%d/%m/%y",
+    "%d-%m-%y",
+    # Month/Day/Year fallback
+    "%m/%d/%Y",
+    "%m-%d-%Y",
+    "%m/%d/%y",
 )
 
 
@@ -86,6 +92,8 @@ def _parse_date(date_raw):
     for fmt in _DATE_FORMATS:
         try:
             dt = datetime.datetime.strptime(cleaned, fmt).date()
+            if dt.year < 2020:
+                dt = dt.replace(year=2026)
             display = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
             return dt, dt.isoformat(), display
         except ValueError:
