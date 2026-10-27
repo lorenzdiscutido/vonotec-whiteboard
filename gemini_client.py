@@ -45,19 +45,6 @@ HEDGE_MARKERS = ("?", "UNCLEAR", "ILLEGIBLE", "UNSURE", "UNREADABLE")
 OTHER_DEFECT_CODES = ["BG"]
 
 
-def _wait_for_slot():
-    while True:
-        with _rate_lock:
-            now = time.monotonic()
-            while _call_times and now - _call_times[0] >= RATE_WINDOW_SECONDS:
-                _call_times.popleft()
-            if len(_call_times) < REQUESTS_PER_MINUTE:
-                _call_times.append(now)
-                return
-            wait = RATE_WINDOW_SECONDS - (now - _call_times[0])
-        time.sleep(max(wait, 0.5))
-
-
 def _retry_wait_seconds(error, attempt):
     match = re.search(r"retry in ([\d.]+)s", str(error))
     if match:
@@ -65,33 +52,196 @@ def _retry_wait_seconds(error, attempt):
     return (2 ** attempt) + random.random()
 
 
-def _get_model():
-    """Lazily configure and retrieve the Gemini model."""
-    global _model_instance
-    if _model_instance is not None:
-        return _model_instance
-    api_key = None
-    try:
-        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-            api_key = st.secrets["GEMINI_API_KEY"]
-    except Exception:
-        api_key = None
-    if not api_key:
-        import os
-        api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        genai.configure(api_key=api_key)
-        _model_instance = genai.GenerativeModel("gemini-flash-lite-latest")
-    return _model_instance
+class KeySlot:
+    """Manages an individual Gemini API key, its dedicated GenerativeModel client,
+    and its independent rate-limiting queue."""
 
-_model_instance = None
+    def __init__(self, key: str, index: int):
+        self.key = key
+        self.index = index
+        self.masked = f"...{key[-6:]}" if len(key) >= 6 else f"Key #{index + 1}"
+        self.model = None
+        self.is_exhausted = False
+        self.exhausted_reason = ""
+        self.call_times = collections.deque()
+        self.lock = threading.Lock()
+        self.total_calls = 0
+
+    def get_model(self):
+        if self.model is None:
+            from google.generativeai import client as genai_client
+            genai.configure(api_key=self.key)
+            m = genai.GenerativeModel("gemini-flash-lite-latest")
+            m._client = genai_client.get_default_generative_client()
+            self.model = m
+        return self.model
+
+    def wait_for_slot(self, max_rpm=REQUESTS_PER_MINUTE, window_sec=RATE_WINDOW_SECONDS):
+        while True:
+            with self.lock:
+                now = time.monotonic()
+                while self.call_times and now - self.call_times[0] >= window_sec:
+                    self.call_times.popleft()
+                if len(self.call_times) < max_rpm:
+                    self.call_times.append(now)
+                    return
+                wait = window_sec - (now - self.call_times[0])
+            time.sleep(max(wait, 0.2))
+
+    def record_success(self):
+        with self.lock:
+            self.total_calls += 1
+
+    def mark_exhausted(self, reason):
+        with self.lock:
+            self.is_exhausted = True
+            self.exhausted_reason = str(reason)
+
+
+class KeyPool:
+    """Thread-safe pool of Gemini API keys supporting round-robin rotation,
+    independent per-key rate limiting, automatic failover, and quota exhaustion handling."""
+
+    def __init__(self):
+        self._slots = []
+        self._current_idx = -1
+        self._lock = threading.Lock()
+        self._initialized = False
+
+    def _discover_keys(self):
+        import os
+        sources = []
+        # 1. Streamlit secrets
+        try:
+            if hasattr(st, "secrets"):
+                if "GEMINI_API_KEYS" in st.secrets:
+                    sources.append(st.secrets["GEMINI_API_KEYS"])
+                if "GEMINI_API_KEY" in st.secrets:
+                    sources.append(st.secrets["GEMINI_API_KEY"])
+                for k, v in st.secrets.items():
+                    if k.startswith("GEMINI_API_KEY_") and isinstance(v, str):
+                        sources.append(v)
+        except Exception:
+            pass
+
+        # 2. Environment variables
+        for var in ("GEMINI_API_KEYS", "GEMINI_API_KEY"):
+            val = os.environ.get(var)
+            if val:
+                sources.append(val)
+        for k, val in os.environ.items():
+            if k.startswith("GEMINI_API_KEY_") and val:
+                sources.append(val)
+
+        # 3. config.py fallback
+        try:
+            import config
+            cfg_keys = getattr(config, "GEMINI_API_KEYS", None)
+            if cfg_keys:
+                sources.append(cfg_keys)
+            cfg_key = getattr(config, "GEMINI_API_KEY", None)
+            if cfg_key:
+                sources.append(cfg_key)
+        except Exception:
+            pass
+
+        clean_keys = []
+        seen = set()
+        for item in sources:
+            if isinstance(item, (list, tuple)):
+                raw_items = item
+            elif isinstance(item, str):
+                raw_items = re.split(r"[\n,;]+", item)
+            else:
+                continue
+            for r in raw_items:
+                if isinstance(r, str):
+                    clean = r.strip().strip("'\"")
+                    if clean and clean not in seen:
+                        seen.add(clean)
+                        clean_keys.append(clean)
+        return clean_keys
+
+    def initialize(self):
+        with self._lock:
+            if self._initialized and self._slots:
+                return
+            keys = self._discover_keys()
+            self._slots = [KeySlot(k, i) for i, k in enumerate(keys)]
+            self._current_idx = -1
+            self._initialized = True
+
+    def reset_status(self):
+        """Clears exhausted flags (e.g. for a new day)."""
+        with self._lock:
+            for s in self._slots:
+                s.is_exhausted = False
+                s.exhausted_reason = ""
+
+    def active_slots(self):
+        self.initialize()
+        return [s for s in self._slots if not s.is_exhausted]
+
+    def all_slots(self):
+        self.initialize()
+        return list(self._slots)
+
+    def pool_stats(self):
+        """Returns dict with active_count, total_count, approx_daily_quota, details."""
+        self.initialize()
+        active = [s for s in self._slots if not s.is_exhausted]
+        total = self._slots
+        return {
+            "active_count": len(active),
+            "total_count": len(total),
+            "daily_quota": len(active) * 500,
+            "slots": [
+                {
+                    "index": s.index + 1,
+                    "masked": s.masked,
+                    "active": not s.is_exhausted,
+                    "calls": s.total_calls,
+                    "reason": s.exhausted_reason,
+                }
+                for s in total
+            ],
+        }
+
+    def next_slot(self):
+        with self._lock:
+            active = [s for s in self._slots if not s.is_exhausted]
+            if not active:
+                if not self._slots:
+                    raise RuntimeError(
+                        "No Gemini API key found. Please set GEMINI_API_KEY or GEMINI_API_KEYS "
+                        "in Streamlit secrets or environment."
+                    )
+                raise RuntimeError(
+                    f"All configured Gemini API keys ({len(self._slots)} key(s)) have exhausted "
+                    f"their daily quota. Please check Google AI Studio or add additional keys."
+                )
+            self._current_idx = (self._current_idx + 1) % len(active)
+            return active[self._current_idx]
+
+
+key_pool = KeyPool()
+
+
+def get_key_pool_stats():
+    """Returns status information about the active Gemini API key pool."""
+    return key_pool.pool_stats()
+
+
+def _get_model():
+    """Retrieves an active model instance from the key pool."""
+    return key_pool.next_slot().get_model()
+
 
 class _LazyModelProxy:
     def __getattr__(self, name):
         m = _get_model()
-        if m is None:
-            raise RuntimeError("Gemini API key is not configured. Please set GEMINI_API_KEY in Streamlit secrets or environment.")
         return getattr(m, name)
+
 
 model = _LazyModelProxy()
 
@@ -162,16 +312,66 @@ def _extraction_prompt():
 
 
 def _generate_text(parts):
+    key_pool.initialize()
+    active_keys = key_pool.active_slots()
+    if not active_keys:
+        key_pool.next_slot()  # raises descriptive error if no keys configured
+
+    max_attempts = max(MAX_ATTEMPTS, len(active_keys) * 2)
     response = None
-    for attempt in range(MAX_ATTEMPTS):
-        _wait_for_slot()
+    last_error = None
+
+    for attempt in range(max_attempts):
+        active = key_pool.active_slots()
+        if not active:
+            raise RuntimeError(
+                f"All configured Gemini API keys ({len(key_pool.all_slots())} key(s)) have exhausted "
+                f"their daily quota. Last error: {last_error}"
+            )
+
+        slot = key_pool.next_slot()
+        slot.wait_for_slot(REQUESTS_PER_MINUTE, RATE_WINDOW_SECONDS)
+
         try:
-            response = model.generate_content(parts)
+            model_instance = slot.get_model()
+            response = model_instance.generate_content(parts)
+            slot.record_success()
             break
         except RETRYABLE_ERRORS as e:
-            if attempt == MAX_ATTEMPTS - 1:
+            last_error = e
+            err_msg = str(e).lower()
+
+            # Check if this error is daily quota exhaustion vs temporary per-minute throttle
+            is_daily_exhausted = (
+                "quota exceeded" in err_msg
+                or "limit per day" in err_msg
+                or "quota metric" in err_msg
+            )
+
+            if is_daily_exhausted:
+                slot.mark_exhausted(e)
+                print(f"[Gemini Key Pool] Key #{slot.index + 1} ({slot.masked}) daily quota reached. Switching to next key...")
+                continue
+
+            # If multiple active keys exist, rotate to the next key immediately without sleeping
+            if len(key_pool.active_slots()) > 1:
+                continue
+
+            # Single key or all keys throttling: do standard backoff
+            if attempt == max_attempts - 1:
                 raise
             time.sleep(_retry_wait_seconds(e, attempt))
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "429" in err_msg or "resource_exhausted" in err_msg:
+                if "quota exceeded" in err_msg or "limit per day" in err_msg:
+                    slot.mark_exhausted(e)
+                    print(f"[Gemini Key Pool] Key #{slot.index + 1} ({slot.masked}) quota exhausted. Switching to next key...")
+                    continue
+            raise
+
+    if response is None:
+        raise RuntimeError(f"Failed to generate text after {max_attempts} attempts. Last error: {last_error}")
 
     try:
         raw_text = response.text.strip()

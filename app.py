@@ -27,6 +27,7 @@ import sharepoint_client
 import ui_components
 from batch_processor import BatchOutcome, run_batch
 from file_utils import load_prefs, sanitize_batch_filename, save_prefs
+from gemini_client import get_key_pool_stats
 from settings import ENABLE_SHAREPOINT_SYNC, LOCAL_BATCH_DIR, MAIN_FOLDER_LABEL
 from ui_sections import (
     hide_uploader_chrome_if_filled,
@@ -232,6 +233,19 @@ with form_col:
             "Choose where to import photos from",
             description="Select photos from your device or import them from an existing SharePoint folder.",
         )
+
+        pool_stats = get_key_pool_stats()
+        if pool_stats["total_count"] > 1:
+            st.markdown(
+                f'<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; '
+                f'border-radius: 9999px; background: rgba(30, 58, 138, 0.08); font-size: 12px; '
+                f'font-weight: 600; color: #1e3a8a; margin: 2px 0 10px 0;">'
+                f'<span>⚡</span> Gemini Key Pool: {pool_stats["active_count"]} active keys (~{pool_stats["daily_quota"]:,} daily requests)'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        elif pool_stats["total_count"] == 0:
+            st.warning("⚠️ No Gemini API key detected. Please configure GEMINI_API_KEY in secrets.")
 
         if ENABLE_SHAREPOINT_SYNC:
             with st.container(key="source_mode_switcher"):
