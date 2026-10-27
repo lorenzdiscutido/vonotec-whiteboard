@@ -182,11 +182,20 @@ class KeyPool:
 
     def initialize(self):
         with self._lock:
-            if self._initialized and self._slots:
-                return
             keys = self._discover_keys()
-            self._slots = [KeySlot(k, i) for i, k in enumerate(keys)]
-            self._current_idx = -1
+            current_keys = [s.key for s in self._slots]
+            if keys == current_keys and self._initialized:
+                return
+            old_slots = {s.key: s for s in self._slots}
+            new_slots = []
+            for i, k in enumerate(keys):
+                if k in old_slots:
+                    slot = old_slots[k]
+                    slot.index = i
+                    new_slots.append(slot)
+                else:
+                    new_slots.append(KeySlot(k, i))
+            self._slots = new_slots
             self._initialized = True
 
     def reset_status(self):
