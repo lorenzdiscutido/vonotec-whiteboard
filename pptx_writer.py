@@ -27,8 +27,9 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
 TEMPLATE_PATH = Path(__file__).with_name("template.pptx")
-MAX_IMAGE_WIDTH = 1024
-JPEG_QUALITY = 85
+# Set to None to preserve 100% full native camera resolution without downscaling
+MAX_IMAGE_WIDTH = None
+JPEG_QUALITY = 95
 
 # Phone photos are shown in portrait. A photo that is still landscape after its EXIF
 # orientation is applied is turned 90° clockwise (how most phones store sideways shots).
@@ -67,10 +68,11 @@ CAPTION_FONT_SIZE = Pt(9.5)
 MATERIALS = ("Sealant", "Concrete", "Paint", "Gasket", "With Film", "Broken Glass")
 
 
-def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH, force_portrait=FORCE_PORTRAIT):
-    """Resizes a raw image in memory using PIL `Image.thumbnail` (max width 1024px), turning
-    it to portrait when needed. Returns (jpeg_stream, width_px, height_px); the stream is a
-    seeked `io.BytesIO` ready for python-pptx. The original bytes/file are never modified."""
+def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH, quality=JPEG_QUALITY, force_portrait=FORCE_PORTRAIT):
+    """Prepares a raw image in memory for insertion into PowerPoint while preserving its full
+    original resolution and crisp visual fidelity. Applies EXIF orientation and turns sideways
+    photos to portrait when needed. Returns (jpeg_stream, width_px, height_px); the stream is a
+    seeked `io.BytesIO` ready for python-pptx. The original file bytes are never modified."""
     if isinstance(image_source, (bytes, bytearray)):
         src_stream = io.BytesIO(image_source)
     elif hasattr(image_source, "read"):
@@ -87,11 +89,12 @@ def optimize_image_in_memory(image_source, max_width=MAX_IMAGE_WIDTH, force_port
         if force_portrait and img.width > img.height:
             img = img.transpose(Image.Transpose.ROTATE_270)  # 90° clockwise
 
-        # Width capped at max_width; height follows the aspect ratio
-        img.thumbnail((max_width, max_width * 4), Image.Resampling.LANCZOS)
+        # Only downscale if max_width is explicitly set (None retains 100% original camera resolution)
+        if max_width is not None and max_width > 0:
+            img.thumbnail((max_width, max_width * 4), Image.Resampling.LANCZOS)
 
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+        img.save(buffer, format="JPEG", quality=quality, subsampling=0)
         buffer.seek(0)
         return buffer, img.width, img.height
 
