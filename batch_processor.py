@@ -12,9 +12,11 @@ import json
 import os
 import re
 import shutil
+import threading
 import traceback
 import uuid
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from pptx import Presentation
@@ -24,7 +26,8 @@ import sharepoint_client
 import sync_tracker
 from extraction import extract_data
 from file_utils import load_processed_log, save_processed_log
-from pptx_writer import format_defect_text, write_chunks_to_pptx
+from gemini_client import get_key_pool
+from pptx_writer import format_defect_text, optimize_image_in_memory, write_chunks_to_pptx
 from settings import ENABLE_SHAREPOINT_SYNC
 
 MAX_PHOTOS_PER_CHUNK = 6
@@ -186,7 +189,7 @@ def _build_file_status(name, parsed_data):
     return {"name": name, "status": status, "reason": reason, "details": details}
 
 
-def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, outcome):
+def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, outcome=None):
     """Runs AI extraction on one photo and returns its structured record, or None on error."""
     extension = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
     temp_path = f"temp_{uuid.uuid4().hex}{extension}"
@@ -200,11 +203,23 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
         floor_val = str(parsed_data.get("Floor", "") or "").strip()
         defect_val = format_defect_text(parsed_data)
 
+        # Pre-optimize slide image in memory for PowerPoint to eliminate end-of-batch lag
+        opt_bytes = None
+        opt_dims = None
+        try:
+            opt_stream, opt_w, opt_h = optimize_image_in_memory(file_bytes)
+            opt_bytes = opt_stream.getvalue()
+            opt_dims = (opt_w, opt_h)
+        except Exception:
+            pass
+
         return {
             "name": uploaded_file.name,
             "file_hash": file_hash,
             "order_index": order_index,
             "image_bytes": file_bytes,
+            "optimized_image_bytes": opt_bytes,
+            "optimized_dims": opt_dims,
             "parsed_data": parsed_data,
             "sort_date": sort_date,
             "day_key": day_key,
@@ -216,13 +231,17 @@ def _extract_photo_record(uploaded_file, file_bytes, file_hash, order_index, out
         }
     except Exception as e:
         traceback.print_exc()
-        outcome.messages.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
-        short = str(e).strip().splitlines()[0][:90] if str(e).strip() else type(e).__name__
-        outcome.add_file(uploaded_file.name, "failed", f"Extraction error: {short}", str(e))
+        if outcome is not None:
+            outcome.messages.append(("error", f"An error occurred while processing {uploaded_file.name}: {e}"))
+            short = str(e).strip().splitlines()[0][:90] if str(e).strip() else type(e).__name__
+            outcome.add_file(uploaded_file.name, "failed", f"Extraction error: {short}", str(e))
         return None
     finally:
         if os.path.exists(temp_path):
-            os.remove(temp_path)
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
 
 def load_existing_presentation(output_path):
@@ -419,18 +438,19 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
 
     processed_log = load_processed_log()
     seen_hashes = set()
-    extracted_records = []
+    valid_work_items = []
+    completed_so_far = 0
 
+    # 1. Validation & deduplication pass
     for i, uploaded_file in enumerate(uploaded_files):
-        notify(i, uploaded_file.name, finished=False)
-
         try:
             file_bytes = uploaded_file.getvalue()
         except Exception as e:
             traceback.print_exc()
             outcome.messages.append(("error", f"Could not read '{uploaded_file.name}': {e}. It was skipped."))
             outcome.add_file(uploaded_file.name, "failed", "Could not read the photo", str(e))
-            notify(i, uploaded_file.name, finished=True)
+            completed_so_far += 1
+            notify(completed_so_far - 1, uploaded_file.name, finished=True)
             continue
 
         file_hash = hashlib.sha256(file_bytes).hexdigest()
@@ -444,15 +464,61 @@ def run_batch(uploaded_files, output_path, subfolder="", creating_new_folder=Fal
                 "This photo's content matches one processed before (duplicates are matched by content, not by file name).",
             )
             outcome.skipped += 1
-            notify(i, uploaded_file.name, finished=True)
+            completed_so_far += 1
+            notify(completed_so_far - 1, uploaded_file.name, finished=True)
             continue
+
         seen_hashes.add(file_hash)
+        valid_work_items.append((i, uploaded_file, file_bytes, file_hash))
 
-        record = _extract_photo_record(uploaded_file, file_bytes, file_hash, i, outcome)
-        if record is not None:
-            extracted_records.append(record)
+    extracted_records = []
+    if valid_work_items:
+        key_pool = get_key_pool()
+        active_slots = key_pool.active_slots()
+        num_workers = max(1, min(len(active_slots), 6))
 
-        notify(i, uploaded_file.name, finished=True)
+        if num_workers > 1:
+            outcome_lock = threading.Lock()
+
+            def _worker_task(u_file, f_bytes, f_hash, order_idx):
+                return _extract_photo_record(u_file, f_bytes, f_hash, order_idx, outcome=None)
+
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                futures = {
+                    executor.submit(_worker_task, u_file, f_bytes, f_hash, idx): (idx, u_file.name)
+                    for (idx, u_file, f_bytes, f_hash) in valid_work_items
+                }
+
+                for future in as_completed(futures):
+                    idx, fname = futures[future]
+                    completed_so_far += 1
+                    try:
+                        rec = future.result()
+                        if rec is not None:
+                            with outcome_lock:
+                                extracted_records.append(rec)
+                        else:
+                            with outcome_lock:
+                                outcome.messages.append(("error", f"Extraction failed for {fname}"))
+                                outcome.add_file(fname, "failed", "AI extraction returned empty", "")
+                    except Exception as err:
+                        traceback.print_exc()
+                        with outcome_lock:
+                            outcome.messages.append(("error", f"An error occurred while processing {fname}: {err}"))
+                            outcome.add_file(fname, "failed", f"Worker error: {type(err).__name__}", str(err))
+
+                    notify(completed_so_far - 1, fname, finished=True)
+        else:
+            for idx, u_file, f_bytes, f_hash in valid_work_items:
+                notify(completed_so_far, u_file.name, finished=False)
+                rec = _extract_photo_record(u_file, f_bytes, f_hash, idx, outcome=outcome)
+                if rec is not None:
+                    extracted_records.append(rec)
+                completed_so_far += 1
+                notify(completed_so_far - 1, u_file.name, finished=True)
+
+        # Restore original input order before sorting by date
+        extracted_records.sort(key=lambda r: r.get("order_index", 0))
 
     if not extracted_records:
         return outcome

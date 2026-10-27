@@ -10,14 +10,14 @@ import settings
 
 class TestFileUtils(unittest.TestCase):
     def test_sanitize_batch_filename_normal(self):
-        self.assertEqual(sanitize_batch_filename("my_batch"), "my_batch.xlsx")
-        self.assertEqual(sanitize_batch_filename("my_batch.xlsx"), "my_batch.xlsx")
-        self.assertEqual(sanitize_batch_filename("my_batch.XLSX"), "my_batch.XLSX")
+        self.assertEqual(sanitize_batch_filename("my_batch"), "my_batch.pptx")
+        self.assertEqual(sanitize_batch_filename("my_batch.pptx"), "my_batch.pptx")
+        self.assertEqual(sanitize_batch_filename("my_batch.PPTX"), "my_batch.PPTX")
 
     def test_sanitize_batch_filename_invalid_chars(self):
         # Characters like \ / : * ? " < > |
         sanitized = sanitize_batch_filename('test/batch:name?*')
-        self.assertEqual(sanitized, "test_batch_name__.xlsx")
+        self.assertEqual(sanitized, "test_batch_name__.pptx")
 
     def test_sanitize_batch_filename_empty_or_whitespace(self):
         self.assertIsNone(sanitize_batch_filename(""))

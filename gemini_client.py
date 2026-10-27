@@ -258,6 +258,11 @@ class KeyPool:
 key_pool = KeyPool()
 
 
+def get_key_pool():
+    """Returns the singleton KeyPool instance."""
+    return key_pool
+
+
 def get_key_pool_stats():
     """Returns status information about the active Gemini API key pool."""
     return key_pool.pool_stats()

@@ -330,7 +330,12 @@ def _inject_chunk_into_slide(slide, chunk_items, chunk_date="", title_block_info
         date_str, drop_str, floor_str, defect_str = _extract_metadata(item, chunk_date)
         image_source = item.get("image_bytes") or item.get("image_path")
 
-        if image_source is not None:
+        if item.get("optimized_image_bytes") and item.get("optimized_dims"):
+            img_stream = io.BytesIO(item["optimized_image_bytes"])
+            img_w, img_h = item["optimized_dims"]
+            pic_left, pic_top, pic_w, pic_h = _fit_inside(frame, img_w, img_h)
+            slide.shapes.add_picture(img_stream, pic_left, pic_top, width=pic_w, height=pic_h)
+        elif image_source is not None:
             img_stream, img_w, img_h = optimize_image_in_memory(image_source)
             pic_left, pic_top, pic_w, pic_h = _fit_inside(frame, img_w, img_h)
             slide.shapes.add_picture(img_stream, pic_left, pic_top, width=pic_w, height=pic_h)
