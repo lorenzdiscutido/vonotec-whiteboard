@@ -66,7 +66,7 @@ ui_components.render_header()
 
 _KEEP_ALIVE_PREFIXES = (
     "photo_source",
-    "save_mode_radio",
+    "append_mode_toggle",
     "batch_name_input",
     "folder_choice_input",
     "new_folder_name_input",
@@ -303,15 +303,12 @@ with form_col:
         with st.container(border=True, key="save_settings" if photos_gate_open else "save_settings_muted"):
             ui_components.card_heading("Output preferences", "Save settings")
 
-            save_mode = st.radio(
-                "Action",
-                options=["Create new presentation", "Append to existing presentation"],
-                horizontal=True,
-                key="save_mode_radio",
+            is_append_mode = st.toggle(
+                "Append to existing presentation",
+                key="append_mode_toggle",
                 disabled=not photos_gate_open,
-                help="Choose whether to create a fresh presentation or smart-append photos into an existing one.",
+                help="Turn on to smart-append new photos into an existing presentation.",
             )
-            is_append_mode = (save_mode == "Append to existing presentation")
 
             folder_column, name_column = st.columns(2, gap="medium")
             with folder_column:

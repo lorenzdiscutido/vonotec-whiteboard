@@ -3087,6 +3087,17 @@ div.st-key-chart_dimensions > [data-testid="stVerticalBlock"] {
   }
 }
 
+/* Compact toggle for smart append */
+.st-key-append_mode_toggle {
+  margin-top: -4px !important;
+  margin-bottom: 12px !important;
+}
+.st-key-append_mode_toggle label p {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-normal) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
