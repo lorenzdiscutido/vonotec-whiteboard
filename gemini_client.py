@@ -208,6 +208,7 @@ class KeyPool:
         }
 
     def next_slot(self):
+        self.initialize()
         with self._lock:
             active = [s for s in self._slots if not s.is_exhausted]
             if not active:
@@ -271,20 +272,27 @@ def _defect_reference_text():
 def _extraction_prompt():
     modifiers_quoted = ", ".join(f"'{m}'" for m in SEALANT_LOCATION_MODIFIERS)
     return (
-        f"Extract the data from this whiteboard grid into a flat JSON object using exactly these keys: {JSON_KEYS}. "
-        "Follow these strict extraction rules based on this specific whiteboard layout: "
-        "1. 'Submitter': Extract ONLY the person's name from the bottom right corner (e.g., 'Rufino Zuñiga Jr'). Strip away any prefixes like 'R.A.T.S. drop by'. "
-        "2. 'Date': Scan the entire photo to locate and extract the date, regardless of its position. "
+        f"Extract inspection data from this image into a flat JSON object using exactly these keys: {JSON_KEYS}. "
+        "The photo may be a whiteboard grid OR an on-site photo with a camera watermark/timestamp overlay (such as Timemark). "
+        "Follow these strict extraction and grounding rules: "
+        "1. 'Submitter': Extract ONLY the person's name (e.g., from the bottom right corner of a whiteboard, or from 'Name:' in a timestamp overlay). Strip away prefixes like 'R.A.T.S. drop by'. "
+        "2. 'Date': Scan the photo to locate and extract the date (from whiteboard or camera timestamp). "
         "CRITICAL DATE FORMATTING RULES: "
-        "- DAY/MONTH/YEAR ORDER: When dates are written numerically with slashes, dots, or dashes (e.g., '04/07/2026' or '04/07/24'), "
-        "the format is DAY/MONTH/YEAR. '04/07' means Day 04 of Month 07 (July 4), NOT April 7. "
-        "Convert numeric dates into standard 'Month Day, Year' format (e.g., 'July 4, 2026'). "
-        "- TEXTUAL MONTHS: If the board explicitly writes out the month name (e.g., 'June 5, 2026' or '5 June 2026'), take that as it is and format as 'Month Day, Year' (e.g., 'June 5, 2026'). "
+        "- DAY/MONTH/YEAR ORDER: When dates are written numerically with slashes, dots, or dashes (e.g., '01/07/2026' or '04/07/2004'), "
+        "the format is strictly DAY/MONTH/YEAR (DD/MM/YYYY). For example, '01/07/2026' is 1st of July (July 1, 2026), NOT January 7. '04/07/2026' is 4th of July (July 4, 2026), NOT April 7. "
+        "Convert numeric dates into standard 'Month Day, Year' format (e.g., 'July 1, 2026' or 'July 4, 2026') or output as 'DD/MM/YYYY'. "
+        "- TEXTUAL MONTHS: If the board or watermark explicitly writes out the month name (e.g., 'June 5, 2026' or '5 June 2026'), take that as it is and format as 'Month Day, Year' (e.g., 'June 5, 2026'). "
         "- YEAR: Ensure the year is standardized to 2026 (e.g., convert '04/07/2004' or '04/07/24' to 'July 4, 2026'). "
-        "3. 'Tower': This is the tower code usually written in blue marker (e.g., 'TOWER 1'). Do not include any name here. Explicitly ignore the words 'RAT' or 'RATS'. If a valid tower number is not clearly written, return an empty string so the system can infer it later. "
-        "4. 'Drop': This is the specific number located strictly under the 'DROP' column header. "
-        "5. 'Floor': This is the specific number located strictly under the 'FLR' column header. "
-        "6. Materials (Sealant, Concrete, Paint, Gasket, With Film, Broken Glass): You MUST extract multiple damage entries as JSON ARRAYS. "
+        "- IGNORE WEEKDAYS AND TIME: Do not include weekdays (e.g. 'Wed', 'Wednesday') or times (e.g. '14:28') in the Date field. "
+        "3. 'Tower': This is the tower code (e.g., 'TOWER 1'). Do not include any person name. Explicitly ignore words like 'RAT' or 'RATS'. If a valid tower number is not clearly written, return an empty string \"\". "
+        "4. 'Drop': This is the specific drop number (from 'DROP' on a whiteboard, or from 'Drop X' / 'Notes: Drop X' in a camera overlay). Return only the number or code (e.g., '6'). "
+        "5. 'Floor': This is the specific floor number (from 'FLR' on a whiteboard, or from floor notes in a camera overlay like '36D' -> '36' or '36D'). "
+        "6. Materials (Sealant, Concrete, Paint, Gasket, With Film, Broken Glass): "
+        "CRITICAL DEFECT GROUNDING RULES (TEXT-ONLY EXTRACTION): "
+        "- TEXT-BASED DEFECT EXTRACTION ONLY: Extract defect codes and dimensions ONLY when they are EXPLICITLY WRITTEN in text (e.g., written in marker on a whiteboard, or explicitly typed in a notes field). "
+        "- NEVER PERFORM VISUAL DEFECT INSPECTION ON PHYSICAL OBJECTS: DO NOT inspect physical construction materials in the photo (e.g., do NOT examine the physical sealant bead, concrete wall, glass, or paint to guess if it has defects). Normal construction features, sealant tooling ripples, joint contours, shadows, and stucco texture are NOT defects. "
+        "- ZERO DEFECTS IS COMPLETELY NORMAL: If there is no defect code written in text anywhere on the photo, ALL damage and dimension arrays MUST be empty []. Never guess, infer, or invent defect codes. "
+        "- CAMERA OVERLAYS / TIMEMARKS: When a photo has a camera timestamp overlay (e.g. 'Timemark'), text like 'Drop 6', '36D', 'MBR' are location identifiers (Drop 6, Floor 36 Unit D, Master Bedroom), NOT defect codes. If no defect code is written in the notes, return empty arrays [] for all materials. "
         "- Each material gets two keys: '[Material] Damage' and '[Material] Dimension'. Both must be formatted as arrays of strings. "
         "- Example exact JSON output for Sealant:\n"
         "\"Sealant Damage\": [\"DS CC\", \"MS FG\"],\n"
@@ -624,9 +632,6 @@ def find_problems(parsed_data):
 
     for note in manual_notes:
         problems.append((note["material"], note["message"], "manual"))
-
-    if not any_entries:
-        problems.append((None, "No damage entries were detected on this whiteboard", "structural"))
 
     if not str(parsed_data.get("Date", "")).strip():
         problems.append((None, "No date was found on the board", "info"))

@@ -85,8 +85,16 @@ def _parse_date(date_raw):
     if not raw:
         return datetime.date.max, "9999-12-31", "Unknown Date"
 
-    # Strip ordinal suffixes (1st, 2nd, 3rd, 4th) and normalize whitespace
+    # Strip ordinal suffixes (1st, 2nd, 3rd, 4th), weekday names, timestamps, and normalize whitespace
     cleaned = re.sub(r"(\d+)(?:st|nd|rd|th)\b", r"\1", raw, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", "", cleaned)
+    cleaned = re.sub(r"[|]", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.-")
 
     for fmt in _DATE_FORMATS:
