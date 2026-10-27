@@ -66,6 +66,7 @@ ui_components.render_header()
 
 _KEEP_ALIVE_PREFIXES = (
     "photo_source",
+    "save_mode_radio",
     "batch_name_input",
     "folder_choice_input",
     "new_folder_name_input",
@@ -301,52 +302,100 @@ with form_col:
 
         with st.container(border=True, key="save_settings" if photos_gate_open else "save_settings_muted"):
             ui_components.card_heading("Output preferences", "Save settings")
+
+            save_mode = st.radio(
+                "Action",
+                options=["Create new presentation", "Append to existing presentation"],
+                horizontal=True,
+                key="save_mode_radio",
+                disabled=not photos_gate_open,
+                help="Choose whether to create a fresh presentation or smart-append photos into an existing one.",
+            )
+            is_append_mode = (save_mode == "Append to existing presentation")
+
             folder_column, name_column = st.columns(2, gap="medium")
             with folder_column:
                 folder_choice, new_folder_raw = render_folder_picker(disabled=not photos_gate_open)
             with name_column:
                 subfolder_cand, _, _ = resolve_subfolder(folder_choice, new_folder_raw)
                 target_dir = os.path.join(LOCAL_BATCH_DIR, subfolder_cand) if subfolder_cand else LOCAL_BATCH_DIR
-                existing_pptx_list = []
-                if os.path.exists(target_dir):
-                    existing_pptx_list = sorted(
-                        [f for f in os.listdir(target_dir) if f.lower().endswith(".pptx")],
-                        key=lambda f: os.path.getmtime(os.path.join(target_dir, f)),
-                        reverse=True,
-                    )
+                os.makedirs(target_dir, exist_ok=True)
 
-                if existing_pptx_list and photos_gate_open:
+                existing_pptx_set = set()
+                if os.path.exists(target_dir):
+                    for f in os.listdir(target_dir):
+                        if f.lower().endswith(".pptx"):
+                            existing_pptx_set.add(f)
+
+                if ENABLE_SHAREPOINT_SYNC:
+                    try:
+                        remote_files = sharepoint_client.list_pptx_files(subfolder_cand)
+                        for rf in remote_files:
+                            existing_pptx_set.add(rf["name"])
+                    except Exception:
+                        pass
+
+                existing_pptx_list = sorted(list(existing_pptx_set), key=str.lower)
+
+                if is_append_mode:
+                    picker_options = ["-- Select presentation --"] + existing_pptx_list
+
                     def _on_append_select():
                         chosen = st.session_state.get("append_presentation_picker")
-                        if chosen and chosen != "-- New presentation --":
+                        if chosen and chosen != "-- Select presentation --":
                             st.session_state.batch_name_input = os.path.splitext(chosen)[0]
 
                     st.selectbox(
-                        "Target existing presentation (optional)",
-                        ["-- New presentation --"] + existing_pptx_list,
+                        "Target existing presentation",
+                        picker_options,
                         key="append_presentation_picker",
                         on_change=_on_append_select,
                         disabled=not photos_gate_open,
-                        help="Choose an existing presentation to smart-append new photos into matching date slides.",
+                        help="Choose an existing presentation from SharePoint or local storage to append to.",
                     )
 
-                batch_name_raw = st.text_input(
-                    "Batch name",
-                    key="batch_name_input",
-                    disabled=not photos_gate_open,
-                    help="This becomes the PowerPoint (.pptx) file name, both here and in SharePoint. "
-                         "If an existing presentation is chosen, new photos will automatically append and merge by date.",
-                )
+                    upl_key = f"existing_pptx_upl_{st.session_state.get('uploader_key', 0)}"
+                    uploaded_existing_pptx = st.file_uploader(
+                        "Or upload existing .pptx from device",
+                        type=["pptx"],
+                        key=upl_key,
+                        disabled=not photos_gate_open,
+                        help="Upload an existing presentation file (e.g. from Downloads) to smart-append new photos into it.",
+                    )
+                    if uploaded_existing_pptx is not None:
+                        save_dest = os.path.join(target_dir, uploaded_existing_pptx.name)
+                        file_bytes = uploaded_existing_pptx.getvalue()
+                        if not os.path.exists(save_dest) or os.path.getsize(save_dest) != len(file_bytes):
+                            with open(save_dest, "wb") as pf:
+                                pf.write(file_bytes)
+                        base_name = os.path.splitext(uploaded_existing_pptx.name)[0]
+                        if st.session_state.get("batch_name_input") != base_name:
+                            st.session_state.batch_name_input = base_name
+
+                    batch_name_raw = st.text_input(
+                        "Presentation name",
+                        key="batch_name_input",
+                        disabled=not photos_gate_open,
+                        help="The PowerPoint presentation name being appended to.",
+                    )
+                else:
+                    batch_name_raw = st.text_input(
+                        "Batch name",
+                        key="batch_name_input",
+                        disabled=not photos_gate_open,
+                        help="This becomes the PowerPoint (.pptx) file name, both here and in SharePoint.",
+                    )
 
                 target_filename = sanitize_batch_filename(batch_name_raw)
-                is_appending = False
-                if target_filename and os.path.exists(os.path.join(target_dir, target_filename)):
-                    is_appending = True
+                is_appending = is_append_mode and bool(target_filename)
+                if not is_appending and target_filename:
+                    if os.path.exists(os.path.join(target_dir, target_filename)) or (target_filename in existing_pptx_set):
+                        is_appending = True
 
                 if is_appending:
                     st.markdown(
                         '<div style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #16a34a; margin-top: 4px; font-weight: 600;">'
-                        '<span>✨</span> <b>Smart Append Mode:</b> Merging into existing presentation by date.'
+                        '<span>&#10024;</span> <b>Smart Append Mode:</b> Merging into existing presentation by date.'
                         '</div>',
                         unsafe_allow_html=True,
                     )
